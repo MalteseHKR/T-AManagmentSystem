@@ -188,34 +188,41 @@ class ApiService {
   }
 
   Future<void> submitLeaveRequest({
-    required int userId,
     required String leaveType,
     required DateTime startDate,
     required DateTime endDate,
     String? reason,
-  }) async {
+}) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/leave'),
-        headers: _headers,
-        body: jsonEncode({
-          'leave_type': leaveType,
-          'start_date': startDate.toIso8601String().split('T')[0],
-          'end_date': endDate.toIso8601String().split('T')[0],
-          if (reason != null) 'reason': reason,
-        }),
-      );
+        print('Submitting leave request with data:');
+        print('Leave Type: $leaveType');
+        print('Start Date: $startDate');
+        print('End Date: $endDate');
+        print('Reason: $reason');
 
-      if (response.statusCode != 200) {
-        final errorBody = jsonDecode(response.body);
-        throw Exception(errorBody['message'] ?? 'Failed to submit leave request');
-      }
-    } on SocketException {
-      throw Exception('Network error: Unable to connect to the server');
+        final response = await http.post(
+            Uri.parse('$baseUrl/leave'),
+            headers: _headers,
+            body: jsonEncode({
+                'leave_type': leaveType,
+                'start_date': startDate.toIso8601String().split('T')[0],
+                'end_date': endDate.toIso8601String().split('T')[0],
+                if (reason != null && reason.isNotEmpty) 'reason': reason,
+            }),
+        );
+
+        print('Leave request response status: ${response.statusCode}');
+        print('Leave request response body: ${response.body}');
+
+        if (response.statusCode != 200) {
+            final errorBody = jsonDecode(response.body);
+            throw Exception(errorBody['message'] ?? 'Failed to submit leave request');
+        }
     } catch (e) {
-      throw Exception('Error submitting leave request: $e');
+        print('Error in submitLeaveRequest: $e');
+        throw Exception('Error submitting leave request: $e');
     }
-  }
+}
 
   Future<List<Map<String, dynamic>>> getLeaveRequests(int userId) async {
     try {

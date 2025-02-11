@@ -24,7 +24,6 @@ class _LeaveScreenState extends State<LeaveScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
   String _selectedLeaveType = 'Annual';
-  String? _reason;
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
   final _reasonController = TextEditingController();
@@ -106,7 +105,6 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
     try {
       await _apiService.submitLeaveRequest(
-        userId: widget.userDetails['id'],
         leaveType: _selectedLeaveType,
         startDate: _rangeStart!,
         endDate: _rangeEnd!,
@@ -150,7 +148,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
     }
   }
 
-  String _formatDate(String date) {
+  String _formatDate(String? date) {
+    if (date == null) return 'N/A';
     try {
       final DateTime dateTime = DateTime.parse(date);
       return DateFormat('MMM dd, yyyy').format(dateTime);
@@ -178,9 +177,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildLeaveBalanceItem('Annual', _leaveBalance['annual']?['remaining'] ?? 0),
-                _buildLeaveBalanceItem('Sick', _leaveBalance['sick']?['remaining'] ?? 0),
-                _buildLeaveBalanceItem('Personal', _leaveBalance['personal']?['remaining'] ?? 0),
+                _buildLeaveBalanceItem('Annual', _leaveBalance['annual']?['remaining']),
+                _buildLeaveBalanceItem('Sick', _leaveBalance['sick']?['remaining']),
+                _buildLeaveBalanceItem('Personal', _leaveBalance['personal']?['remaining']),
               ],
             ),
           ],
@@ -189,14 +188,23 @@ class _LeaveScreenState extends State<LeaveScreen> {
     );
   }
 
-  Widget _buildLeaveBalanceItem(String type, num days) {
+  Widget _buildLeaveBalanceItem(String type, dynamic days) {
+    num balanceDays = 0;
+    if (days != null) {
+      if (days is String) {
+        balanceDays = num.tryParse(days) ?? 0;
+      } else if (days is num) {
+        balanceDays = days;
+      }
+    }
+
     return Column(
       children: [
         CircleAvatar(
           radius: 25,
           backgroundColor: Colors.blue.withOpacity(0.2),
           child: Text(
-            days.toString(),
+            balanceDays.toString(),
             style: const TextStyle(
               color: Colors.blue,
               fontWeight: FontWeight.bold,
@@ -366,11 +374,11 @@ class _LeaveScreenState extends State<LeaveScreen> {
             itemBuilder: (context, index) {
               final request = _leaveRequests[index];
               return ListTile(
-                title: Text(request['leave_type']),
+                title: Text(request['leave_type']?.toString() ?? 'Unknown'),
                 subtitle: Text(
-                  '${_formatDate(request['start_date'])} to ${_formatDate(request['end_date'])}',
+                  '${_formatDate(request['start_date']?.toString())} to ${_formatDate(request['end_date']?.toString())}',
                 ),
-                trailing: _buildStatusChip(request['status']),
+                trailing: _buildStatusChip(request['status']?.toString()),
               );
             },
           ),
@@ -379,9 +387,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
     );
   }
 
-  Widget _buildStatusChip(String status) {
+  Widget _buildStatusChip(String? status) {
     Color chipColor;
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase() ?? 'pending') {
       case 'approved':
         chipColor = Colors.green;
         break;
@@ -397,7 +405,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
     return Chip(
       label: Text(
-        status,
+        status?.toString() ?? 'Pending',
         style: const TextStyle(color: Colors.white),
       ),
       backgroundColor: chipColor,
