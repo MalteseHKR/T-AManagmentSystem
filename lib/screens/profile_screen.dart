@@ -1,6 +1,7 @@
 // lib/screens/profile_screen.dart
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'package:intl/intl.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userDetails;
@@ -13,7 +14,7 @@ class ProfileScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _ProfileScreenState createState() => _ProfileScreenState();
+  State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
@@ -38,13 +39,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _profileData = profile;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading profile: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading profile: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return 'N/A';
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('MMM dd, yyyy').format(date);
+    } catch (e) {
+      return dateStr;
     }
   }
 
@@ -59,12 +72,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () {
               Navigator.pop(context);
               widget.onLogout();
             },
-            style: ElevatedButton.styleFrom(
+            style: FilledButton.styleFrom(
               backgroundColor: Colors.red,
             ),
             child: const Text('Logout'),
@@ -75,6 +88,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader() {
+    if (_profileData == null) return const SizedBox.shrink();
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -84,18 +99,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.blue.shade100,
-              child: Text(
-                _getInitials(_profileData!['full_name']),
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
+            if (_profileData!['profile_photo'] != null)
+              CircleAvatar(
+                radius: 50,
+                backgroundImage: NetworkImage(
+                  'http://195.158.75.66:3000${_profileData!['profile_photo']}',
+                ),
+                onBackgroundImageError: (exception, stackTrace) {
+                  // Fallback to initials if image fails to load
+                },
+                child: _profileData!['profile_photo'] == null
+                    ? Text(
+                        _getInitials(_profileData!['full_name']),
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      )
+                    : null,
+              )
+            else
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.blue.shade100,
+                child: Text(
+                  _getInitials(_profileData!['full_name']),
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 16),
             Text(
               _profileData!['full_name'],
@@ -118,7 +154,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileDetails() {
+  Widget _buildPersonalInfo() {
+    if (_profileData == null) return const SizedBox.shrink();
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -138,12 +176,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: const Text('Employee ID'),
-            subtitle: Text(_profileData!['employee_id'] ?? 'N/A'),
-          ),
-          const Divider(),
-          ListTile(
             leading: const Icon(Icons.phone),
             title: const Text('Phone'),
             subtitle: Text(_profileData!['phone'] ?? 'N/A'),
@@ -160,6 +192,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildWorkInfo() {
+    if (_profileData == null) return const SizedBox.shrink();
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -193,7 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ListTile(
             leading: const Icon(Icons.calendar_today),
             title: const Text('Join Date'),
-            subtitle: Text(_profileData!['join_date'] ?? 'N/A'),
+            subtitle: Text(_formatDate(_profileData!['join_date'])),
           ),
         ],
       ),
@@ -242,12 +276,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               : RefreshIndicator(
                   onRefresh: _loadProfile,
                   child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
                         _buildProfileHeader(),
                         const SizedBox(height: 24),
-                        _buildProfileDetails(),
+                        _buildPersonalInfo(),
                         const SizedBox(height: 24),
                         _buildWorkInfo(),
                       ],

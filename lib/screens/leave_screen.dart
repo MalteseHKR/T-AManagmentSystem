@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../services/api_service.dart';
+import 'package:intl/intl.dart';
 
 class LeaveScreen extends StatefulWidget {
   final Map<String, dynamic> userDetails;
@@ -12,7 +13,7 @@ class LeaveScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _LeaveScreenState createState() => _LeaveScreenState();
+  State<LeaveScreen> createState() => _LeaveScreenState();
 }
 
 class _LeaveScreenState extends State<LeaveScreen> {
@@ -23,14 +24,22 @@ class _LeaveScreenState extends State<LeaveScreen> {
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
   String _selectedLeaveType = 'Annual';
+  String? _reason;
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
+  final _reasonController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadLeaveBalance();
     _loadLeaveRequests();
+  }
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadLeaveBalance() async {
@@ -40,30 +49,46 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
     try {
       final balance = await _apiService.getLeaveBalance(widget.userDetails['id']);
-      setState(() {
-        _leaveBalance = balance;
-      });
+      if (mounted) {
+        setState(() {
+          _leaveBalance = balance;
+        });
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading leave balance: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading leave balance: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _loadLeaveRequests() async {
     try {
       final requests = await _apiService.getLeaveRequests(widget.userDetails['id']);
-      setState(() {
-        _leaveRequests = requests;
-      });
+      if (mounted) {
+        setState(() {
+          _leaveRequests = requests;
+        });
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading leave requests: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading leave requests: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -85,61 +110,61 @@ class _LeaveScreenState extends State<LeaveScreen> {
         leaveType: _selectedLeaveType,
         startDate: _rangeStart!,
         endDate: _rangeEnd!,
+        reason: _reasonController.text.trim(),
       );
 
-      // Refresh data
-      await _loadLeaveBalance();
-      await _loadLeaveRequests();
+      if (mounted) {
+        // Refresh data
+        await _loadLeaveBalance();
+        await _loadLeaveRequests();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Leave request submitted successfully')),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Leave request submitted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Reset form
+        setState(() {
+          _rangeStart = null;
+          _rangeEnd = null;
+          _reasonController.clear();
+        });
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting leave request: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting leave request: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leave Management'),
-        elevation: 0,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: () async {
-                await _loadLeaveBalance();
-                await _loadLeaveRequests();
-              },
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildLeaveBalanceCard(),
-                    const SizedBox(height: 16),
-                    _buildCalendarCard(),
-                    const SizedBox(height: 16),
-                    _buildRequestButton(),
-                    const SizedBox(height: 16),
-                    _buildLeaveRequestHistory(),
-                  ],
-                ),
-              ),
-            ),
-    );
+  String _formatDate(String date) {
+    try {
+      final DateTime dateTime = DateTime.parse(date);
+      return DateFormat('MMM dd, yyyy').format(dateTime);
+    } catch (e) {
+      return date;
+    }
   }
 
   Widget _buildLeaveBalanceCard() {
     return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -153,9 +178,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildLeaveBalanceItem('Annual', _leaveBalance['annual'] ?? 0),
-                _buildLeaveBalanceItem('Sick', _leaveBalance['sick'] ?? 0),
-                _buildLeaveBalanceItem('Personal', _leaveBalance['personal'] ?? 0),
+                _buildLeaveBalanceItem('Annual', _leaveBalance['annual']?['remaining'] ?? 0),
+                _buildLeaveBalanceItem('Sick', _leaveBalance['sick']?['remaining'] ?? 0),
+                _buildLeaveBalanceItem('Personal', _leaveBalance['personal']?['remaining'] ?? 0),
               ],
             ),
           ],
@@ -164,7 +189,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
     );
   }
 
-  Widget _buildLeaveBalanceItem(String type, int days) {
+  Widget _buildLeaveBalanceItem(String type, num days) {
     return Column(
       children: [
         CircleAvatar(
@@ -180,13 +205,20 @@ class _LeaveScreenState extends State<LeaveScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        Text(type),
+        Text(
+          type,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
       ],
     );
   }
 
   Widget _buildCalendarCard() {
     return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: TableCalendar(
         firstDay: DateTime.now(),
         lastDay: DateTime.now().add(const Duration(days: 365)),
@@ -194,6 +226,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
         selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
         rangeStartDay: _rangeStart,
         rangeEndDay: _rangeEnd,
+        calendarFormat: CalendarFormat.month,
+        rangeSelectionMode: RangeSelectionMode.enforced,
         onDaySelected: (selectedDay, focusedDay) {
           setState(() {
             _selectedDay = selectedDay;
@@ -226,16 +260,63 @@ class _LeaveScreenState extends State<LeaveScreen> {
             shape: BoxShape.circle,
           ),
         ),
+        headerStyle: const HeaderStyle(
+          formatButtonVisible: false,
+        ),
       ),
     );
   }
 
-  Widget _buildRequestButton() {
-    return ElevatedButton(
-      onPressed: _isLoading ? null : _showLeaveRequestDialog,
-      child: const Text('Request Leave'),
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+  void _showLeaveRequestDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Request Leave'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<String>(
+              value: _selectedLeaveType,
+              items: ['Annual', 'Sick', 'Personal']
+                  .map((type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(type),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                setState(() => _selectedLeaveType = value!);
+              },
+              decoration: const InputDecoration(labelText: 'Leave Type'),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Selected Range: ${_rangeStart != null ? _formatDate(_rangeStart.toString()) : 'Start Date'} - ${_rangeEnd != null ? _formatDate(_rangeEnd.toString()) : 'End Date'}',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _submitLeaveRequest();
+            },
+            child: const Text('Submit'),
+          ),
+        ],
       ),
     );
   }
@@ -243,6 +324,10 @@ class _LeaveScreenState extends State<LeaveScreen> {
   Widget _buildLeaveRequestHistory() {
     if (_leaveRequests.isEmpty) {
       return Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Center(
@@ -256,11 +341,15 @@ class _LeaveScreenState extends State<LeaveScreen> {
     }
 
     return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
+          const Padding(
+            padding: EdgeInsets.all(16),
             child: Text(
               'Leave Request History',
               style: TextStyle(
@@ -271,15 +360,15 @@ class _LeaveScreenState extends State<LeaveScreen> {
           ),
           ListView.separated(
             shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: _leaveRequests.length,
-            separatorBuilder: (context, index) => Divider(),
+            separatorBuilder: (context, index) => const Divider(),
             itemBuilder: (context, index) {
               final request = _leaveRequests[index];
               return ListTile(
                 title: Text(request['leave_type']),
                 subtitle: Text(
-                  '${request['start_date']} to ${request['end_date']}',
+                  '${_formatDate(request['start_date'])} to ${_formatDate(request['end_date'])}',
                 ),
                 trailing: _buildStatusChip(request['status']),
               );
@@ -309,59 +398,49 @@ class _LeaveScreenState extends State<LeaveScreen> {
     return Chip(
       label: Text(
         status,
-        style: TextStyle(color: Colors.white),
+        style: const TextStyle(color: Colors.white),
       ),
       backgroundColor: chipColor,
     );
   }
 
-  void _showLeaveRequestDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Request Leave'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              value: _selectedLeaveType,
-              items: ['Annual', 'Sick', 'Personal']
-                  .map((type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() => _selectedLeaveType = value!);
-              },
-              decoration: const InputDecoration(labelText: 'Leave Type'),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Selected Range: ${_rangeStart?.toString().split(' ')[0] ?? 'Start Date'} - ${_rangeEnd?.toString().split(' ')[0] ?? 'End Date'}',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_rangeStart != null && _rangeEnd != null) {
-                Navigator.pop(context);
-                await _submitLeaveRequest();
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please select date range')),
-                );
-              }
-            },
-            child: const Text('Submit'),
-          ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Leave Management'),
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () async {
+                await _loadLeaveBalance();
+                await _loadLeaveRequests();
+              },
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildLeaveBalanceCard(),
+                    const SizedBox(height: 16),
+                    _buildCalendarCard(),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _showLeaveRequestDialog,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Request Leave'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildLeaveRequestHistory(),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }
