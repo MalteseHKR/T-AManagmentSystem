@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'screens/login_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/leave_screen.dart';
 import 'screens/profile_screen.dart';
@@ -7,10 +8,8 @@ import 'screens/profile_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Get all available cameras
   final cameras = await availableCameras();
   
-  // Try to find front camera, fallback to first available camera
   final frontCamera = cameras.isEmpty 
       ? null 
       : cameras.firstWhere(
@@ -34,26 +33,31 @@ class TimeAttendanceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'WorkTrack Pro',
+      title: 'Garrison App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: Colors.grey[100],
       ),
-      home: HomePage(camera: camera),
+      home: LoginScreen(camera: camera),
     );
   }
 }
 
-class HomePage extends StatefulWidget {
+class MainScreen extends StatefulWidget {
   final CameraDescription camera;
+  final Map<String, dynamic> userDetails;
 
-  const HomePage({Key? key, required this.camera}) : super(key: key);
+  const MainScreen({
+    Key? key, 
+    required this.camera,
+    required this.userDetails,
+  }) : super(key: key);
 
   @override
-  _HomePageState createState() => _HomePageState();
+  _MainScreenState createState() => _MainScreenState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   @override
@@ -62,9 +66,22 @@ class _HomePageState extends State<HomePage> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          AttendanceScreen(camera: widget.camera),
-          LeaveScreen(),
-          ProfileScreen(),
+          AttendanceScreen(
+            camera: widget.camera,
+            userDetails: widget.userDetails,
+          ),
+          LeaveScreen(userDetails: widget.userDetails),
+          ProfileScreen(
+            userDetails: widget.userDetails,
+            onLogout: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LoginScreen(camera: widget.camera),
+                ),
+              );
+            },
+          ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(

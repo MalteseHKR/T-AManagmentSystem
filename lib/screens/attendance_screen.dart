@@ -1,14 +1,19 @@
+// lib/screens/attendance_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:image_cropper/image_cropper.dart';
+import '../services/api_service.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final CameraDescription camera;
+  final Map<String, dynamic> userDetails;
 
-  const AttendanceScreen({Key? key, required this.camera}) : super(key: key);
+  const AttendanceScreen({
+    Key? key,
+    required this.camera,
+    required this.userDetails,
+  }) : super(key: key);
 
   @override
   _AttendanceScreenState createState() => _AttendanceScreenState();
@@ -20,14 +25,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Position? _currentPosition;
   File? _capturedImage;
   bool _isPunchedIn = false;
-  bool _isCameraInitialized = false;
+  bool _isLoading = false;
   bool _showCamera = true;
+  final _apiService = ApiService();
+  String? _lastPunchDate;
+  String? _lastPunchTime;
 
   @override
   void initState() {
     super.initState();
     _initializeCamera();
-    _checkPermissions();
+    _checkAttendanceStatus();
   }
 
   Future<void> _initializeCamera() async {
@@ -40,11 +48,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     try {
       _initializeCameraFuture = _cameraController.initialize();
       await _initializeCameraFuture;
-      if (mounted) {
-        setState(() {
-          _isCameraInitialized = true;
-        });
-      }
+      if (mounted) setState(() {});
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -60,9 +64,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     super.dispose();
   }
 
-  Future<void> _checkPermissions() async {
-    await Permission.camera.request();
-    await Permission.location.request();
+  Future<void> _checkAttendanceStatus() async {
+    try {
+      final status = await _apiService.getAttendanceStatus(widget.userDetails['id']);
+      setState(() {
+        _isPunchedIn = status['is_punched_in'];
+        if (status['last_punch'] != null) {
+          _lastPunchDate = status['last_punch']['date'];
+          _lastPunchTime = status['last_punch']['time'];
+        }
+      });
+    } catch (e) {
+      print('Error checking attendance status: $e');
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -85,48 +99,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       }
     }
 
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-    setState(() {
-      _currentPosition = position;
-    });
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      setState(() {
+        _currentPosition = position;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error getting location: $e')),
+      );
+    }
   }
 
   Future<void> _takePhoto() async {
     try {
-      await _initializeCameraFuture;
       final XFile photo = await _cameraController.takePicture();
-      
-      final croppedFile = await ImageCropper().cropImage(
-        sourcePath: photo.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-        compressQuality: 100,
-        maxWidth: 1000,
-        maxHeight: 1000,
-        cropStyle: CropStyle.rectangle,
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: 'Crop Photo',
-            toolbarColor: Colors.blue,
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.square,
-            lockAspectRatio: true,
-          ),
-          IOSUiSettings(
-            title: 'Crop Photo',
-            aspectRatioLockEnabled: true,
-            resetAspectRatioEnabled: false,
-          ),
-        ],
-      );
-
-      if (croppedFile != null) {
-        setState(() {
-          _capturedImage = File(croppedFile.path);
-          _showCamera = false;
-        });
-      }
+      setState(() {
+        _capturedImage = File(photo.path);
+        _showCamera = false;
+      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to take photo: $e')),
@@ -138,35 +131,51 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     setState(() {
       _capturedImage = null;
       _showCamera = true;
-      _initializeCamera();
     });
   }
 
-  void _punchInOut() async {
-    if (_currentPosition == null) {
+  Future<void> _punchInOut() async {
+    if (_currentPosition == null || _capturedImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enable location services.')),
-      );
-      return;
-    }
-
-    if (_capturedImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please take a photo.')),
+        const SnackBar(content: Text('Please take photo and enable location')),
       );
       return;
     }
 
     setState(() {
-      _isPunchedIn = !_isPunchedIn;
+      _isLoading = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isPunchedIn ? 'Punched In Successfully' : 'Punched Out Successfully'),
-        backgroundColor: _isPunchedIn ? Colors.green : Colors.red,
-      ),
-    );
+    try {
+      final response = await _apiService.recordAttendance(
+        userId: widget.userDetails['id'],
+        punchType: _isPunchedIn ? 'OUT' : 'IN',
+        photoFile: _capturedImage!,
+        latitude: _currentPosition!.latitude,
+        longitude: _currentPosition!.longitude,
+      );
+
+      setState(() {
+        _isPunchedIn = !_isPunchedIn;
+        _lastPunchDate = response['punch_date'];
+        _lastPunchTime = response['punch_time'];
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_isPunchedIn ? 'Punched In' : 'Punched Out'} at $_lastPunchTime'),
+          backgroundColor: _isPunchedIn ? Colors.green : Colors.red,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -176,147 +185,183 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         title: const Text('Attendance'),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_showCamera) ...[
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Container(
-                        height: 250,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: FutureBuilder<void>(
-                            future: _initializeCameraFuture,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.done && _isCameraInitialized) {
-                                return CameraPreview(_cameraController);
-                              } else {
-                                return const Center(
-                                  child: CircularProgressIndicator(),
-                                );
-                              }
-                            },
-                          ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_showCamera) ...[
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Container(
+                              height: 250,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: FutureBuilder<void>(
+                                  future: _initializeCameraFuture,
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState == ConnectionState.done) {
+                                      return CameraPreview(_cameraController);
+                                    } else {
+                                      return const Center(child: CircularProgressIndicator());
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: _takePhoto,
+                              icon: const Icon(Icons.camera_alt),
+                              label: const Text('Take Photo'),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _isCameraInitialized ? _takePhoto : null,
-                        icon: const Icon(Icons.camera_alt),
-                        label: const Text('Take Photo'),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(50),
-                        ),
+                    ),
+                  ],
+                  if (_capturedImage != null) ...[
+                    const SizedBox(height: 16),
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            if (_capturedImage != null) ...[
-              const SizedBox(height: 16),
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
                         children: [
-                          const Text(
-                            'Preview',
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Preview',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.refresh),
+                                  onPressed: _retakePhoto,
+                                  tooltip: 'Retake Photo',
+                                ),
+                              ],
+                            ),
+                          ),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              _capturedImage!,
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Location',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          if (_currentPosition != null)
+                            Text(
+                              'Lat: ${_currentPosition!.latitude.toStringAsFixed(4)}\nLong: ${_currentPosition!.longitude.toStringAsFixed(4)}',
+                            ),
+                          const SizedBox(height: 16),
                           ElevatedButton.icon(
-                            onPressed: _retakePhoto,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retake'),
+                            onPressed: _getCurrentLocation,
+                            icon: const Icon(Icons.location_on),
+                            label: const Text('Update Location'),
                             style: ElevatedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              backgroundColor: Colors.blue,
+                              minimumSize: const Size.fromHeight(50),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          _capturedImage!,
-                          height: 350,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
+                  ),
+                  if (_lastPunchDate != null && _lastPunchTime != null) ...[
+                    const SizedBox(height: 16),
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Last Punch Details',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Date: $_lastPunchDate'),
+                            Text('Time: $_lastPunchTime'),
+                            Text(
+                              'Status: ${_isPunchedIn ? 'Punched In' : 'Punched Out'}',
+                              style: TextStyle(
+                                color: _isPunchedIn ? Colors.green : Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    if (_currentPosition != null)
-                      Text(
-                        'Location: ${_currentPosition!.latitude.toStringAsFixed(4)}, '
-                        '${_currentPosition!.longitude.toStringAsFixed(4)}',
-                      ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _getCurrentLocation,
-                      icon: const Icon(Icons.location_on),
-                      label: const Text('Update Location'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
-                      ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _punchInOut,
+                    icon: Icon(_isPunchedIn ? Icons.logout : Icons.login),
+                    label: Text(_isPunchedIn ? 'Punch Out' : 'Punch In'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      backgroundColor: _isPunchedIn ? Colors.red : Colors.green,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _punchInOut,
-              icon: Icon(_isPunchedIn ? Icons.logout : Icons.login),
-              label: Text(_isPunchedIn ? 'Punch Out' : 'Punch In'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50),
-                backgroundColor: _isPunchedIn ? Colors.red : Colors.green,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

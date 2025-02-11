@@ -1,27 +1,108 @@
+// lib/screens/leave_screen.dart
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import '../services/api_service.dart';
 
 class LeaveScreen extends StatefulWidget {
-  const LeaveScreen({Key? key}) : super(key: key);
+  final Map<String, dynamic> userDetails;
+
+  const LeaveScreen({
+    Key? key,
+    required this.userDetails,
+  }) : super(key: key);
 
   @override
-  State<LeaveScreen> createState() => _LeaveScreenState();
+  _LeaveScreenState createState() => _LeaveScreenState();
 }
 
 class _LeaveScreenState extends State<LeaveScreen> {
-  late CalendarFormat _calendarFormat;
+  final _apiService = ApiService();
+  Map<String, dynamic> _leaveBalance = {};
+  List<Map<String, dynamic>> _leaveRequests = [];
+  bool _isLoading = false;
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
-  List<Map<String, dynamic>> _leaveRequests = [];
   String _selectedLeaveType = 'Annual';
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
-  RangeSelectionMode _rangeSelectionMode = RangeSelectionMode.toggledOn;
 
   @override
   void initState() {
     super.initState();
-    _calendarFormat = CalendarFormat.month;
+    _loadLeaveBalance();
+    _loadLeaveRequests();
+  }
+
+  Future<void> _loadLeaveBalance() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final balance = await _apiService.getLeaveBalance(widget.userDetails['id']);
+      setState(() {
+        _leaveBalance = balance;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading leave balance: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadLeaveRequests() async {
+    try {
+      final requests = await _apiService.getLeaveRequests(widget.userDetails['id']);
+      setState(() {
+        _leaveRequests = requests;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading leave requests: $e')),
+      );
+    }
+  }
+
+  Future<void> _submitLeaveRequest() async {
+    if (_rangeStart == null || _rangeEnd == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select date range')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _apiService.submitLeaveRequest(
+        userId: widget.userDetails['id'],
+        leaveType: _selectedLeaveType,
+        startDate: _rangeStart!,
+        endDate: _rangeEnd!,
+      );
+
+      // Refresh data
+      await _loadLeaveBalance();
+      await _loadLeaveRequests();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Leave request submitted successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error submitting leave request: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -31,21 +112,29 @@ class _LeaveScreenState extends State<LeaveScreen> {
         title: const Text('Leave Management'),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildLeaveBalanceCard(),
-            const SizedBox(height: 16),
-            _buildCalendarCard(),
-            const SizedBox(height: 16),
-            _buildRequestButton(),
-            const SizedBox(height: 16),
-            _buildLeaveRequestsList(),
-          ],
-        ),
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () async {
+                await _loadLeaveBalance();
+                await _loadLeaveRequests();
+              },
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildLeaveBalanceCard(),
+                    const SizedBox(height: 16),
+                    _buildCalendarCard(),
+                    const SizedBox(height: 16),
+                    _buildRequestButton(),
+                    const SizedBox(height: 16),
+                    _buildLeaveRequestHistory(),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
@@ -64,9 +153,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildLeaveBalance('Annual', 15, Colors.blue),
-                _buildLeaveBalance('Sick', 7, Colors.red),
-                _buildLeaveBalance('Personal', 3, Colors.green),
+                _buildLeaveBalanceItem('Annual', _leaveBalance['annual'] ?? 0),
+                _buildLeaveBalanceItem('Sick', _leaveBalance['sick'] ?? 0),
+                _buildLeaveBalanceItem('Personal', _leaveBalance['personal'] ?? 0),
               ],
             ),
           ],
@@ -75,16 +164,16 @@ class _LeaveScreenState extends State<LeaveScreen> {
     );
   }
 
-  Widget _buildLeaveBalance(String type, int days, Color color) {
+  Widget _buildLeaveBalanceItem(String type, int days) {
     return Column(
       children: [
         CircleAvatar(
           radius: 25,
-          backgroundColor: color.withOpacity(0.2),
+          backgroundColor: Colors.blue.withOpacity(0.2),
           child: Text(
             days.toString(),
-            style: TextStyle(
-              color: color,
+            style: const TextStyle(
+              color: Colors.blue,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -98,65 +187,43 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
   Widget _buildCalendarCard() {
     return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: TableCalendar(
-          firstDay: DateTime.now().subtract(const Duration(days: 365)),
-          lastDay: DateTime.now().add(const Duration(days: 365)),
-          focusedDay: _focusedDay,
-          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-          rangeStartDay: _rangeStart,
-          rangeEndDay: _rangeEnd,
-          calendarFormat: _calendarFormat,
-          rangeSelectionMode: _rangeSelectionMode,
-          onDaySelected: (selectedDay, focusedDay) {
-            setState(() {
-              _selectedDay = selectedDay;
-              _focusedDay = focusedDay;
-              _rangeStart = null;
-              _rangeEnd = null;
-              _rangeSelectionMode = RangeSelectionMode.toggledOff;
-            });
-          },
-          onRangeSelected: (start, end, focusedDay) {
-            setState(() {
-              _selectedDay = focusedDay;
-              _focusedDay = focusedDay;
-              _rangeStart = start;
-              _rangeEnd = end;
-              _rangeSelectionMode = RangeSelectionMode.toggledOn;
-            });
-          },
-          onFormatChanged: (format) {
-            if (_calendarFormat != format) {
-              setState(() {
-                _calendarFormat = format;
-              });
-            }
-          },
-          calendarStyle: CalendarStyle(
-            rangeHighlightColor: Colors.blue.withOpacity(0.2),
-            rangeStartDecoration: const BoxDecoration(
-              color: Colors.blue,
-              shape: BoxShape.circle,
-            ),
-            rangeEndDecoration: const BoxDecoration(
-              color: Colors.blue,
-              shape: BoxShape.circle,
-            ),
-            todayDecoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.5),
-              shape: BoxShape.circle,
-            ),
-            selectedDecoration: const BoxDecoration(
-              color: Colors.blue,
-              shape: BoxShape.circle,
-            ),
+      child: TableCalendar(
+        firstDay: DateTime.now(),
+        lastDay: DateTime.now().add(const Duration(days: 365)),
+        focusedDay: _focusedDay,
+        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+        rangeStartDay: _rangeStart,
+        rangeEndDay: _rangeEnd,
+        onDaySelected: (selectedDay, focusedDay) {
+          setState(() {
+            _selectedDay = selectedDay;
+            _focusedDay = focusedDay;
+          });
+        },
+        onRangeSelected: (start, end, focusedDay) {
+          setState(() {
+            _rangeStart = start;
+            _rangeEnd = end;
+            _focusedDay = focusedDay;
+          });
+        },
+        calendarStyle: CalendarStyle(
+          rangeHighlightColor: Colors.blue.withOpacity(0.2),
+          rangeStartDecoration: const BoxDecoration(
+            color: Colors.blue,
+            shape: BoxShape.circle,
           ),
-          headerStyle: const HeaderStyle(
-            formatButtonVisible: true,
-            titleCentered: true,
+          rangeEndDecoration: const BoxDecoration(
+            color: Colors.blue,
+            shape: BoxShape.circle,
+          ),
+          todayDecoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.5),
+            shape: BoxShape.circle,
+          ),
+          selectedDecoration: const BoxDecoration(
+            color: Colors.blue,
+            shape: BoxShape.circle,
           ),
         ),
       ),
@@ -164,22 +231,26 @@ class _LeaveScreenState extends State<LeaveScreen> {
   }
 
   Widget _buildRequestButton() {
-    return ElevatedButton.icon(
-      onPressed: () => _showLeaveRequestDialog(),
-      icon: const Icon(Icons.add),
-      label: const Text('Request Leave'),
+    return ElevatedButton(
+      onPressed: _isLoading ? null : _showLeaveRequestDialog,
+      child: const Text('Request Leave'),
       style: ElevatedButton.styleFrom(
-        minimumSize: const Size.fromHeight(50),
+        padding: const EdgeInsets.symmetric(vertical: 16),
       ),
     );
   }
 
-  Widget _buildLeaveRequestsList() {
+  Widget _buildLeaveRequestHistory() {
     if (_leaveRequests.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('No leave requests yet'),
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: Text(
+              'No leave requests',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ),
         ),
       );
     }
@@ -188,31 +259,59 @@ class _LeaveScreenState extends State<LeaveScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
-              'Recent Requests',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'Leave Request History',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-          ListView.builder(
+          ListView.separated(
             shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+            physics: NeverScrollableScrollPhysics(),
             itemCount: _leaveRequests.length,
+            separatorBuilder: (context, index) => Divider(),
             itemBuilder: (context, index) {
               final request = _leaveRequests[index];
               return ListTile(
-                title: Text(request['type']),
-                subtitle: Text('${request['startDate']} - ${request['endDate']}'),
-                trailing: Chip(
-                  label: Text(request['status']),
-                  backgroundColor: _getStatusColor(request['status']),
+                title: Text(request['leave_type']),
+                subtitle: Text(
+                  '${request['start_date']} to ${request['end_date']}',
                 ),
+                trailing: _buildStatusChip(request['status']),
               );
             },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatusChip(String status) {
+    Color chipColor;
+    switch (status.toLowerCase()) {
+      case 'approved':
+        chipColor = Colors.green;
+        break;
+      case 'pending':
+        chipColor = Colors.orange;
+        break;
+      case 'rejected':
+        chipColor = Colors.red;
+        break;
+      default:
+        chipColor = Colors.grey;
+    }
+
+    return Chip(
+      label: Text(
+        status,
+        style: TextStyle(color: Colors.white),
+      ),
+      backgroundColor: chipColor,
     );
   }
 
@@ -238,30 +337,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
               decoration: const InputDecoration(labelText: 'Leave Type'),
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Start Date',
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
-              readOnly: true,
-              controller: TextEditingController(
-                text: _rangeStart != null 
-                    ? '${_rangeStart!.year}-${_rangeStart!.month}-${_rangeStart!.day}'
-                    : '',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'End Date',
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
-              readOnly: true,
-              controller: TextEditingController(
-                text: _rangeEnd != null 
-                    ? '${_rangeEnd!.year}-${_rangeEnd!.month}-${_rangeEnd!.day}'
-                    : '',
-              ),
+            Text(
+              'Selected Range: ${_rangeStart?.toString().split(' ')[0] ?? 'Start Date'} - ${_rangeEnd?.toString().split(' ')[0] ?? 'End Date'}',
             ),
           ],
         ),
@@ -271,20 +348,13 @@ class _LeaveScreenState extends State<LeaveScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (_rangeStart != null && _rangeEnd != null) {
-                setState(() {
-                  _leaveRequests.add({
-                    'type': _selectedLeaveType,
-                    'startDate': '${_rangeStart!.year}-${_rangeStart!.month}-${_rangeStart!.day}',
-                    'endDate': '${_rangeEnd!.year}-${_rangeEnd!.month}-${_rangeEnd!.day}',
-                    'status': 'Pending',
-                  });
-                });
                 Navigator.pop(context);
+                await _submitLeaveRequest();
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please select date range from calendar')),
+                  const SnackBar(content: Text('Please select date range')),
                 );
               }
             },
@@ -293,18 +363,5 @@ class _LeaveScreenState extends State<LeaveScreen> {
         ],
       ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
   }
 }
