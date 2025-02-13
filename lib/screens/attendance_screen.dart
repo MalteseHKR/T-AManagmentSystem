@@ -233,14 +233,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     const SizedBox(height: 16),
                     _buildPreviewCard(),
                   ],
+                  const SizedBox(height: 24),
+                  _buildPunchButton(),
                   const SizedBox(height: 16),
                   _buildLocationCard(),
                   if (_lastPunchDate != null && _lastPunchTime != null) ...[
                     const SizedBox(height: 16),
                     _buildLastPunchCard(),
                   ],
-                  const SizedBox(height: 24),
-                  _buildPunchButton(),
                 ],
               ),
             ),
@@ -335,6 +335,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
+  Widget _buildPunchButton() {
+    return ElevatedButton.icon(
+      onPressed: _isLoading ? null : _punchInOut,
+      icon: Icon(_isPunchedIn ? Icons.logout : Icons.login),
+      label: Text(_isPunchedIn ? 'Punch Out' : 'Punch In'),
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size.fromHeight(50),
+        backgroundColor: _isPunchedIn ? Colors.red : Colors.green,
+        foregroundColor: Colors.white,
+      ),
+    );
+  }
+
   Widget _buildLocationCard() {
     return Card(
       elevation: 4,
@@ -401,42 +414,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (_lastPhotoUrl != null) ...[
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  'http://195.158.75.66:3000${_lastPhotoUrl}',
-                  height: 100,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 100,
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(Icons.error_outline),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPunchButton() {
-    return ElevatedButton.icon(
-      onPressed: _isLoading ? null : _punchInOut,
-      icon: Icon(_isPunchedIn ? Icons.logout : Icons.login),
-      label: Text(_isPunchedIn ? 'Punch Out' : 'Punch In'),
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size.fromHeight(50),
-        backgroundColor: _isPunchedIn ? Colors.red : Colors.green,
-        foregroundColor: Colors.white,
       ),
     );
   }
