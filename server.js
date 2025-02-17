@@ -369,6 +369,44 @@ app.get('/api/attendance-history/:userId', async (req, res) => {
     }
 });
 
+
+// Medical certificate upload configuration
+const certificateStorage = multer.diskStorage({
+  destination: './uploads/certificates',
+  filename: function(req, file, cb) {
+    cb(null, 'CERT_' + Date.now() + path.extname(file.originalname));
+  }
+});
+
+const certificateUpload = multer({
+  storage: certificateStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type'));
+    }
+  }
+});
+
+app.post('/api/upload-medical-certificate', 
+  authenticateToken, 
+  certificateUpload.single('certificate'),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    res.json({ 
+      fileUrl: `/uploads/certificates/${req.file.filename}`
+    });
+  }
+);
+
+
 // User profile route
 app.get('/api/user/:userId', authenticateToken, async (req, res) => {
     try {

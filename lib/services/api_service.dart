@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -105,6 +106,40 @@ class ApiService {
     }
   }
 
+  // Medical Certificate Upload
+  Future<String?> uploadMedicalCertificate(File file) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/upload-medical-certificate'),
+      );
+      
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'certificate',
+          file.path,
+        ),
+      );
+      
+      request.headers['Authorization'] = 'Bearer $_token';
+      
+      final response = await request.send();
+      if (response.statusCode == 200) {
+        final responseData = await response.stream.bytesToString();
+        final jsonData = json.decode(responseData);
+        return jsonData['fileUrl'];
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error uploading medical certificate: $e');
+      return null;
+    }
+  }
+
   // Get Attendance Status
   Future<Map<String, dynamic>> getAttendanceStatus(int userId) async {
     try {
@@ -166,82 +201,76 @@ class ApiService {
     }
   }
 
-  // Leave Management APIs
-  Future<Map<String, dynamic>> getLeaveBalance(int userId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/leave-balance/$userId'),
-        headers: _headers,
-      );
+  // Get Leave Balance
+  Future<Map<String, dynamic>> getLeaveBalance(String userId) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final errorBody = jsonDecode(response.body);
-        throw Exception(errorBody['message'] ?? 'Failed to get leave balance');
-      }
-    } on SocketException {
-      throw Exception('Network error: Unable to connect to the server');
-    } catch (e) {
-      throw Exception('Error getting leave balance: $e');
+    final response = await http.get(
+      Uri.parse('$baseUrl/leave-balance/$userId'),
+      headers: {
+        'Authorization': 'Bearer $_token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load leave balance');
     }
   }
 
+  // Submit Leave Request
   Future<void> submitLeaveRequest({
     required String leaveType,
     required DateTime startDate,
     required DateTime endDate,
-    String? reason,
-}) async {
-    try {
-        print('Submitting leave request with data:');
-        print('Leave Type: $leaveType');
-        print('Start Date: $startDate');
-        print('End Date: $endDate');
-        print('Reason: $reason');
-
-        final response = await http.post(
-            Uri.parse('$baseUrl/leave'),
-            headers: _headers,
-            body: jsonEncode({
-                'leave_type': leaveType,
-                'start_date': startDate.toIso8601String().split('T')[0],
-                'end_date': endDate.toIso8601String().split('T')[0],
-                if (reason != null && reason.isNotEmpty) 'reason': reason,
-            }),
-        );
-
-        print('Leave request response status: ${response.statusCode}');
-        print('Leave request response body: ${response.body}');
-
-        if (response.statusCode != 200) {
-            final errorBody = jsonDecode(response.body);
-            throw Exception(errorBody['message'] ?? 'Failed to submit leave request');
-        }
-    } catch (e) {
-        print('Error in submitLeaveRequest: $e');
-        throw Exception('Error submitting leave request: $e');
+    required String reason,
+    String? certificateUrl,
+  }) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
     }
-}
 
-  Future<List<Map<String, dynamic>>> getLeaveRequests(int userId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/leave-requests/$userId'),
-        headers: _headers,
-      );
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/leave'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_token',
+      },
+      body: jsonEncode({
+        'leave_type': leaveType,
+        'start_date': startDate.toIso8601String(),
+        'end_date': endDate.toIso8601String(),
+        'reason': reason,
+        'medical_certificate_url': certificateUrl,
+      }),
+    );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.cast<Map<String, dynamic>>();
-      } else {
-        final errorBody = jsonDecode(response.body);
-        throw Exception(errorBody['message'] ?? 'Failed to get leave requests');
-      }
-    } on SocketException {
-      throw Exception('Network error: Unable to connect to the server');
-    } catch (e) {
-      throw Exception('Error getting leave requests: $e');
+    if (response.statusCode != 200) {
+      throw Exception('Failed to submit leave request');
+    }
+  }
+
+  // Get Leave Requests
+  Future<List<Map<String, dynamic>>> getLeaveRequests(String userId) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/leave-requests/$userId'),
+      headers: {
+        'Authorization': 'Bearer $_token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to load leave requests');
     }
   }
 }

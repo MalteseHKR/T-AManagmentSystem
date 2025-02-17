@@ -1,8 +1,9 @@
-// lib/screens/leave_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import '../services/api_service.dart';
 import 'package:intl/intl.dart';
+import '../services/api_service.dart';
+import '../widgets/medical_certificate_uploader.dart';
 
 class LeaveScreen extends StatefulWidget {
   final Map<String, dynamic> userDetails;
@@ -27,6 +28,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
   final _reasonController = TextEditingController();
+  File? _medicalCertificate;
 
   @override
   void initState() {
@@ -47,7 +49,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
     });
 
     try {
-      final balance = await _apiService.getLeaveBalance(widget.userDetails['id']);
+      final balance = await _apiService.getLeaveBalance(widget.userDetails['id'].toString());
       if (mounted) {
         setState(() {
           _leaveBalance = balance;
@@ -73,7 +75,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
   Future<void> _loadLeaveRequests() async {
     try {
-      final requests = await _apiService.getLeaveRequests(widget.userDetails['id']);
+      final requests = await _apiService.getLeaveRequests(widget.userDetails['id'].toString());
       if (mounted) {
         setState(() {
           _leaveRequests = requests;
@@ -99,16 +101,29 @@ class _LeaveScreenState extends State<LeaveScreen> {
       return;
     }
 
+    if (_selectedLeaveType == 'Sick' && _medicalCertificate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please upload a medical certificate')),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
+      String? certificateUrl;
+      if (_medicalCertificate != null && _selectedLeaveType == 'Sick') {
+        certificateUrl = await _apiService.uploadMedicalCertificate(_medicalCertificate!);
+      }
+
       await _apiService.submitLeaveRequest(
         leaveType: _selectedLeaveType,
         startDate: _rangeStart!,
         endDate: _rangeEnd!,
         reason: _reasonController.text.trim(),
+        certificateUrl: certificateUrl, // Updated parameter name
       );
 
       if (mounted) {
@@ -128,6 +143,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
           _rangeStart = null;
           _rangeEnd = null;
           _reasonController.clear();
+          _medicalCertificate = null;
         });
       }
     } catch (e) {
@@ -145,16 +161,6 @@ class _LeaveScreenState extends State<LeaveScreen> {
           _isLoading = false;
         });
       }
-    }
-  }
-
-  String _formatDate(String? date) {
-    if (date == null) return 'N/A';
-    try {
-      final DateTime dateTime = DateTime.parse(date);
-      return DateFormat('MMM dd, yyyy').format(dateTime);
-    } catch (e) {
-      return date;
     }
   }
 
@@ -298,34 +304,49 @@ class _LeaveScreenState extends State<LeaveScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _selectedLeaveType,
-                    items: ['Annual', 'Sick', 'Personal']
-                        .map((type) => DropdownMenuItem(
-                              value: type,
-                              child: Text(type),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() => _selectedLeaveType = value!);
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Leave Type',
-                      border: OutlineInputBorder(),
+                  StatefulBuilder(
+                    builder: (context, setState) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: _selectedLeaveType,
+                          items: ['Annual', 'Sick', 'Personal']
+                              .map((type) => DropdownMenuItem(
+                                    value: type,
+                                    child: Text(type),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() => _selectedLeaveType = value!);
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Leave Type',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Selected Range: ${_rangeStart != null ? _formatDate(_rangeStart.toString()) : 'Start Date'} - ${_rangeEnd != null ? _formatDate(_rangeEnd.toString()) : 'End Date'}',
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _reasonController,
+                          decoration: const InputDecoration(
+                            labelText: 'Reason',
+                            border: OutlineInputBorder(),
+                          ),
+                          maxLines: 3,
+                        ),
+                        if (_selectedLeaveType == 'Sick') ...[
+                          const SizedBox(height: 16),
+                          MedicalCertificateUploader(
+                            onFileSelected: (file) {
+                              setState(() => _medicalCertificate = file);
+                            },
+                          ),
+                        ],
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Selected Range: ${_rangeStart != null ? _formatDate(_rangeStart.toString()) : 'Start Date'} - ${_rangeEnd != null ? _formatDate(_rangeEnd.toString()) : 'End Date'}',
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _reasonController,
-                    decoration: const InputDecoration(
-                      labelText: 'Reason',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 3,
                   ),
                   const SizedBox(height: 24),
                   Row(
@@ -400,8 +421,22 @@ class _LeaveScreenState extends State<LeaveScreen> {
               final request = _leaveRequests[index];
               return ListTile(
                 title: Text(request['leave_type']?.toString() ?? 'Unknown'),
-                subtitle: Text(
-                  '${_formatDate(request['start_date']?.toString())} to ${_formatDate(request['end_date']?.toString())}',
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_formatDate(request['start_date']?.toString())} to ${_formatDate(request['end_date']?.toString())}',
+                    ),
+                    if (request['medical_certificate_url'] != null)
+                      TextButton.icon(
+                        icon: const Icon(Icons.medical_services),
+                        label: const Text('View Medical Certificate'),
+                        onPressed: () {
+                          // Implement view certificate functionality
+                          // You can open the image in a dialog or navigate to a new screen
+                        },
+                      ),
+                  ],
                 ),
                 trailing: _buildStatusChip(request['status']?.toString()),
               );
@@ -436,6 +471,18 @@ class _LeaveScreenState extends State<LeaveScreen> {
       backgroundColor: chipColor,
     );
   }
+
+  String _formatDate(String? dateString) {
+  if (dateString == null) return 'N/A';
+  try {
+    // Parse the date string
+    DateTime date = DateTime.parse(dateString);
+    // Format it in a readable format (e.g., dd/MM/yyyy)
+    return DateFormat('dd/MM/yyyy').format(date);
+  } catch (e) {
+    return dateString; // Fallback if parsing fails
+  }
+}
 
   @override
   Widget build(BuildContext context) {
