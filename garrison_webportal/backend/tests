@@ -1,0 +1,44 @@
+<?php
+
+namespace Tests\Feature;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class AttendanceTest extends TestCase
+{
+    use RefreshDatabase;
+
+    /** @test */
+    public function it_can_record_attendance()
+    {
+        $response = $this->postJson('/api/attendance', [
+            'user_id' => 1,
+            'status' => 'present',
+            'timestamp' => now(),
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('attendances', [
+            'user_id' => 1,
+            'status' => 'present',
+        ]);
+    }
+
+    /** @test */
+    public function it_can_retrieve_attendance_records()
+    {
+        $this->postJson('/api/attendance', [
+            'user_id' => 1,
+            'status' => 'present',
+            'timestamp' => now(),
+        ]);
+
+        $response = $this->getJson('/api/attendance');
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            '*' => ['id', 'user_id', 'status', 'timestamp'],
+        ]);
+    }
+}
