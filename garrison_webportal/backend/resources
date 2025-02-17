@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome to Time Attendance App</title>
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+</head>
+<body>
+    <h1>Welcome to the Time Attendance App</h1>
+</body>
+</html>

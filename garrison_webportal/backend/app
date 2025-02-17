@@ -1,0 +1,94 @@
+The backend/app directory typically contains the core application logic, including models, controllers, and middleware. Below is a basic structure for the contents of the `backend/app` directory, including a sample model, controller, and middleware.
+
+### File Structure for `backend/app`
+
+- `backend/app/Http`
+  - `Controllers`
+    - `AttendanceController.php`
+  - `Middleware`
+    - `CheckAttendance.php`
+- `backend/app/Models`
+  - `Attendance.php`
+
+### Contents of `backend/app/Http/Controllers/AttendanceController.php`
+
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Attendance;
+use Illuminate\Http\Request;
+
+class AttendanceController extends Controller
+{
+    public function index()
+    {
+        return Attendance::all();
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required',
+            'check_in' => 'required|date',
+            'check_out' => 'nullable|date',
+        ]);
+
+        $attendance = Attendance::create($request->all());
+        return response()->json($attendance, 201);
+    }
+
+    public function show($id)
+    {
+        return Attendance::findOrFail($id);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $attendance = Attendance::findOrFail($id);
+        $attendance->update($request->all());
+        return response()->json($attendance, 200);
+    }
+
+    public function destroy($id)
+    {
+        Attendance::destroy($id);
+        return response()->json(null, 204);
+    }
+}
+
+### Contents of `backend/app/Http/Middleware/CheckAttendance.php`
+
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+
+class CheckAttendance
+{
+    public function handle(Request $request, Closure $next)
+    {
+        // Middleware logic to check attendance
+        return $next($request);
+    }
+}
+
+### Contents of `backend/app/Models/Attendance.php`
+
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Attendance extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['user_id', 'check_in', 'check_out'];
+}
+
+This structure provides a basic setup for handling attendance records in your Laravel backend. You can expand upon this by adding more models, controllers, and middleware as needed for your application.
