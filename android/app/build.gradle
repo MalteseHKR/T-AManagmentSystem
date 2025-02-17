@@ -6,8 +6,8 @@ plugins {
 }
 
 android {
-    namespace = "com.example.new_test"
-    compileSdkVersion 34
+    namespace "com.example.new_test"  // Add this line
+    compileSdkVersion flutter.compileSdkVersion
 
     defaultConfig {
         minSdkVersion 21

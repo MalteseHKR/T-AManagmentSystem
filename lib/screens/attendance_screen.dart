@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
+import '../services/face_recognition_service.dart';
 import 'package:intl/intl.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -32,6 +33,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   String? _lastPunchDate;
   String? _lastPunchTime;
   String? _lastPhotoUrl;
+  final FaceRecognitionService _faceRecognitionService = FaceRecognitionService();
+  String? _faceValidationMessage;
+  bool _isFaceValid = false;
 
   @override
   void initState() {
@@ -59,12 +63,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _cameraController.dispose();
-    super.dispose();
   }
 
   Future<void> _checkAttendanceStatus() async {
@@ -127,27 +125,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
-  Future<void> _takePhoto() async {
-    try {
-      final XFile photo = await _cameraController.takePicture();
-      setState(() {
-        _capturedImage = File(photo.path);
-        _showCamera = false;
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to take photo: $e')),
-      );
-    }
-  }
-
-  void _retakePhoto() {
-    setState(() {
-      _capturedImage = null;
-      _showCamera = true;
-    });
-  }
-
   String _formatDate(String? dateStr) {
     if (dateStr == null) return 'N/A';
     try {
@@ -167,10 +144,66 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
+  void _retakePhoto() {
+    setState(() {
+      _capturedImage = null;
+      _showCamera = true;
+      _faceValidationMessage = null;
+      _isFaceValid = false;
+    });
+  }
+
+  Future<void> _takePhoto() async {
+    setState(() {
+      _faceValidationMessage = null;
+      _isFaceValid = false;
+    });
+
+    try {
+      final XFile photo = await _cameraController.takePicture();
+      final File photoFile = File(photo.path);
+      
+      // Validate face before showing preview
+      final bool isFaceValid = await _faceRecognitionService.validateFace(photoFile);
+      
+      setState(() {
+        _capturedImage = photoFile;
+        _showCamera = false;
+        _isFaceValid = isFaceValid;
+        _faceValidationMessage = isFaceValid 
+            ? 'Face verification successful'
+            : 'Face verification failed. Please try again and ensure:\n'
+              '• Your face is clearly visible\n'
+              '• You are looking directly at the camera\n'
+              '• Your eyes are open\n'
+              '• Only one face is in the frame';
+      });
+
+      if (!isFaceValid) {
+        // Show error message and auto-reset after delay
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            _retakePhoto();
+          }
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to take photo: $e')),
+      );
+    }
+  }
   Future<void> _punchInOut() async {
     if (_currentPosition == null || _capturedImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please take photo and enable location')),
+      );
+      return;
+    }
+
+    if (!_isFaceValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Face verification failed. Please retake photo.')),
       );
       return;
     }
@@ -320,6 +353,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ],
             ),
           ),
+          if (_faceValidationMessage != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: _isFaceValid ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+              child: Row(
+                children: [
+                  Icon(
+                    _isFaceValid ? Icons.check_circle : Icons.error,
+                    color: _isFaceValid ? Colors.green : Colors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _faceValidationMessage!,
+                      style: TextStyle(
+                        color: _isFaceValid ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.file(
@@ -419,4 +474,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       ),
     );
   }
-}
+
+  @override
+  void dispose() {
+    _cameraController.dispose();
+    _faceRecognitionService.dispose();
+    super.dispose();
+  }
+} // End of _AttendanceScreenState class
