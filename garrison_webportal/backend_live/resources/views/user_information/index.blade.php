@@ -48,6 +48,12 @@
             border: none;
             cursor: pointer;
         }
+        .register-link {
+            margin-top: 20px;
+            display: block;
+            color: #333;
+            text-decoration: none;
+        }
         .footer {
             margin-top: 50px;
             color: #999;
@@ -71,6 +77,7 @@
                 <input type="password" name="password" placeholder="Password" required>
                 <button type="submit">Login</button>
             </form>
+            <a href="{{ route('register') }}" class="register-link">If you don't have an account, register here</a>
         </div>
         <div class="footer">
             <p>&copy; 2025 PeakyBlinders. All rights reserved.</p>

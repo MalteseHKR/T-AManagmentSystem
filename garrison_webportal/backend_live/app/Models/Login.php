@@ -17,12 +17,14 @@ class Login extends Model
         'email',
         'user_login_pass',
         'user_id',
-        'login_attempts',
-        'last_login_attempt',
+        'login_attampts',
+        'last_login_attampt',
     ];
 
-    public function userInformation()
+    public $timestamps = false;
+    
+    public function user()
     {
-        return $this->belongsTo(UserInformation::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }
