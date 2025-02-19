@@ -73,11 +73,8 @@
                 <input type="text" name="user_title" placeholder="Title" required>
                 <input type="text" name="user_phone" placeholder="Phone" required>
                 <input type="email" name="user_email" placeholder="Email" required>
-                <label for="user_dob">Date Of Birth</label>
                 <input type="date" name="user_dob" placeholder="Date of Birth" required>
-                <label for="user_job_start">Job Start Date</label>
                 <input type="date" name="user_job_start" placeholder="Job Start Date" required>
-                <label for="user_job_end">Job End Date</label>
                 <input type="date" name="user_job_end" placeholder="Job End Date">
                 <label for="user_active">Active</label>
                 <input type="checkbox" name="user_active" value="1">

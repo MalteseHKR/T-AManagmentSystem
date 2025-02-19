@@ -5,8 +5,9 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use App\Models\User;
+use App\Models\UserInformation;
 
 class LoginController extends Controller
 {
@@ -14,10 +15,10 @@ class LoginController extends Controller
     {
         $credentials = $request->only('email', 'password');
 
-        // Manually check the credentials for testing purposes
-        $user = User::where('email', $credentials['email'])->first();
+        // Manually check the credentials
+        $user = UserInformation::where('user_email', $credentials['email'])->first();
 
-        if ($user && $user->password === $credentials['password']) {
+        if ($user && Hash::check($credentials['password'], $user->password)) {
             // Log the user in manually
             Auth::login($user);
 
