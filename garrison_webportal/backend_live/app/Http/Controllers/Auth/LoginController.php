@@ -11,6 +11,18 @@ use App\Models\UserInformation;
 
 class LoginController extends Controller
 {
+    protected $redirectTo = '/dashboard';
+
+    protected function username()
+    {
+        return 'user_email';
+    }
+
+    public function showLoginForm()
+    {
+        return view('credentials.login');
+    }
+
     public function login(Request $request)
     {
         $credentials = $request->only('email', 'password');
@@ -19,12 +31,17 @@ class LoginController extends Controller
         $user = UserInformation::where('user_email', $credentials['email'])->first();
 
         if ($user && Hash::check($credentials['password'], $user->password)) {
-            // Log the user in manually
-            Auth::login($user);
+            if ($user->user_active) {
+                // Log the user in manually
+                Auth::login($user);
 
-            // Authentication passed...
-            Log::info('User authenticated successfully.');
-            return redirect()->intended('dashboard');
+                // Authentication passed...
+                Log::info('User authenticated successfully.');
+                return redirect()->intended('dashboard');
+            } else {
+                // User is not active
+                return redirect()->route('inactive');
+            }
         }
 
         Log::warning('Authentication failed for user: ' . $request->input('email'));
@@ -32,5 +49,13 @@ class LoginController extends Controller
         return back()->withErrors([
             'email' => 'The provided credentials do not match our records.',
         ]);
+    }
+
+    public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect()->route('login');
     }
 }
