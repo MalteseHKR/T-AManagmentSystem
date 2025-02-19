@@ -21,5 +21,14 @@ class Login extends Model
         'last_login_attampt',
     ];
 
+    protected $attributes = [
+        'login_attampts' => 0
+    ];
+
+    public function userInformation()
+    {
+        return $this->belongsTo(UserInformation::class, 'user_id', 'user_id');
+    }
+
     public $timestamps = false;
 }

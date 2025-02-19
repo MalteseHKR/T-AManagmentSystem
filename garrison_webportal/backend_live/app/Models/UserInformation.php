@@ -28,4 +28,10 @@ class UserInformation extends Authenticatable
     ];
 
     public $timestamps = false;
+
+    // Add relationship to Login model
+    public function login()
+    {
+        return $this->hasOne(Login::class, 'user_id', 'user_id');
+    }
 }
