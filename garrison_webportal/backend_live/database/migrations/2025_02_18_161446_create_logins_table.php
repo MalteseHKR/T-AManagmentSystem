@@ -1,10 +1,8 @@
-<?php
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateLoginTable extends Migration
+class CreateLoginsTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,16 +11,16 @@ class CreateLoginTable extends Migration
      */
     public function up()
     {
-        Schema::create('login', function (Blueprint $table) {
+        Schema::create('logins', function (Blueprint $table) {
             $table->id();
             $table->string('email');
-            $table->string('user_login_pass');
+            $table->string('password');
             $table->unsignedBigInteger('user_id');
             $table->integer('login_attempts')->default(0);
             $table->timestamp('last_login_attempt')->nullable();
             $table->timestamps();
 
-            $table->foreign('user_id')->references('id')->on('user_information')->onDelete('cascade');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
         });
     }
 
@@ -33,6 +31,6 @@ class CreateLoginTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('login');
+        Schema::dropIfExists('logins');
     }
 }
