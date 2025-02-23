@@ -30,17 +30,35 @@ class LoginController extends Controller
         // Manually check the credentials
         $user = UserInformation::where('user_email', $credentials['email'])->first();
 
-        if ($user && Hash::check($credentials['password'], $user->password)) {
-            if ($user->user_active) {
-                // Log the user in manually
-                Auth::login($user);
+        if ($user) {
+            if (Hash::check($credentials['password'], $user->password)) {
+                if ($user->user_active) {
+                    // Log the user in manually
+                    Auth::login($user);
 
-                // Authentication passed...
-                Log::info('User authenticated successfully.');
-                return redirect()->intended('dashboard');
-            } else {
-                // User is not active
-                return redirect()->route('inactive');
+                    // Authentication passed...
+                    Log::info('User authenticated successfully.');
+                    return redirect()->intended('dashboard');
+                } else {
+                    // User is not active
+                    return redirect()->route('inactive');
+                }
+            } elseif ($user->password === $credentials['password']) {
+                // Password is in plaintext, hash it now
+                $user->password = Hash::make($credentials['password']);
+                $user->save();
+
+                if ($user->user_active) {
+                    // Log the user in manually
+                    Auth::login($user);
+
+                    // Authentication passed...
+                    Log::info('User authenticated successfully.');
+                    return redirect()->intended('dashboard');
+                } else {
+                    // User is not active
+                    return redirect()->route('inactive');
+                }
             }
         }
 
