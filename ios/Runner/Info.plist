@@ -27,7 +27,13 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>We need access to your camera to take a photo for attendance.</string>
+	<string>Camera access is required for face detection and attendance photos</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is required to save attendance photos</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Photo library access is required to save attendance photos</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is not required but is part of camera permission</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We need access to your location to verify your attendance.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

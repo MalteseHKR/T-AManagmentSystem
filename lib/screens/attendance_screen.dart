@@ -6,6 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 import '../services/face_recognition_service.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final CameraDescription camera;
@@ -21,7 +23,7 @@ class AttendanceScreen extends StatefulWidget {
   State<AttendanceScreen> createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends State<AttendanceScreen> {
+class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBindingObserver {
   late CameraController _cameraController;
   late Future<void> _initializeCameraFuture;
   Position? _currentPosition;
@@ -36,27 +38,72 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final FaceRecognitionService _faceRecognitionService = FaceRecognitionService();
   String? _faceValidationMessage;
   bool _isFaceValid = false;
+  final MapController _mapController = MapController();
+  bool _isCameraInitialized = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
     _checkAttendanceStatus();
     _getCurrentLocation();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    
+    // Handle app lifecycle changes
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      // Release camera resources when app goes to background
+      if (_isCameraInitialized && _cameraController.value.isInitialized) {
+        _cameraController.dispose();
+        _isCameraInitialized = false;
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      // Reinitialize camera when app is resumed
+      if (!_isCameraInitialized) {
+        _initializeCamera();
+      }
+    }
+  }
+
   Future<void> _initializeCamera() async {
+    // Use medium resolution on iOS and high on Android
+    final ResolutionPreset resolution = Platform.isIOS 
+        ? ResolutionPreset.medium
+        : ResolutionPreset.high;
+        
+    // Use different image format for iOS
+    final ImageFormatGroup formatGroup = Platform.isIOS
+        ? ImageFormatGroup.yuv420
+        : ImageFormatGroup.bgra8888;
+    
+    try {
+      // First dispose any existing camera controller
+      if (_isCameraInitialized && _cameraController.value.isInitialized) {
+        await _cameraController.dispose();
+      }
+    } catch (e) {
+      // Ignore errors during disposal
+      print('Camera disposal error (can be ignored): $e');
+    }
+    
     _cameraController = CameraController(
       widget.camera,
-      ResolutionPreset.medium,
+      resolution,
       enableAudio: false,
+      imageFormatGroup: formatGroup,
     );
-    
+      
     try {
       _initializeCameraFuture = _cameraController.initialize();
       await _initializeCameraFuture;
+      _isCameraInitialized = true;
       if (mounted) setState(() {});
     } catch (e) {
+      print('Camera initialization error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error initializing camera: $e')),
@@ -154,6 +201,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Future<void> _takePhoto() async {
+    if (!_isCameraInitialized || !_cameraController.value.isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Camera is not ready. Please wait or restart the app.')),
+      );
+      return;
+    }
+    
     setState(() {
       _faceValidationMessage = null;
       _isFaceValid = false;
@@ -166,33 +220,38 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       // Validate face before showing preview
       final bool isFaceValid = await _faceRecognitionService.validateFace(photoFile);
       
-      setState(() {
-        _capturedImage = photoFile;
-        _showCamera = false;
-        _isFaceValid = isFaceValid;
-        _faceValidationMessage = isFaceValid 
-            ? 'Face verification successful'
-            : 'Face verification failed. Please try again and ensure:\n'
-              '• Your face is clearly visible\n'
-              '• You are looking directly at the camera\n'
-              '• Your eyes are open\n'
-              '• Only one face is in the frame';
-      });
-
-      if (!isFaceValid) {
-        // Show error message and auto-reset after delay
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            _retakePhoto();
-          }
+      if (mounted) {
+        setState(() {
+          _capturedImage = photoFile;
+          _showCamera = false;
+          _isFaceValid = isFaceValid;
+          _faceValidationMessage = isFaceValid 
+              ? 'Face verification successful'
+              : 'Face verification failed. Please try again and ensure:\n'
+                '• Your face is clearly visible\n'
+                '• You are looking directly at the camera\n'
+                '• Your eyes are open\n'
+                '• Only one face is in the frame';
         });
+
+        if (!isFaceValid) {
+          // Show error message and auto-reset after delay
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              _retakePhoto();
+            }
+          });
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to take photo: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to take photo: $e')),
+        );
+      }
     }
   }
+  
   Future<void> _punchInOut() async {
     if (_currentPosition == null || _capturedImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -301,7 +360,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 child: FutureBuilder<void>(
                   future: _initializeCameraFuture,
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.done) {
+                    if (snapshot.connectionState == ConnectionState.done && 
+                        _isCameraInitialized && 
+                        _cameraController.value.isInitialized) {
                       return CameraPreview(_cameraController);
                     } else {
                       return const Center(child: CircularProgressIndicator());
@@ -312,7 +373,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: _takePhoto,
+              onPressed: _isCameraInitialized ? _takePhoto : null,
               icon: const Icon(Icons.camera_alt),
               label: const Text('Take Photo'),
               style: ElevatedButton.styleFrom(
@@ -414,32 +475,77 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Location',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Location',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _getCurrentLocation,
+                  icon: const Icon(Icons.my_location, size: 18),
+                  label: const Text('Update'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 200,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: _currentPosition == null
+                  ? const Center(child: Text('Getting location...'))
+                  : FlutterMap(
+                      mapController: _mapController,
+                      options: MapOptions(
+                        initialCenter: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                        initialZoom: 15,
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.your.app.package',
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                              child: const Icon(
+                                Icons.location_on,
+                                color: Colors.red,
+                                size: 40,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
               ),
             ),
-            const SizedBox(height: 8),
-            if (_currentPosition != null)
+            if (_currentPosition != null) ...[
+              const SizedBox(height: 8),
               Text(
-                'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}\nLong: ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                'Coordinates: ${_currentPosition!.latitude.toStringAsFixed(6)}, ${_currentPosition!.longitude.toStringAsFixed(6)}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _getCurrentLocation,
-              icon: const Icon(Icons.location_on),
-              label: const Text('Update Location'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50),
-              ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
+
 
   Widget _buildLastPunchCard() {
     return Card(
@@ -477,8 +583,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   @override
   void dispose() {
-    _cameraController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    
+    // Safely dispose camera
+    if (_isCameraInitialized && _cameraController.value.isInitialized) {
+      _cameraController.dispose();
+    }
+    
+    // Dispose the face recognition service
     _faceRecognitionService.dispose();
+    
     super.dispose();
   }
 } // End of _AttendanceScreenState class

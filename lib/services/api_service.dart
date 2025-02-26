@@ -113,32 +113,59 @@ class ApiService {
     }
 
     try {
-      final request = http.MultipartRequest(
+      print('Uploading medical certificate');
+      print('File path: ${file.path}');
+      
+      var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/upload-medical-certificate'),
       );
-      
+
+      // Determine content type based on file extension
+      String extension = file.path.split('.').last.toLowerCase();
+      String? contentType;
+      switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          contentType = 'image/jpeg';
+          break;
+        case 'png':
+          contentType = 'image/png';
+          break;
+        case 'pdf':
+          contentType = 'application/pdf';
+          break;
+        default:
+          throw Exception('Unsupported file type');
+      }
+
       request.files.add(
         await http.MultipartFile.fromPath(
           'certificate',
           file.path,
+          contentType: MediaType.parse(contentType!),
         ),
       );
       
       request.headers['Authorization'] = 'Bearer $_token';
       
       final response = await request.send();
+      print('Upload Response Status: ${response.statusCode}');
+      
+      final responseBody = await response.stream.bytesToString();
+      print('Upload Response Body: $responseBody');
+      
       if (response.statusCode == 200) {
-        final responseData = await response.stream.bytesToString();
-        final jsonData = json.decode(responseData);
+        final jsonData = json.decode(responseBody);
         return jsonData['fileUrl'];
+      } else {
+        throw Exception('Failed to upload medical certificate. Status: ${response.statusCode}, Body: $responseBody');
       }
-      return null;
     } catch (e) {
-      debugPrint('Error uploading medical certificate: $e');
-      return null;
+      print('Complete upload error details: $e');
+      rethrow;
     }
-  }
+}
 
   // Get Attendance Status
   Future<Map<String, dynamic>> getAttendanceStatus(int userId) async {
@@ -223,35 +250,51 @@ class ApiService {
 
   // Submit Leave Request
   Future<void> submitLeaveRequest({
-    required String leaveType,
-    required DateTime startDate,
-    required DateTime endDate,
-    required String reason,
-    String? certificateUrl,
-  }) async {
-    if (_token == null) {
-      throw Exception('Not authenticated');
-    }
-
-    final response = await http.post(
-      Uri.parse('$baseUrl/api/leave'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_token',
-      },
-      body: jsonEncode({
-        'leave_type': leaveType,
-        'start_date': startDate.toIso8601String(),
-        'end_date': endDate.toIso8601String(),
-        'reason': reason,
-        'medical_certificate_url': certificateUrl,
-      }),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to submit leave request');
-    }
+  required String leaveType,
+  required DateTime startDate,
+  required DateTime endDate,
+  required String reason,
+  String? certificateUrl,
+}) async {
+  if (_token == null) {
+    throw Exception('Not authenticated');
   }
+
+  // Create dates with time set to midnight
+  final cleanStartDate = DateTime(startDate.year, startDate.month, startDate.day);
+  final cleanEndDate = DateTime(endDate.year, endDate.month, endDate.day);
+
+  print('API Submit Leave Request:');
+  print('Leave Type: $leaveType');
+  print('Start Date (clean): $cleanStartDate');
+  print('End Date (clean): $cleanEndDate');
+  print('Reason: $reason');
+  print('Certificate URL: $certificateUrl');
+
+  final response = await http.post(
+    Uri.parse('$baseUrl/leave'),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $_token',
+    },
+    body: jsonEncode({
+      'leave_type': leaveType,
+      // Use formatted date string to remove time
+      'start_date': '${cleanStartDate.year}-${cleanStartDate.month.toString().padLeft(2, '0')}-${cleanStartDate.day.toString().padLeft(2, '0')}',
+      'end_date': '${cleanEndDate.year}-${cleanEndDate.month.toString().padLeft(2, '0')}-${cleanEndDate.day.toString().padLeft(2, '0')}',
+      'reason': reason,
+      'medical_certificate_url': certificateUrl,
+    }),
+  );
+
+  print('Leave Request Response Status: ${response.statusCode}');
+  print('Leave Request Response Body: ${response.body}');
+
+  if (response.statusCode != 200) {
+    final errorBody = jsonDecode(response.body);
+    throw Exception(errorBody['message'] ?? 'Failed to submit leave request');
+  }
+}
 
   // Get Leave Requests
   Future<List<Map<String, dynamic>>> getLeaveRequests(String userId) async {

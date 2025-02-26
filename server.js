@@ -384,20 +384,23 @@ const certificateUpload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf', 'application/octet-stream'];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type'));
+      console.log('Invalid file type rejected:', file.mimetype);
+      cb(new Error('Invalid file type. Only JPEG, PNG, and PDF are allowed.'), false);
     }
   }
 });
 
+// Route for medical certificate upload
 app.post('/api/upload-medical-certificate', 
   authenticateToken, 
   certificateUpload.single('certificate'),
   (req, res) => {
     if (!req.file) {
+	console.log('No file uploaded');
       return res.status(400).json({ message: 'No file uploaded' });
     }
     res.json({ 

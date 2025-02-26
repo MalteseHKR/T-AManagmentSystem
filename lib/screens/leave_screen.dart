@@ -114,16 +114,41 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
     try {
       String? certificateUrl;
+      // Add more detailed logging
+      print('Leave Type: $_selectedLeaveType');
+      print('Medical Certificate: $_medicalCertificate');
+      print('Start Date: $_rangeStart');
+      print('End Date: $_rangeEnd');
+      print('Reason: ${_reasonController.text.trim()}');
+
       if (_medicalCertificate != null && _selectedLeaveType == 'Sick') {
-        certificateUrl = await _apiService.uploadMedicalCertificate(_medicalCertificate!);
+        try {
+          certificateUrl = await _apiService.uploadMedicalCertificate(_medicalCertificate!);
+          print('Uploaded Certificate URL: $certificateUrl');
+        } catch (uploadError) {
+          print('Medical Certificate Upload Error: $uploadError');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to upload medical certificate: $uploadError'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+          return;
+        }
       }
+
+      print('Submitting Leave Request:');
+      print('Certificate URL: $certificateUrl');
 
       await _apiService.submitLeaveRequest(
         leaveType: _selectedLeaveType,
         startDate: _rangeStart!,
         endDate: _rangeEnd!,
         reason: _reasonController.text.trim(),
-        certificateUrl: certificateUrl, // Updated parameter name
+        certificateUrl: certificateUrl,
       );
 
       if (mounted) {
@@ -147,6 +172,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
         });
       }
     } catch (e) {
+      print('Complete Leave Request Submission Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -162,7 +188,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
         });
       }
     }
-  }
+}
 
   Widget _buildLeaveBalanceCard() {
     return Card(
