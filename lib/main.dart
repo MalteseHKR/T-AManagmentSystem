@@ -1,28 +1,81 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'screens/login_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/leave_screen.dart';
 import 'screens/profile_screen.dart';
+import 'services/notification_service.dart';
+import 'services/background_service.dart';
+
+// The callback dispatcher function must be imported wherever it's used,
+// but is defined in background_service.dart as a top-level function
 
 void main() async {
+  // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
   
-  final cameras = await availableCameras();
-  
-  final frontCamera = cameras.isEmpty 
-      ? null 
-      : cameras.firstWhere(
-          (camera) => camera.lensDirection == CameraLensDirection.front,
-          orElse: () => cameras.first,
-        );
-        
-  if (frontCamera == null) {
-    print("No cameras available");
-    return;
+  try {
+    // Initialize notification service
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+    
+    // Initialize background service and register background task
+    await BackgroundService.initialize();
+    await BackgroundService.registerPeriodicTask();
+    
+    // Check for pending punch-in from previous sessions
+    await notificationService.checkForPendingPunchIn();
+    
+    // Initialize camera
+    final cameras = await availableCameras();
+    CameraDescription? selectedCamera;
+    
+    if (cameras.isNotEmpty) {
+      // Specifically look for the front camera
+      for (var camera in cameras) {
+        debugPrint('Found camera: ${camera.name}, lens direction: ${camera.lensDirection}');
+        if (camera.lensDirection == CameraLensDirection.front) {
+          selectedCamera = camera;
+          debugPrint('Selected front camera: ${camera.name}');
+          break;
+        }
+      }
+      
+      // If no front camera was found, fall back to the first camera
+      if (selectedCamera == null) {
+        debugPrint('No front camera found, using first available camera');
+        selectedCamera = cameras.first;
+      }
+    }
+    
+    if (selectedCamera == null) {
+      debugPrint("No cameras available");
+      return;
+    }
+    
+    runApp(TimeAttendanceApp(camera: selectedCamera));
+  } catch (e) {
+    debugPrint('Error during app initialization: $e');
+    // Fall back to basic initialization if services fail
+    final cameras = await availableCameras();
+    CameraDescription? selectedCamera;
+    
+    if (cameras.isNotEmpty) {
+      // Try to find front camera even in the fallback path
+      selectedCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+    }
+    
+    if (selectedCamera == null) {
+      debugPrint("No cameras available");
+      return;
+    }
+    
+    runApp(TimeAttendanceApp(camera: selectedCamera));
   }
-  
-  runApp(TimeAttendanceApp(camera: frontCamera));
 }
 
 class TimeAttendanceApp extends StatelessWidget {

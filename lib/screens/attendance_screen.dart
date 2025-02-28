@@ -8,6 +8,9 @@ import '../services/face_recognition_service.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../services/notification_service.dart';
+
+final NotificationService _notificationService = NotificationService();
 
 class AttendanceScreen extends StatefulWidget {
   final CameraDescription camera;
@@ -113,22 +116,62 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   }
 
   Future<void> _checkAttendanceStatus() async {
-    try {
-      final status = await _apiService.getAttendanceStatus(widget.userDetails['id']);
-      if (mounted) {
-        setState(() {
-          _isPunchedIn = status['is_punched_in'];
-          if (status['last_punch'] != null) {
-            _lastPunchDate = status['last_punch']['date'];
-            _lastPunchTime = status['last_punch']['time'];
-            _lastPhotoUrl = status['last_punch']['photo_url'];
+  try {
+    final status = await _apiService.getAttendanceStatus(widget.userDetails['id']);
+    if (mounted) {
+      setState(() {
+        _isPunchedIn = status['is_punched_in'];
+        if (status['last_punch'] != null) {
+          _lastPunchDate = status['last_punch']['date'];
+          _lastPunchTime = status['last_punch']['time'];
+          _lastPhotoUrl = status['last_punch']['photo_url'];
+        }
+      });
+      
+      // If user is already punched in, schedule a reminder notification
+      if (_isPunchedIn && _lastPunchDate != null && _lastPunchTime != null) {
+        try {
+          // Parse the last punch date and time
+          final punchDateStr = _lastPunchDate!;
+          final punchTimeStr = _lastPunchTime!;
+          
+          debugPrint('Found existing punch-in - Date: $punchDateStr, Time: $punchTimeStr');
+          
+          try {
+            // Create a DateTime object from the punch date and time
+            final punchDate = DateTime.parse(punchDateStr);
+            final timeParts = punchTimeStr.split(':');
+            
+            if (timeParts.length >= 2) {
+              final punchDateTime = DateTime(
+                punchDate.year,
+                punchDate.month,
+                punchDate.day,
+                int.parse(timeParts[0]),
+                int.parse(timeParts[1]),
+              );
+              
+              // If punch-in time is less than 12 hours ago, schedule a reminder
+              final now = DateTime.now();
+              if (now.difference(punchDateTime).inHours < 12) {
+                debugPrint('Scheduling reminder for existing punch-in');
+                await _notificationService.schedulePunchOutReminder(
+                  punchInTime: punchDateTime,
+                );
+              }
+            }
+          } catch (parseError) {
+            debugPrint('Error parsing punch date/time: $parseError');
           }
-        });
+        } catch (e) {
+          debugPrint('Error scheduling reminder on app start: $e');
+        }
       }
-    } catch (e) {
-      print('Error checking attendance status: $e');
     }
+  } catch (e) {
+    debugPrint('Error checking attendance status: $e');
   }
+}
 
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -253,57 +296,84 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   }
   
   Future<void> _punchInOut() async {
-    if (_currentPosition == null || _capturedImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please take photo and enable location')),
-      );
-      return;
-    }
+  if (_currentPosition == null || _capturedImage == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please take photo and enable location')),
+    );
+    return;
+  }
 
-    if (!_isFaceValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Face verification failed. Please retake photo.')),
-      );
-      return;
-    }
+  if (!_isFaceValid) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Face verification failed. Please retake photo.')),
+    );
+    return;
+  }
 
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    final response = await _apiService.recordAttendance(
+      punchType: _isPunchedIn ? 'OUT' : 'IN',
+      photoFile: _capturedImage!,
+      latitude: _currentPosition!.latitude,
+      longitude: _currentPosition!.longitude,
+    );
+
+    // Store the new punch status
+    final bool newPunchStatus = !_isPunchedIn;
+    
     setState(() {
-      _isLoading = true;
+      _isPunchedIn = newPunchStatus;
+      _lastPunchDate = response['punch_date'];
+      _lastPunchTime = response['punch_time'];
+      _lastPhotoUrl = response['photo_url'];
+      _showCamera = true;
+      _capturedImage = null;
     });
 
-    try {
-      final response = await _apiService.recordAttendance(
-        punchType: _isPunchedIn ? 'OUT' : 'IN',
-        photoFile: _capturedImage!,
-        latitude: _currentPosition!.latitude,
-        longitude: _currentPosition!.longitude,
-      );
-
-      setState(() {
-        _isPunchedIn = !_isPunchedIn;
-        _lastPunchDate = response['punch_date'];
-        _lastPunchTime = response['punch_time'];
-        _lastPhotoUrl = response['photo_url'];
-        _showCamera = true;
-        _capturedImage = null;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Successfully ${_isPunchedIn ? 'Punched In' : 'Punched Out'} at ${_formatTime(_lastPunchTime)}'),
-          backgroundColor: _isPunchedIn ? Colors.green : Colors.red,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+    // If the user is punching in, schedule a notification reminder
+    if (newPunchStatus) {
+      debugPrint('User punched in at ${DateTime.now()}, scheduling punch-out reminder');
+      try {
+        await _notificationService.schedulePunchOutReminder(
+          punchInTime: DateTime.now(),
+        );
+        debugPrint('Punch-out reminder scheduled successfully');
+      } catch (notificationError) {
+        debugPrint('Failed to schedule punch-out reminder: $notificationError');
+        // Continue with normal flow even if notification scheduling fails
+      }
+    } else {
+      // If the user is punching out, cancel any pending reminders
+      debugPrint('User punched out, cancelling punch-out reminder');
+      try {
+        await _notificationService.cancelPunchOutReminder();
+        debugPrint('Punch-out reminder cancelled successfully');
+      } catch (cancelError) {
+        debugPrint('Failed to cancel punch-out reminder: $cancelError');
+        // Continue with normal flow even if notification cancellation fails
+      }
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Successfully ${_isPunchedIn ? 'Punched In' : 'Punched Out'} at ${_formatTime(_lastPunchTime)}'),
+        backgroundColor: _isPunchedIn ? Colors.green : Colors.red,
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error: $e')),
+    );
+  } finally {
+    setState(() {
+      _isLoading = false;
+    });
   }
+}
 
   @override
   Widget build(BuildContext context) {
