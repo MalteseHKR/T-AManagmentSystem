@@ -28,16 +28,14 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is required for face detection and attendance photos</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is not required but is part of camera permission</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to location for attendance tracking</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access is required to save attendance photos</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Photo library access is required to save attendance photos</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Microphone access is not required but is part of camera permission</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We need access to your location to verify your attendance.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app requires access to the photo library for image cropping.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -65,11 +63,11 @@
     </array>
 	<key>NSCalendarsUsageDescription</key>
     <string>This app needs access to calendar for scheduling punch-out reminders</string>
-    
     <key>NSUserNotificationsUsageDescription</key>
     <string>We need to send you notifications to remind you to punch out</string>
-    
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This app needs access to location for attendance tracking</string>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.garrison.checkPunchStatus</string>
+    </array>
 </dict>
 </plist>

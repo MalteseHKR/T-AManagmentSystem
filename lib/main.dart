@@ -8,9 +8,6 @@ import 'screens/profile_screen.dart';
 import 'services/notification_service.dart';
 import 'services/background_service.dart';
 
-// The callback dispatcher function must be imported wherever it's used,
-// but is defined in background_service.dart as a top-level function
-
 void main() async {
   // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
@@ -91,7 +88,7 @@ class TimeAttendanceApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.grey[100],
-        appBarTheme: AppBarTheme(
+        appBarTheme: const AppBarTheme(
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
           elevation: 0,
