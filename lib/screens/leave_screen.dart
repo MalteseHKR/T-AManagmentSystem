@@ -1,8 +1,11 @@
+// lib/screens/leave_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../services/timezone_service.dart';
+import '../services/session_service.dart';
 import '../widgets/medical_certificate_uploader.dart';
 
 class LeaveScreen extends StatefulWidget {
@@ -19,6 +22,8 @@ class LeaveScreen extends StatefulWidget {
 
 class _LeaveScreenState extends State<LeaveScreen> {
   final _apiService = ApiService();
+  final _timezoneService = TimezoneService(); // Add timezone service
+  final _sessionService = SessionService(); // Add session service
   Map<String, dynamic> _leaveBalance = {};
   List<Map<String, dynamic>> _leaveRequests = [];
   bool _isLoading = false;
@@ -44,6 +49,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
   }
 
   Future<void> _loadLeaveBalance() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
     setState(() {
       _isLoading = true;
     });
@@ -74,6 +82,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
   }
 
   Future<void> _loadLeaveRequests() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
     try {
       final requests = await _apiService.getLeaveRequests(widget.userDetails['id'].toString());
       if (mounted) {
@@ -94,6 +105,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
   }
 
   Future<void> _submitLeaveRequest() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
     if (_rangeStart == null || _rangeEnd == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select date range')),
@@ -188,7 +202,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
         });
       }
     }
-}
+  }
 
   Widget _buildLeaveBalanceCard() {
     return Card(
@@ -219,7 +233,6 @@ class _LeaveScreenState extends State<LeaveScreen> {
       ),
     );
   }
-
   Widget _buildLeaveBalanceItem(String type, dynamic days) {
     num balanceDays = 0;
     if (days != null) {
@@ -269,12 +282,18 @@ class _LeaveScreenState extends State<LeaveScreen> {
         calendarFormat: CalendarFormat.month,
         rangeSelectionMode: RangeSelectionMode.enforced,
         onDaySelected: (selectedDay, focusedDay) {
+          // Reset session timer on calendar interaction
+          _sessionService.userActivity();
+          
           setState(() {
             _selectedDay = selectedDay;
             _focusedDay = focusedDay;
           });
         },
         onRangeSelected: (start, end, focusedDay) {
+          // Reset session timer on calendar interaction
+          _sessionService.userActivity();
+          
           setState(() {
             _rangeStart = start;
             _rangeEnd = end;
@@ -308,6 +327,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
   }
 
   void _showLeaveRequestDialog() {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -343,6 +365,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                   ))
                               .toList(),
                           onChanged: (value) {
+                            // Reset session timer on user interaction
+                            _sessionService.userActivity();
                             setState(() => _selectedLeaveType = value!);
                           },
                           decoration: const InputDecoration(
@@ -362,11 +386,17 @@ class _LeaveScreenState extends State<LeaveScreen> {
                             border: OutlineInputBorder(),
                           ),
                           maxLines: 3,
+                          onChanged: (_) {
+                            // Reset session timer on user interaction
+                            _sessionService.userActivity();
+                          },
                         ),
                         if (_selectedLeaveType == 'Sick') ...[
                           const SizedBox(height: 16),
                           MedicalCertificateUploader(
                             onFileSelected: (file) {
+                              // Reset session timer on user interaction
+                              _sessionService.userActivity();
                               setState(() => _medicalCertificate = file);
                             },
                           ),
@@ -400,7 +430,6 @@ class _LeaveScreenState extends State<LeaveScreen> {
       ),
     );
   }
-
   Widget _buildLeaveRequestHistory() {
     if (_leaveRequests.isEmpty) {
       return Card(
@@ -458,8 +487,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
                         icon: const Icon(Icons.medical_services),
                         label: const Text('View Medical Certificate'),
                         onPressed: () {
+                          // Reset session timer on user interaction
+                          _sessionService.userActivity();
                           // Implement view certificate functionality
-                          // You can open the image in a dialog or navigate to a new screen
                         },
                       ),
                   ],
@@ -499,16 +529,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
   }
 
   String _formatDate(String? dateString) {
-  if (dateString == null) return 'N/A';
-  try {
-    // Parse the date string
-    DateTime date = DateTime.parse(dateString);
-    // Format it in a readable format (e.g., dd/MM/yyyy)
-    return DateFormat('dd/MM/yyyy').format(date);
-  } catch (e) {
-    return dateString; // Fallback if parsing fails
+    // Use timezone service to format the date with timezone offset
+    return _timezoneService.formatDateWithOffset(dateString, format: 'dd/MM/yyyy');
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -520,6 +543,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: () async {
+                // Reset session timer on user interaction
+                _sessionService.userActivity();
                 await _loadLeaveBalance();
                 await _loadLeaveRequests();
               },

@@ -1,14 +1,17 @@
 // lib/screens/attendance_screen.dart
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../services/face_recognition_service.dart';
-import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/notification_service.dart';
+import '../services/timezone_service.dart';
+import '../services/session_service.dart';
 
 final NotificationService _notificationService = NotificationService();
 
@@ -35,6 +38,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   bool _isLoading = false;
   bool _showCamera = true;
   final _apiService = ApiService();
+  final _sessionService = SessionService();
+  final _timezoneService = TimezoneService();
   String? _lastPunchDate;
   String? _lastPunchTime;
   String? _lastPhotoUrl;
@@ -43,137 +48,103 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   bool _isFaceValid = false;
   final MapController _mapController = MapController();
   bool _isCameraInitialized = false;
+  Rect? _faceBounds;
+
+  // New properties for clock
+  late Timer _clockTimer;
+  DateTime _currentTime = DateTime.now();
+  bool _isCameraError = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // Start the clock timer
+    _startClockTimer();
+    
     _initializeCamera();
     _checkAttendanceStatus();
     _getCurrentLocation();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!mounted) return;
-    
-    // Handle app lifecycle changes
-    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      // Release camera resources when app goes to background
-      if (_isCameraInitialized && _cameraController.value.isInitialized) {
-        _cameraController.dispose();
-        _isCameraInitialized = false;
+  void _startClockTimer() {
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {
+          _currentTime = DateTime.now();
+        });
       }
-    } else if (state == AppLifecycleState.resumed) {
-      // Reinitialize camera when app is resumed
-      if (!_isCameraInitialized) {
-        _initializeCamera();
-      }
-    }
+    });
   }
 
-  Future<void> _initializeCamera() async {
-    // Use medium resolution on iOS and high on Android
-    final ResolutionPreset resolution = Platform.isIOS 
-        ? ResolutionPreset.medium
-        : ResolutionPreset.high;
-        
-    // Use different image format for iOS
-    final ImageFormatGroup formatGroup = Platform.isIOS
-        ? ImageFormatGroup.yuv420
-        : ImageFormatGroup.bgra8888;
-    
-    try {
-      // First dispose any existing camera controller
-      if (_isCameraInitialized && _cameraController.value.isInitialized) {
-        await _cameraController.dispose();
-      }
-    } catch (e) {
-      // Ignore errors during disposal
-      print('Camera disposal error (can be ignored): $e');
-    }
-    
-    _cameraController = CameraController(
-      widget.camera,
-      resolution,
-      enableAudio: false,
-      imageFormatGroup: formatGroup,
-    );
-      
-    try {
-      _initializeCameraFuture = _cameraController.initialize();
-      await _initializeCameraFuture;
-      _isCameraInitialized = true;
-      if (mounted) setState(() {});
-    } catch (e) {
-      print('Camera initialization error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error initializing camera: $e')),
-        );
-      }
-    }
+  // Method to format current time
+  String _formatCurrentTime() {
+    return DateFormat('EEEE, dd MMM yyyy HH:mm:ss').format(_currentTime);
   }
 
   Future<void> _checkAttendanceStatus() async {
-  try {
-    final status = await _apiService.getAttendanceStatus(widget.userDetails['id']);
-    if (mounted) {
-      setState(() {
-        _isPunchedIn = status['is_punched_in'];
-        if (status['last_punch'] != null) {
-          _lastPunchDate = status['last_punch']['date'];
-          _lastPunchTime = status['last_punch']['time'];
-          _lastPhotoUrl = status['last_punch']['photo_url'];
-        }
-      });
-      
-      // If user is already punched in, schedule a reminder notification
-      if (_isPunchedIn && _lastPunchDate != null && _lastPunchTime != null) {
-        try {
-          // Parse the last punch date and time
-          final punchDateStr = _lastPunchDate!;
-          final punchTimeStr = _lastPunchTime!;
-          
-          debugPrint('Found existing punch-in - Date: $punchDateStr, Time: $punchTimeStr');
-          
-          try {
-            // Create a DateTime object from the punch date and time
-            final punchDate = DateTime.parse(punchDateStr);
-            final timeParts = punchTimeStr.split(':');
-            
-            if (timeParts.length >= 2) {
-              final punchDateTime = DateTime(
-                punchDate.year,
-                punchDate.month,
-                punchDate.day,
-                int.parse(timeParts[0]),
-                int.parse(timeParts[1]),
-              );
-              
-              // If punch-in time is less than 12 hours ago, schedule a reminder
-              final now = DateTime.now();
-              if (now.difference(punchDateTime).inHours < 12) {
-                debugPrint('Scheduling reminder for existing punch-in');
-                await _notificationService.schedulePunchOutReminder(
-                  punchInTime: punchDateTime,
-                );
-              }
-            }
-          } catch (parseError) {
-            debugPrint('Error parsing punch date/time: $parseError');
+    try {
+      final status = await _apiService.getAttendanceStatus(widget.userDetails['id']);
+      if (mounted) {
+        setState(() {
+          _isPunchedIn = status['is_punched_in'];
+          if (status['last_punch'] != null) {
+            _lastPunchDate = status['last_punch']['date'];
+            _lastPunchTime = status['last_punch']['time'];
+            _lastPhotoUrl = status['last_punch']['photo_url'];
           }
-        } catch (e) {
-          debugPrint('Error scheduling reminder on app start: $e');
+        });
+        
+        // If user is already punched in, schedule a reminder notification
+        if (_isPunchedIn && _lastPunchDate != null && _lastPunchTime != null) {
+          try {
+            // Parse the last punch date and time
+            final punchDateStr = _lastPunchDate!;
+            final punchTimeStr = _lastPunchTime!;
+            
+            debugPrint('Found existing punch-in - Date: $punchDateStr, Time: $punchTimeStr');
+            
+            try {
+              // Create a DateTime object from the punch date and time
+              final punchDate = DateTime.parse(punchDateStr);
+              final timeParts = punchTimeStr.split(':');
+              
+              if (timeParts.length >= 2) {
+                final punchDateTime = DateTime(
+                  punchDate.year,
+                  punchDate.month,
+                  punchDate.day,
+                  int.parse(timeParts[0]),
+                  int.parse(timeParts[1]),
+                );
+                
+                // If punch-in time is less than 12 hours ago, schedule a reminder
+                final now = _timezoneService.getNow();
+                if (now.difference(punchDateTime).inHours < 12) {
+                  debugPrint('Scheduling reminder for existing punch-in');
+                  await _notificationService.schedulePunchOutReminder(
+                    punchInTime: punchDateTime,
+                  );
+                }
+              }
+            } catch (parseError) {
+              debugPrint('Error parsing punch date/time: $parseError');
+            }
+          } catch (e) {
+            debugPrint('Error scheduling reminder on app start: $e');
+          }
         }
       }
+    } catch (e) {
+      debugPrint('Error checking attendance status: $e');
     }
-  } catch (e) {
-    debugPrint('Error checking attendance status: $e');
   }
-}
 
   Future<void> _getCurrentLocation() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       if (mounted) {
@@ -215,35 +186,79 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     }
   }
 
-  String _formatDate(String? dateStr) {
-    if (dateStr == null) return 'N/A';
-    try {
-      final date = DateTime.parse(dateStr);
-      return DateFormat('MMM dd, yyyy').format(date);
-    } catch (e) {
-      return dateStr;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    
+    // Handle app lifecycle changes
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      // Release camera resources when app goes to background
+      if (_isCameraInitialized && _cameraController.value.isInitialized) {
+        _cameraController.dispose();
+        _isCameraInitialized = false;
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      // Reinitialize camera when app is resumed
+      if (!_isCameraInitialized) {
+        _initializeCamera();
+      }
     }
   }
 
-  String _formatTime(String? timeStr) {
-    if (timeStr == null) return 'N/A';
+  Future<void> _initializeCamera() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
+    // Use medium resolution on iOS and high on Android
+    final ResolutionPreset resolution = Platform.isIOS 
+        ? ResolutionPreset.medium
+        : ResolutionPreset.high;
+        
+    // Use different image format for iOS
+    final ImageFormatGroup formatGroup = Platform.isIOS
+        ? ImageFormatGroup.yuv420
+        : ImageFormatGroup.bgra8888;
+    
     try {
-      return DateFormat('hh:mm a').format(DateFormat('HH:mm:ss').parse(timeStr));
+      // First dispose any existing camera controller
+      if (_isCameraInitialized && _cameraController.value.isInitialized) {
+        await _cameraController.dispose();
+      }
     } catch (e) {
-      return timeStr;
+      // Ignore errors during disposal
+      print('Camera disposal error (can be ignored): $e');
     }
-  }
-
-  void _retakePhoto() {
-    setState(() {
-      _capturedImage = null;
-      _showCamera = true;
-      _faceValidationMessage = null;
-      _isFaceValid = false;
-    });
+    
+    _cameraController = CameraController(
+      widget.camera,
+      resolution,
+      enableAudio: false,
+      imageFormatGroup: formatGroup,
+    );
+      
+    try {
+      _initializeCameraFuture = _cameraController.initialize();
+      await _initializeCameraFuture;
+      _isCameraInitialized = true;
+      _isCameraError = false;
+      if (mounted) setState(() {});
+    } catch (e) {
+      print('Camera initialization error: $e');
+      setState(() {
+        _isCameraError = true;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error initializing camera: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _takePhoto() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
     if (!_isCameraInitialized || !_cameraController.value.isInitialized) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Camera is not ready. Please wait or restart the app.')),
@@ -254,6 +269,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     setState(() {
       _faceValidationMessage = null;
       _isFaceValid = false;
+      _faceBounds = null;
     });
 
     try {
@@ -261,11 +277,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       final File photoFile = File(photo.path);
       
       // Validate face before showing preview
-      final bool isFaceValid = await _faceRecognitionService.validateFace(photoFile);
+      final validationResult = await _faceRecognitionService.validateFace(photoFile);
+      final bool isFaceValid = validationResult['isValid'];
+      final Rect? faceBounds = validationResult['faceBounds'];
       
       if (mounted) {
         setState(() {
           _capturedImage = photoFile;
+          _faceBounds = faceBounds;
           _showCamera = false;
           _isFaceValid = isFaceValid;
           _faceValidationMessage = isFaceValid 
@@ -294,121 +313,107 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       }
     }
   }
-  
+
   Future<void> _punchInOut() async {
-  if (_currentPosition == null || _capturedImage == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please take photo and enable location')),
-    );
-    return;
-  }
-
-  if (!_isFaceValid) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Face verification failed. Please retake photo.')),
-    );
-    return;
-  }
-
-  setState(() {
-    _isLoading = true;
-  });
-
-  try {
-    final response = await _apiService.recordAttendance(
-      punchType: _isPunchedIn ? 'OUT' : 'IN',
-      photoFile: _capturedImage!,
-      latitude: _currentPosition!.latitude,
-      longitude: _currentPosition!.longitude,
-    );
-
-    // Store the new punch status
-    final bool newPunchStatus = !_isPunchedIn;
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
     
-    setState(() {
-      _isPunchedIn = newPunchStatus;
-      _lastPunchDate = response['punch_date'];
-      _lastPunchTime = response['punch_time'];
-      _lastPhotoUrl = response['photo_url'];
-      _showCamera = true;
-      _capturedImage = null;
-    });
-
-    // If the user is punching in, schedule a notification reminder
-    if (newPunchStatus) {
-      debugPrint('User punched in at ${DateTime.now()}, scheduling punch-out reminder');
-      try {
-        await _notificationService.schedulePunchOutReminder(
-          punchInTime: DateTime.now(),
-        );
-        debugPrint('Punch-out reminder scheduled successfully');
-      } catch (notificationError) {
-        debugPrint('Failed to schedule punch-out reminder: $notificationError');
-        // Continue with normal flow even if notification scheduling fails
-      }
-    } else {
-      // If the user is punching out, cancel any pending reminders
-      debugPrint('User punched out, cancelling punch-out reminder');
-      try {
-        await _notificationService.cancelPunchOutReminder();
-        debugPrint('Punch-out reminder cancelled successfully');
-      } catch (cancelError) {
-        debugPrint('Failed to cancel punch-out reminder: $cancelError');
-        // Continue with normal flow even if notification cancellation fails
-      }
+    if (_currentPosition == null || _capturedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please take photo and enable location')),
+      );
+      return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Successfully ${_isPunchedIn ? 'Punched In' : 'Punched Out'} at ${_formatTime(_lastPunchTime)}'),
-        backgroundColor: _isPunchedIn ? Colors.green : Colors.red,
-      ),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error: $e')),
-    );
-  } finally {
+    if (!_isFaceValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Face verification failed. Please retake photo.')),
+      );
+      return;
+    }
+
     setState(() {
-      _isLoading = false;
+      _isLoading = true;
+    });
+
+    try {
+      final response = await _apiService.recordAttendance(
+        punchType: _isPunchedIn ? 'OUT' : 'IN',
+        photoFile: _capturedImage!,
+        latitude: _currentPosition!.latitude,
+        longitude: _currentPosition!.longitude,
+      );
+
+      // Store the new punch status
+      final bool newPunchStatus = !_isPunchedIn;
+      
+      setState(() {
+        _isPunchedIn = newPunchStatus;
+        _lastPunchDate = response['punch_date'];
+        _lastPunchTime = response['punch_time'];
+        _lastPhotoUrl = response['photo_url'];
+        _showCamera = true;
+        _capturedImage = null;
+      });
+
+      // If the user is punching in, schedule a notification reminder
+      if (newPunchStatus) {
+        debugPrint('User punched in at ${_timezoneService.getNow()}, scheduling punch-out reminder');
+        try {
+          await _notificationService.schedulePunchOutReminder(
+            punchInTime: _timezoneService.getNow(),
+          );
+          debugPrint('Punch-out reminder scheduled successfully');
+        } catch (notificationError) {
+          debugPrint('Failed to schedule punch-out reminder: $notificationError');
+        }
+      } else {
+        // If the user is punching out, cancel any pending reminders
+        debugPrint('User punched out, cancelling punch-out reminder');
+        try {
+          await _notificationService.cancelPunchOutReminder();
+          debugPrint('Punch-out reminder cancelled successfully');
+        } catch (cancelError) {
+          debugPrint('Failed to cancel punch-out reminder: $cancelError');
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Successfully ${_isPunchedIn ? 'Punched In' : 'Punched Out'} at ${_formatTime(_lastPunchTime)}'),
+          backgroundColor: _isPunchedIn ? Colors.green : Colors.red,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _retakePhoto() {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
+    setState(() {
+      _capturedImage = null;
+      _showCamera = true;
+      _faceValidationMessage = null;
+      _isFaceValid = false;
+      _faceBounds = null;
     });
   }
-}
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Attendance'),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_showCamera) ...[
-                    _buildCameraCard(),
-                  ],
-                  if (_capturedImage != null) ...[
-                    const SizedBox(height: 16),
-                    _buildPreviewCard(),
-                  ],
-                  const SizedBox(height: 24),
-                  _buildPunchButton(),
-                  const SizedBox(height: 16),
-                  _buildLocationCard(),
-                  if (_lastPunchDate != null && _lastPunchTime != null) ...[
-                    const SizedBox(height: 16),
-                    _buildLastPunchCard(),
-                  ],
-                ],
-              ),
-            ),
-    );
+  // Use timezone service for formatting time
+  String _formatTime(String? timeStr) {
+    return _timezoneService.formatTimeWithOffset(timeStr);
   }
 
+  // Build Camera Card with clock
   Widget _buildCameraCard() {
     return Card(
       elevation: 4,
@@ -419,6 +424,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // Add Clock at the top of the camera card
+            Row(
+              children: [
+                const Icon(Icons.access_time, color: Colors.blue),
+                const SizedBox(width: 8),
+                StreamBuilder(
+                  stream: Stream.periodic(const Duration(seconds: 1)),
+                  builder: (context, snapshot) {
+                    return Text(
+                      DateFormat('EEEE, dd MMM yyyy HH:mm:ss').format(DateTime.now()),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Camera Preview Container
             Container(
               height: 250,
               decoration: BoxDecoration(
@@ -430,24 +458,47 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                 child: FutureBuilder<void>(
                   future: _initializeCameraFuture,
                   builder: (context, snapshot) {
+                    // Camera initialization checks
                     if (snapshot.connectionState == ConnectionState.done && 
                         _isCameraInitialized && 
                         _cameraController.value.isInitialized) {
                       return CameraPreview(_cameraController);
                     } else {
-                      return const Center(child: CircularProgressIndicator());
+                      // Loading indicator while camera is initializing
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text(
+                              'Initializing Camera',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
                     }
                   },
                 ),
               ),
             ),
+            
+            // Spacer
             const SizedBox(height: 16),
+            
+            // Take Photo Button
             ElevatedButton.icon(
               onPressed: _isCameraInitialized ? _takePhoto : null,
               icon: const Icon(Icons.camera_alt),
               label: const Text('Take Photo'),
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
+                backgroundColor: _isCameraInitialized ? Colors.blue : Colors.grey,
+                foregroundColor: Colors.white,
               ),
             ),
           ],
@@ -456,6 +507,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     );
   }
 
+  // Build preview card with face highlighting
   Widget _buildPreviewCard() {
     return Card(
       elevation: 4,
@@ -484,6 +536,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
               ],
             ),
           ),
+          // Add clock to photo preview as well
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.access_time, color: Colors.blue, size: 18),
+                const SizedBox(width: 8),
+                StreamBuilder(
+                  stream: Stream.periodic(const Duration(seconds: 1)),
+                  builder: (context, snapshot) {
+                    return Text(
+                      DateFormat('EEEE, dd MMM yyyy HH:mm:ss').format(DateTime.now()),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          // Face validation message
           if (_faceValidationMessage != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -506,21 +581,77 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                 ],
               ),
             ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.file(
-              _capturedImage!,
-              height: 350,
-              width: double.infinity,
-              fit: BoxFit.cover,
+          
+          // Enhanced face preview with highlight
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            width: double.infinity,
+            height: 220,
+            child: Stack(
+              children: [
+                // Base image
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    _capturedImage!,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                
+                // Face highlight overlay if a face is detected
+                if (_faceBounds != null && _isFaceValid)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: FaceHighlightOverlay(
+                        faceBounds: _faceBounds!,
+                        imageSize: Size(
+                          _cameraController.value.previewSize?.height ?? 300,
+                          _cameraController.value.previewSize?.width ?? 400,
+                        ),
+                      ),
+                    ),
+                  ),
+                
+                // "Verified" badge when face is valid
+                if (_isFaceValid)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified_user, color: Colors.white, size: 16),
+                          SizedBox(width: 4),
+                          Text(
+                            'Verified',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
         ],
       ),
     );
   }
 
+  // Build punch button
   Widget _buildPunchButton() {
     return ElevatedButton.icon(
       onPressed: _isLoading ? null : _punchInOut,
@@ -534,6 +665,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     );
   }
 
+  // Build location card
   Widget _buildLocationCard() {
     return Card(
       elevation: 4,
@@ -616,7 +748,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     );
   }
 
-
+  // Build last punch card
   Widget _buildLastPunchCard() {
     return Card(
       elevation: 4,
@@ -636,8 +768,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
               ),
             ),
             const SizedBox(height: 8),
-            Text('Date: ${_formatDate(_lastPunchDate)}'),
-            Text('Time: ${_formatTime(_lastPunchTime)}'),
+            Text('Date: ${_timezoneService.formatDateWithOffset(_lastPunchDate)}'),
+            Text('Time: ${_timezoneService.formatTimeWithOffset(_lastPunchTime)}'),
             Text(
               'Status: ${_isPunchedIn ? 'Punched In' : 'Punched Out'}',
               style: TextStyle(
@@ -652,8 +784,80 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   }
 
   @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Attendance'),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+
+                  // Camera error handling
+                  if (_isCameraError) 
+                    Card(
+                      color: Colors.red[50],
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.camera_alt, color: Colors.red, size: 50),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Camera Unavailable',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ElevatedButton(
+                              onPressed: _initializeCamera,
+                              child: const Text('Retry Camera'),
+                            )
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // Camera section
+                  if (!_isCameraError && _showCamera) ...[
+                    _buildCameraCard(),
+                  ],
+                  
+                  // Preview section
+                  if (_capturedImage != null) ...[
+                    const SizedBox(height: 16),
+                    _buildPreviewCard(),
+                  ],
+                  
+                  const SizedBox(height: 24),
+                  _buildPunchButton(),
+                  const SizedBox(height: 16),
+                  _buildLocationCard(),
+                  
+                  // Last punch details
+                  if (_lastPunchDate != null && _lastPunchTime != null) ...[
+                    const SizedBox(height: 16),
+                    _buildLastPunchCard(),
+                  ],
+                ],
+              ),
+            ),
+    );
+  }
+
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    
+    // Cancel the clock timer
+    _clockTimer.cancel();
     
     // Safely dispose camera
     if (_isCameraInitialized && _cameraController.value.isInitialized) {
@@ -665,4 +869,92 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     
     super.dispose();
   }
-} // End of _AttendanceScreenState class
+}
+
+// Class for face highlighting
+class FaceHighlightOverlay extends CustomPainter {
+  final Rect faceBounds;
+  final Size imageSize;
+  
+  FaceHighlightOverlay({
+    required this.faceBounds,
+    required this.imageSize,
+  });
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Create scaling factors
+    final double scaleX = size.width / imageSize.width;
+    final double scaleY = size.height / imageSize.height;
+    
+    // Calculate the face rectangle in the scaled image
+    final Rect scaledFaceRect = Rect.fromLTRB(
+      faceBounds.left * scaleX,
+      faceBounds.top * scaleY,
+      faceBounds.right * scaleX,
+      faceBounds.bottom * scaleY,
+    );
+    
+    // Calculate enlarged face rectangle that covers more of the head
+    // Make it taller by adding more padding to top and bottom
+    // Original faceBounds usually cuts off forehead and chin
+    final double extraHeightFactor = 0.85; // Increase vertical size by 85%
+    final double extraWidthFactor = 0.2; // Increase horizontal size by 20%
+    
+    final double originalHeight = scaledFaceRect.height;
+    final double originalWidth = scaledFaceRect.width;
+    final double extraHeight = originalHeight * extraHeightFactor;
+    final double extraWidth = originalWidth * extraWidthFactor;
+    
+    // Create an enlarged rectangle that better encompasses the whole head
+    final Rect enlargedFaceRect = Rect.fromLTRB(
+      scaledFaceRect.left - (extraWidth / 2), // Add width on both sides
+      scaledFaceRect.top - (extraHeight * 0.7), // Add more space for forehead
+      scaledFaceRect.right + (extraWidth / 2),
+      scaledFaceRect.bottom + (extraHeight * 0.3) // Add some space for chin
+    );
+    
+    // Add rounded corners to the square
+    final RRect roundedRect = RRect.fromRectAndRadius(
+      enlargedFaceRect,
+      Radius.circular(12), // Adjust corner radius as needed
+    );
+    
+    // Draw semi-transparent overlay
+    final Paint overlayPaint = Paint()
+      ..color = Colors.black.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+    
+    // Draw green border around face
+    final Paint borderPaint = Paint()
+      ..color = Colors.green
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    
+    // Create a "hole" effect using layers
+    
+    // First, save the current canvas state
+    canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
+    
+    // Draw the background overlay
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), overlayPaint);
+    
+    // Use destination-out blend mode to create transparent hole
+    final Paint holePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill
+      ..blendMode = BlendMode.dstOut;
+    
+    // Draw the "cutout" rectangle (square with rounded corners)
+    canvas.drawRRect(roundedRect, holePaint);
+    
+    // Restore the canvas state to apply the blend
+    canvas.restore();
+    
+    // Draw the green border around the face (this will be on top)
+    canvas.drawRRect(roundedRect, borderPaint);
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}

@@ -6,6 +6,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'timezone_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -14,6 +15,7 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
+  final TimezoneService _timezoneService = TimezoneService();
 
   static const int punchOutReminderId = 1;
   
@@ -78,15 +80,17 @@ class NotificationService {
 
   // Schedule a punch out reminder notification
   Future<void> schedulePunchOutReminder({required DateTime punchInTime}) async {
-    debugPrint('Scheduling punch out reminder for 5 minutes after: $punchInTime');
+    // Apply timezone offset consistently
+    final adjustedPunchInTime = punchInTime;
+    debugPrint('Scheduling punch out reminder for 5 minutes after: $adjustedPunchInTime');
     
     // Save punch-in time in shared preferences
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('last_punch_in_time', punchInTime.toIso8601String());
+    await prefs.setString('last_punch_in_time', adjustedPunchInTime.toIso8601String());
     
     // Calculate notification time (5 minutes after punch in for testing)
     final reminderTime = tz.TZDateTime.from(
-      punchInTime.add(const Duration(minutes: 5)),
+      adjustedPunchInTime.add(const Duration(minutes: 5)),
       tz.local,
     );
 
@@ -151,7 +155,7 @@ class NotificationService {
     if (lastPunchInTimeStr != null) {
       try {
         final lastPunchInTime = DateTime.parse(lastPunchInTimeStr);
-        final now = DateTime.now();
+        final now = _timezoneService.getNow(); // Use timezone service
         
         // If it's been less than 12 hours since punch in, schedule a reminder
         if (now.difference(lastPunchInTime).inHours < 12) {

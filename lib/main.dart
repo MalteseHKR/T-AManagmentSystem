@@ -7,6 +7,7 @@ import 'screens/leave_screen.dart';
 import 'screens/profile_screen.dart';
 import 'services/notification_service.dart';
 import 'services/background_service.dart';
+import 'services/session_service.dart';
 
 void main() async {
   // Ensure Flutter is initialized
@@ -116,20 +117,117 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   late PageController _pageController;
+  final SessionService _sessionService = SessionService();
+  bool _showingTimeoutWarning = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+    
+    // Start the session timeout timer
+    _startSessionTimer();
   }
+  
+  void _startSessionTimer() {
+    _sessionService.startSessionTimer(
+      onWarningTimeout: () {
+        _showLogoutWarning();
+      },
+      onFinalTimeout: () {
+        _performLogout();
+      }
+    );
+  }
+  
+  // Show a warning dialog before auto-logout
+  void _showLogoutWarning() {
+    if (_showingTimeoutWarning || !mounted) return;
+    
+    setState(() {
+      _showingTimeoutWarning = true;
+    });
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Session Timeout Warning'),
+        content: const Text('Your session will expire in 1 minute due to inactivity. Would you like to stay logged in?'),
+        actions: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _showingTimeoutWarning = false;
+                  });
+                  _sessionService.userActivity(); // Reset both timers
+                },
+                child: const Text('Stay Logged In'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _performLogout();
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red,
+                ),
+                child: const Text('Logout Now'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ).then((_) {
+      // If dialog is dismissed by system (like on a phone call), continue with timeout
+      if (_showingTimeoutWarning && mounted) {
+        setState(() {
+          _showingTimeoutWarning = false;
+        });
+        // Let the final timer continue running
+        _sessionService.acknowledgeWarning();
+      }
+    });
+  }
+  
+  void _performLogout() {
+  // Stop any existing timers
+  _sessionService.stopSessionTimer();
+  
+  // Ensure any existing dialogs are dismissed
+  try {
+    // Try to dismiss any open dialogs
+    Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+  } catch (e) {
+    print('Error dismissing dialogs: $e');
+  }
+  
+  // Ensure we're on the main thread
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Clear any existing routes and push login screen
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => LoginScreen(camera: widget.camera),
+      ),
+      (Route<dynamic> route) => false,
+    );
+  });
+}
 
   @override
   void dispose() {
     _pageController.dispose();
+    _sessionService.dispose();
     super.dispose();
   }
 
   void _onItemTapped(int index) {
+    _sessionService.userActivity(); // Reset session timer on user interaction
     setState(() {
       _selectedIndex = index;
       _pageController.animateToPage(
@@ -141,6 +239,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onPageChanged(int index) {
+    _sessionService.userActivity(); // Reset session timer on user interaction
     setState(() {
       _selectedIndex = index;
     });
@@ -148,47 +247,46 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: _onPageChanged,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          AttendanceScreen(
-            camera: widget.camera,
-            userDetails: widget.userDetails,
-          ),
-          LeaveScreen(userDetails: widget.userDetails),
-          ProfileScreen(
-            userDetails: widget.userDetails,
-            onLogout: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => LoginScreen(camera: widget.camera),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.fingerprint),
-            label: 'Attendance',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_today),
-            label: 'Leave',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+    // Wrap with GestureDetector to detect user activity
+    return GestureDetector(
+      onTap: () => _sessionService.userActivity(),
+      onPanDown: (_) => _sessionService.userActivity(),
+      onScaleStart: (_) => _sessionService.userActivity(),
+      child: Scaffold(
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: _onPageChanged,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            AttendanceScreen(
+              camera: widget.camera,
+              userDetails: widget.userDetails,
+            ),
+            LeaveScreen(userDetails: widget.userDetails),
+            ProfileScreen(
+              userDetails: widget.userDetails,
+              onLogout: _performLogout,
+            ),
+          ],
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: _onItemTapped,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.fingerprint),
+              label: 'Attendance',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.calendar_today),
+              label: 'Leave',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }

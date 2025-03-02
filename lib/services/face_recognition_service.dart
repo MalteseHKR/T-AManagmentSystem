@@ -1,3 +1,4 @@
+// lib/services/face_recognition_service.dart
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
@@ -20,7 +21,7 @@ class FaceRecognitionService {
     );
   }
 
-  Future<bool> validateFace(File imageFile) async {
+  Future<Map<String, dynamic>> validateFace(File imageFile) async {
     try {
       // Print debugging information
       print('Starting face validation on ${Platform.isIOS ? 'iOS' : 'Android'}');
@@ -67,12 +68,12 @@ class FaceRecognitionService {
       // If no faces detected or multiple faces detected, return false
       if (faces.isEmpty) {
         print('Face validation failed: No face detected');
-        return false;
+        return {'isValid': false, 'faceBounds': null};
       }
       
       if (faces.length > 1) {
         print('Face validation failed: Multiple faces detected (${faces.length})');
-        return false;
+        return {'isValid': false, 'faceBounds': null};
       }
       
       // Get the first (and only) detected face
@@ -85,13 +86,13 @@ class FaceRecognitionService {
       if (face.headEulerAngleY != null && 
           (face.headEulerAngleY! < -maxAngle || face.headEulerAngleY! > maxAngle)) {
         print('Face validation failed: Head is tilted too much horizontally (${face.headEulerAngleY})');
-        return false;
+        return {'isValid': false, 'faceBounds': null};
       }
       
       if (face.headEulerAngleZ != null && 
           (face.headEulerAngleZ! < -maxAngle || face.headEulerAngleZ! > maxAngle)) {
         print('Face validation failed: Head is tilted too much vertically (${face.headEulerAngleZ})');
-        return false;
+        return {'isValid': false, 'faceBounds': null};
       }
       
       // Check if eyes are open - less strict on iOS
@@ -104,7 +105,7 @@ class FaceRecognitionService {
         if (face.leftEyeOpenProbability! < minEyeOpenProbability || 
             face.rightEyeOpenProbability! < minEyeOpenProbability) {
           print('Face validation failed: Eyes are not fully open');
-          return false;
+          return {'isValid': false, 'faceBounds': null};
         }
       }
       
@@ -121,14 +122,14 @@ class FaceRecognitionService {
       
       if (imageSize > 0 && (faceSize / imageSize) < minFaceSizeRatio) {
         print('Face validation failed: Face is too small in frame');
-        return false;
+        return {'isValid': false, 'faceBounds': null};
       }
 
       print('Face validation successful');
-      return true;
+      return {'isValid': true, 'faceBounds': face.boundingBox};
     } catch (e) {
       print('Error validating face: $e');
-      return false;
+      return {'isValid': false, 'faceBounds': null};
     }
   }
   

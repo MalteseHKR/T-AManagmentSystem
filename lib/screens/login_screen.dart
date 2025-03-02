@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import '../services/api_service.dart';
+import '../services/session_service.dart';
 import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -21,8 +22,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _apiService = ApiService();
+  final _sessionService = SessionService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure any existing session timer is stopped
+    _sessionService.stopSessionTimer();
+  }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;

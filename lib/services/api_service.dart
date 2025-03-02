@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart'; // Add this import for DateFormat
+import 'timezone_service.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -12,6 +14,9 @@ class ApiService {
 
   static const String baseUrl = 'http://195.158.75.66:3000/api';
   String? _token;
+  
+  // Add timezone service
+  final TimezoneService _timezoneService = TimezoneService();
 
   // Login
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -78,6 +83,7 @@ class ApiService {
         'Authorization': 'Bearer $_token',
       });
 
+      // Let the server handle the timestamp - don't send any time information
       request.fields.addAll({
         'punch_type': punchType,
         'latitude': latitude.toString(),
@@ -165,7 +171,7 @@ class ApiService {
       print('Complete upload error details: $e');
       rethrow;
     }
-}
+  }
 
   // Get Attendance Status
   Future<Map<String, dynamic>> getAttendanceStatus(int userId) async {
@@ -248,53 +254,53 @@ class ApiService {
     }
   }
 
-  // Submit Leave Request
+  // Submit Leave Request with adjusted dates
   Future<void> submitLeaveRequest({
-  required String leaveType,
-  required DateTime startDate,
-  required DateTime endDate,
-  required String reason,
-  String? certificateUrl,
-}) async {
-  if (_token == null) {
-    throw Exception('Not authenticated');
+    required String leaveType,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String reason,
+    String? certificateUrl,
+  }) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    // Create dates with time set to midnight
+    final cleanStartDate = DateTime(startDate.year, startDate.month, startDate.day);
+    final cleanEndDate = DateTime(endDate.year, endDate.month, endDate.day);
+
+    print('API Submit Leave Request:');
+    print('Leave Type: $leaveType');
+    print('Start Date (with timezone offset): $cleanStartDate');
+    print('End Date (with timezone offset): $cleanEndDate');
+    print('Reason: $reason');
+    print('Certificate URL: $certificateUrl');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/leave'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_token',
+      },
+      body: jsonEncode({
+        'leave_type': leaveType,
+        // Use formatted date string to remove time
+        'start_date': '${cleanStartDate.year}-${cleanStartDate.month.toString().padLeft(2, '0')}-${cleanStartDate.day.toString().padLeft(2, '0')}',
+        'end_date': '${cleanEndDate.year}-${cleanEndDate.month.toString().padLeft(2, '0')}-${cleanEndDate.day.toString().padLeft(2, '0')}',
+        'reason': reason,
+        'medical_certificate_url': certificateUrl,
+      }),
+    );
+
+    print('Leave Request Response Status: ${response.statusCode}');
+    print('Leave Request Response Body: ${response.body}');
+
+    if (response.statusCode != 200) {
+      final errorBody = jsonDecode(response.body);
+      throw Exception(errorBody['message'] ?? 'Failed to submit leave request');
+    }
   }
-
-  // Create dates with time set to midnight
-  final cleanStartDate = DateTime(startDate.year, startDate.month, startDate.day);
-  final cleanEndDate = DateTime(endDate.year, endDate.month, endDate.day);
-
-  print('API Submit Leave Request:');
-  print('Leave Type: $leaveType');
-  print('Start Date (clean): $cleanStartDate');
-  print('End Date (clean): $cleanEndDate');
-  print('Reason: $reason');
-  print('Certificate URL: $certificateUrl');
-
-  final response = await http.post(
-    Uri.parse('$baseUrl/leave'),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $_token',
-    },
-    body: jsonEncode({
-      'leave_type': leaveType,
-      // Use formatted date string to remove time
-      'start_date': '${cleanStartDate.year}-${cleanStartDate.month.toString().padLeft(2, '0')}-${cleanStartDate.day.toString().padLeft(2, '0')}',
-      'end_date': '${cleanEndDate.year}-${cleanEndDate.month.toString().padLeft(2, '0')}-${cleanEndDate.day.toString().padLeft(2, '0')}',
-      'reason': reason,
-      'medical_certificate_url': certificateUrl,
-    }),
-  );
-
-  print('Leave Request Response Status: ${response.statusCode}');
-  print('Leave Request Response Body: ${response.body}');
-
-  if (response.statusCode != 200) {
-    final errorBody = jsonDecode(response.body);
-    throw Exception(errorBody['message'] ?? 'Failed to submit leave request');
-  }
-}
 
   // Get Leave Requests
   Future<List<Map<String, dynamic>>> getLeaveRequests(String userId) async {
