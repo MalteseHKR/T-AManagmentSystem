@@ -586,7 +586,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             width: double.infinity,
-            height: 220,
+            height: 300,
             child: Stack(
               children: [
                 // Base image
@@ -594,7 +594,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                   borderRadius: BorderRadius.circular(8),
                   child: Image.file(
                     _capturedImage!,
-                    height: 200,
+                    height: 280,
                     width: double.infinity,
                     fit: BoxFit.cover,
                   ),
@@ -750,38 +750,39 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
   // Build last punch card
   Widget _buildLastPunchCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Last Punch Details',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+  return Card(
+    elevation: 4,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Last Punch Details',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(height: 8),
-            Text('Date: ${_timezoneService.formatDateWithOffset(_lastPunchDate)}'),
-            Text('Time: ${_timezoneService.formatTimeWithOffset(_lastPunchTime)}'),
-            Text(
-              'Status: ${_isPunchedIn ? 'Punched In' : 'Punched Out'}',
-              style: TextStyle(
-                color: _isPunchedIn ? Colors.green : Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
+          ),
+          const SizedBox(height: 8),
+          Text('Date: ${_timezoneService.formatDateWithOffset(_lastPunchDate)}'),
+          // Display the raw time string directly, without formatting
+          Text('Time: ${_lastPunchTime ?? 'N/A'}'),
+          Text(
+            'Status: ${_isPunchedIn ? 'Punched In' : 'Punched Out'}',
+            style: TextStyle(
+              color: _isPunchedIn ? Colors.green : Colors.red,
+              fontWeight: FontWeight.bold,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -898,8 +899,8 @@ class FaceHighlightOverlay extends CustomPainter {
     // Calculate enlarged face rectangle that covers more of the head
     // Make it taller by adding more padding to top and bottom
     // Original faceBounds usually cuts off forehead and chin
-    final double extraHeightFactor = 0.85; // Increase vertical size by 85%
-    final double extraWidthFactor = 0.2; // Increase horizontal size by 20%
+    final double extraHeightFactor = 0.9; // 90% height addition
+    final double extraWidthFactor = 0.1; // 10% width addition
     
     final double originalHeight = scaledFaceRect.height;
     final double originalWidth = scaledFaceRect.width;
@@ -907,11 +908,29 @@ class FaceHighlightOverlay extends CustomPainter {
     final double extraWidth = originalWidth * extraWidthFactor;
     
     // Create an enlarged rectangle that better encompasses the whole head
-    final Rect enlargedFaceRect = Rect.fromLTRB(
+    Rect enlargedFaceRect = Rect.fromLTRB(
       scaledFaceRect.left - (extraWidth / 2), // Add width on both sides
-      scaledFaceRect.top - (extraHeight * 0.7), // Add more space for forehead
+      scaledFaceRect.top - (extraHeight * 0.6), // Add more space for forehead
       scaledFaceRect.right + (extraWidth / 2),
-      scaledFaceRect.bottom + (extraHeight * 0.3) // Add some space for chin
+      scaledFaceRect.bottom + (extraHeight * 0.4) // Add some space for chin
+    );
+    
+    // Ensure the rectangle stays within the preview bounds
+    // with a small margin (5 pixels) from the edges
+    final double margin = 5.0;
+    final Rect bounds = Rect.fromLTRB(
+      margin, 
+      margin, 
+      size.width - margin, 
+      size.height - margin
+    );
+    
+    // Constrain the enlarged rectangle to stay within bounds
+    enlargedFaceRect = Rect.fromLTRB(
+      enlargedFaceRect.left.clamp(bounds.left, bounds.right),
+      enlargedFaceRect.top.clamp(bounds.top, bounds.bottom),
+      enlargedFaceRect.right.clamp(bounds.left, bounds.right),
+      enlargedFaceRect.bottom.clamp(bounds.top, bounds.bottom)
     );
     
     // Add rounded corners to the square
