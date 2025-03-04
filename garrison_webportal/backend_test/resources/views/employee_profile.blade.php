@@ -31,43 +31,7 @@
         </div>
     </div>
 
-    <!-- Attendance Calendar -->
-    <div class="card">
-        <div class="card-header">
-            Attendance Calendar
-        </div>
-        <div class="card-body">
-            <div id="attendanceCalendar"></div>
-        </div>
-    </div>
+    <!-- Link to Attendance Page -->
+    <a href="{{ route('attendance.show', $employee->id) }}" class="btn btn-primary">View Attendance</a>
 </div>
 @endsection
-
-@push('styles')
-<link href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/5.10.1/main.min.css" rel="stylesheet">
-@endpush
-
-@push('scripts')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/5.10.1/main.min.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var calendarEl = document.getElementById('attendanceCalendar');
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
-            events: [
-                @foreach($attendanceRecords as $record)
-                {
-                    title: '{{ $record->punch_type }}',
-                    start: '{{ $record->punch_in }}',
-                    @if($record->punch_out)
-                    end: '{{ $record->punch_out }}',
-                    @endif
-                    color: '{{ $record->punch_type == "In" ? "green" : "red" }}'
-                },
-                @endforeach
-            ]
-        });
-        calendar.render();
-    });
-</script>
-@endpush

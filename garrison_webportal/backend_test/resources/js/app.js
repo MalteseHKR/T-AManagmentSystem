@@ -1,3 +1,6 @@
+require('./bootstrap');
+require('./FullCalendar');
+
 import Chart from 'chart.js/auto';
 
 document.addEventListener('DOMContentLoaded', function() {
