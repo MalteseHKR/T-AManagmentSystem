@@ -15,7 +15,7 @@ class RegisterController extends Controller
 {
     public function showRegistrationForm()
     {
-        return view('register');
+        return view('credentials.register');
     }
 
     public function register(Request $request)
@@ -24,9 +24,8 @@ class RegisterController extends Controller
 
         $user = $this->create($request->all());
 
-        Auth::login($user);
-
-        return redirect()->intended('dashboard');
+        // Redirect to login page with success message
+        return redirect()->route('login')->with('success', 'Registration successful! Please log in.');
     }
 
     protected function validator(array $data)
@@ -54,7 +53,7 @@ class RegisterController extends Controller
                 'user_dob' => $data['user_dob'],
                 'user_job_start' => $data['user_job_start'],
                 'user_job_end' => $data['user_job_end'] ?? null,
-                'user_active' => isset($data['user_active']) ? 1 : 0,
+                'user_active' => 0, // Set user_active to false by default
                 'user_department' => $data['user_department'],
             ]);
 

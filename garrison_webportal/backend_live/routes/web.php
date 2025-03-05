@@ -15,7 +15,7 @@ Route::post('/register', [RegisterController::class, 'register']);
 
 // Home Route
 Route::get('/', function () {
-    return view('welcome');
+    return view('index');
 })->name('home');
 
 // Protected Routes
@@ -24,5 +24,20 @@ Route::middleware(['auth'])->group(function () {
         return view('dashboard');
     })->name('dashboard');
     
-    // Add other authenticated routes here
+    Route::get('/dashboard/hr', function () {
+        return view('dashboard.hr');
+    })->name('dashboard.hr');
+
+    Route::get('/dashboard/it', function () {
+        return view('dashboard.it');
+    })->name('dashboard.it');
+
+    Route::get('/dashboard/generic', function () {
+        return view('dashboard.generic');
+    })->name('dashboard.generic');
+
 });
+
+Route::get('/inactive', function () {
+    return view('auth.inactive');
+})->name('inactive');

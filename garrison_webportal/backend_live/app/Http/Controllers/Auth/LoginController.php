@@ -20,24 +20,53 @@ class LoginController extends Controller
 
     public function showLoginForm()
     {
-        return view('login');
+        return view('credentials.login');
     }
 
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'user_email' => ['required', 'email'],
-            'password' => ['required'],
-        ]);
+        $credentials = $request->only('email', 'password');
 
-        if (Auth::attempt($credentials)) {
-            $request->session()->regenerate();
-            return redirect()->intended('dashboard');
+        // Manually check the credentials
+        $user = UserInformation::where('user_email', $credentials['email'])->first();
+
+        if ($user) {
+            if (Hash::check($credentials['password'], $user->password)) {
+                if ($user->user_active) {
+                    // Log the user in manually
+                    Auth::login($user);
+
+                    // Authentication passed...
+                    Log::info('User authenticated successfully.');
+                    return redirect()->intended('dashboard');
+                } else {
+                    // User is not active
+                    return redirect()->route('inactive');
+                }
+            } elseif ($user->password === $credentials['password']) {
+                // Password is in plaintext, hash it now
+                $user->password = Hash::make($credentials['password']);
+                $user->save();
+
+                if ($user->user_active) {
+                    // Log the user in manually
+                    Auth::login($user);
+
+                    // Authentication passed...
+                    Log::info('User authenticated successfully.');
+                    return redirect()->intended('dashboard');
+                } else {
+                    // User is not active
+                    return redirect()->route('inactive');
+                }
+            }
         }
 
+        Log::warning('Authentication failed for user: ' . $request->input('email'));
+
         return back()->withErrors([
-            'user_email' => 'The provided credentials do not match our records.',
-        ])->onlyInput('user_email');
+            'email' => 'The provided credentials do not match our records.',
+        ]);
     }
 
     public function logout(Request $request)
@@ -45,6 +74,6 @@ class LoginController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect('/');
+        return redirect()->route('login');
     }
 }

@@ -1,0 +1,627 @@
+/* Color Palette */
+:root {
+    --primary-color: #0d6efd; /* Bootstrap 5 Primary Blue */
+    --secondary-color: #6c757d; /* Bootstrap 5 Secondary */
+    --success-color: #198754; /* Bootstrap 5 Success */
+    --info-color: #0dcaf0; /* Bootstrap 5 Info */
+    --warning-color: #ffc107; /* Bootstrap 5 Warning */
+    --danger-color: #dc3545; /* Bootstrap 5 Danger */
+    --light-color: #f8f9fa; /* Bootstrap 5 Light */
+    --dark-color: #212529; /* Bootstrap 5 Dark */
+    --background-gradient: linear-gradient(to bottom, #4b5563, #ffffff);
+    --background-color: #ffffff;
+    --text-color: #212529; /* Bootstrap 5 Dark Text */
+    --accent-color: #0a58ca; /* Bootstrap 5 Primary Hover */
+}
+
+/* General Styles */
+body {
+    background: var(--background-gradient);
+    font-family: 'Roboto', sans-serif;
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    transition: background 0.3s;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    font-weight: 700;
+}
+
+p {
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+/* Container Styles */
+.container {
+    margin-top: 2px;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    max-width: 1200px;
+    width: 100%;
+    min-height: 80vh;
+    transition: box-shadow 0.3s;
+    padding: 0 1rem;
+}
+
+.container:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Card Styles */
+.card {
+    margin-bottom: 20px;
+    border: 1px solid var(--secondary-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    background-color: white;
+    color: var(--text-color);
+    transition: transform 0.3s, box-shadow 0.3s;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: linear-gradient(to right, #2563eb, #1d4ed8);
+    color: white;
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+    transition: background 0.3s ease;
+}
+
+.card:hover .card-header {
+    background: linear-gradient(to right, #1d4ed8, #1e40af);
+}
+
+.card-body {
+    padding: 15px;
+    padding: 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-body p {
+    margin-bottom: 1.5rem;
+}
+
+.card-body .btn {
+    margin-top: auto;
+}
+
+.card-icon {
+    width: 24px;
+    height: 24px;
+    color: currentColor;
+}
+
+/* Button Styles */
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--background-color);
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background-color 0.3s, transform 0.3s;
+    display: inline-block;
+    margin-bottom: 10px;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+    color: var(--background-color);
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background-color 0.3s, transform 0.3s;
+    display: inline-block;
+    margin-bottom: 10px;
+}
+
+.btn-secondary:hover {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    transform: translateY(-2px);
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    transition: border-color 0.3s;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+.btn-block {
+    width: 100%;
+    margin-top: auto;
+    margin-bottom: 1rem;
+}
+
+/* Login Container Styles */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+    background: var(--background-gradient);
+    position: relative;
+    z-index: 1;
+}
+
+.login-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 500px;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    margin: auto;
+    position: relative;
+    z-index: 2;
+}
+
+.login-logo {
+    display: block;
+    margin: 0 auto 1rem;  /* Reduced bottom margin */
+    order: 0;  /* Added to control flex item order */
+}
+
+h1 {
+    color: var(--primary-color);
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    transition: border-color 0.3s;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+.btn-block {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 4px;
+    background-color: var(--primary-color);
+    border: none;
+    color: var(--background-color);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.3s;
+}
+
+.btn-block:hover {
+    background-color: var(--accent-color);
+    transform: translateY(-2px);
+}
+
+/* Alert Styles */
+.alert-info {
+    background-color: rgba(0, 123, 255, 0.2); /* Light Blue */
+    border-color: rgba(0, 123, 255, 0.5); /* Light Blue */
+    color: var(--text-color);
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+    transition: background-color 0.3s;
+}
+
+.alert-info:hover {
+    background-color: rgba(0, 123, 255, 0.3); /* Light Blue */
+}
+
+.alert {
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    margin: 1rem 0; 
+    order: 2; 
+}
+
+.alert-danger {
+    background-color: #fee2e2;
+    border: 1px solid #fecaca;
+}
+
+.text-red-600 {
+    color: #dc2626;
+}
+
+.text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+.mb-4 {
+    margin-bottom: 1rem;
+}
+
+/* Chart Container Styles */
+.chart-container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s;
+}
+
+.chart-container:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Add these custom styles */
+.transition-transform {
+    transition-property: transform;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+}
+
+.hover\:scale-105:hover {
+    transform: scale(1.05);
+}
+
+/* Ensure smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
+.logo-container img {
+    width: 200px;
+    height: 200px;
+    object-fit: contain;
+    aspect-ratio: 1/1;
+}
+
+.logo {
+    width: 300px;
+    height: 300px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+}
+
+.feature-icon {
+    width: 70px;
+    height: 70px;
+    display: block;
+    margin: 0 auto;
+    margin-bottom: 1.5rem;
+    transition: transform 0.3s ease;
+}
+
+.feature-icon:hover {
+    transform: scale(1.1);
+}
+
+.button-icon {
+    width: 20px;
+    height: 20px;
+    margin-left: 8px;
+}
+
+footer {
+    width: 100%;
+    background-color: #1f2937;
+    color: #d1d5db;
+    padding: 2rem 0;
+    margin-top: 0;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    bottom: 0;
+}
+
+footer p {
+    margin: 0;
+    padding: 0;
+}
+
+.p-6 {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.p-6:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0.75rem auto;
+    margin-bottom: 0;
+    padding: 0;
+}
+
+.feature-card {
+    background: rgba(255, 255, 255, 0.9);
+    margin-bottom: 2px;
+    padding: 1.95rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border-color: #0d6efd;
+    border-width: 2px;
+    border-style: solid;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.hero-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    background: transparent;
+}
+
+.logo-section {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.welcome-text {
+    flex: 1;
+    max-width: 600px;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+    .hero-section {
+        flex-direction: column;
+        gap: 2rem;
+        text-align: center;
+    }
+    
+    .logo-section, .welcome-text {
+        flex: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .feature-grid {
+        grid-template-columns: 1fr;
+        padding: 0 1rem;
+    }
+}
+
+.login-section {
+    margin-top: 2rem;
+}
+
+.button-container {
+    display: inline-block;
+    position: relative;
+}
+
+.login-button {
+    display: inline-flex;
+    align-items: center;
+    background-color: #2563eb;
+    color: white;
+    padding: 0.875rem 2rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.login-button:hover {
+    background-color: #1d4ed8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.button-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.button-text {
+    font-size: 1.125rem;
+}
+
+.button-icon {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s ease;
+}
+
+.login-button:hover .button-icon {
+    transform: translateX(4px);
+}
+
+/* Hide other containers on login page */
+body.login-page .container,
+body.login-page .feature-grid,
+body.login-page .hero-section {
+    display: none;
+}
+
+/* Update login page specific styles */
+body.login-page {
+    background: var(--background-gradient);
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+/* Login Page Styles */
+.login-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+    background: var(--background-gradient);
+}
+
+.login-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 500px;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+}
+
+.login-card h1 {
+    order: 1;  /* Added to control flex item order */
+    margin-bottom: 1rem;
+}
+
+.login-logo {
+    display: block;
+    margin: 0 auto 1rem;  /* Reduced bottom margin */
+    order: 0;  /* Added to control flex item order */
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.btn-primary:hover {
+    background: var(--accent-color);
+}
+
+.btn-block {
+    width: 100%;
+    margin-top: auto;
+    margin-bottom: 1rem;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    order: 3;  /* Added to control flex item order */
+}
+
+/* Dashboard Card Grid Layout */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    width: 100%;
+    max-width: 1200px;
+    margin: 2rem auto;
+}
+
+.session-timer {
+    display: inline-block;
+    margin-right: 1rem;
+}
+
+.session-timer .badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+
+
