@@ -10,25 +10,24 @@ class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
-        // Fetch employees with optional filters
         $query = Employee::query();
 
-        if ($request->has('name') && $request->input('name') !== '') {
-            $name = $request->input('name');
-            $query->where(function($q) use ($name) {
-                $q->where('first_name', 'like', '%' . $name . '%')
-                  ->orWhere('surname', 'like', '%' . $name . '%')
-                  ->orWhereRaw("CONCAT(first_name, ' ', surname) LIKE ?", ["%{$name}%"]);
+        // Name filter
+        if ($request->filled('name')) {
+            $query->where(function($q) use ($request) {
+                $q->where('first_name', 'like', '%' . $request->name . '%')
+                  ->orWhere('surname', 'like', '%' . $request->name . '%');
             });
         }
 
-        if ($request->has('department') && $request->input('department') !== '') {
-            $query->where('department', $request->input('department'));
+        // Department filter
+        if ($request->filled('department') && $request->department !== '') {
+            $query->where('department', $request->department);
         }
 
-        $employees = $query->get();
+        $employees = $query->orderBy('surname')->paginate(10);
 
-        return view('employees', ['employees' => $employees]);
+        return view('employees', compact('employees'));
     }
 
     public function show($id)

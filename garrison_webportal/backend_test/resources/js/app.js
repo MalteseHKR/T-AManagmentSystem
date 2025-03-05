@@ -132,4 +132,17 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('pieChartContainer').style.display = 'none';
         document.getElementById('lineChartContainer').style.display = 'block';
     });
+
+    // Add this to your app.js or a separate JS file
+    const navbar = document.querySelector('.navbar');
+    
+    if (navbar) {
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 10) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+    }
 });

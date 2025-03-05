@@ -64,9 +64,9 @@
             </div>
 
             <div class="col-12 mb-3">
-                <label class="form-label">Employee Images (Max 5)</label>
+                <label class="form-label">Employee Images (Max 3)</label>
                 <div class="row">
-                    @for ($i = 1; $i <= 5; $i++)
+                    @for ($i = 1; $i <= 3; $i++)
                         <div class="col-md-4 mb-2">
                             <input type="file" class="form-control" name="images[]" accept="image/*">
                         </div>
