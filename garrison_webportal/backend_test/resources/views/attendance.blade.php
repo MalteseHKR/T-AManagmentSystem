@@ -47,10 +47,8 @@
                         @forelse($attendances as $attendance)
                             <tr>
                                 <td class="px-4 py-3 fw-semibold align-middle">
-                                    <a href="{{ route('attendance.show', $attendance->id) }}" class="text-decoration-none text-dark">
-                                        {{ optional($attendance->employee)->first_name }} 
-                                        {{ optional($attendance->employee)->surname }}
-                                    </a>
+                                    {{ optional($attendance->employee)->first_name }} 
+                                    {{ optional($attendance->employee)->surname }}
                                 </td>
                                 <td class="px-4 py-3">{{ $attendance->punch_date }}</td>
                                 <td class="px-4 py-3 text-success">{{ $attendance->punch_time }}</td>

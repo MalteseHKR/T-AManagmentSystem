@@ -35,9 +35,6 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
     Route::get('/attendance/dashboard', [AttendanceController::class, 'dashboard'])->name('attendance.dashboard');
-    Route::get('/attendance/{id}', [App\Http\Controllers\AttendanceController::class, 'show'])
-        ->name('attendance.show')
-        ->middleware('auth');
     Route::get('/attendance/analytics', [App\Http\Controllers\AttendanceController::class, 'analytics'])
         ->name('attendance.analytics')
         ->middleware('auth');

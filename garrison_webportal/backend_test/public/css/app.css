@@ -1032,4 +1032,85 @@ main {
   transform: translateY(-1px);
 }
 
+/* Enhanced Tab Styling for Analytics - Fixed layout */
+#analyticsTab {
+  border-bottom: 2px solid var(--bs-primary);
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  padding-left: 0;
+  margin-bottom: 0;
+  list-style: none; /* Remove bullet points */
+  width: 100%;
+}
+
+#analyticsTab .nav-item {
+  margin-bottom: -2px;
+  list-style-type: none; /* Explicitly remove list styling */
+  margin-right: 4px; /* Add space between tabs */
+}
+
+#analyticsTab .nav-link {
+  border: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  color: #495057;
+  background-color: #f8f9fa;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  top: 0;
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+  display: block; /* Ensure proper display */
+  text-decoration: none; /* Remove underlines */
+}
+
+#analyticsTab .nav-link:hover {
+  background-color: #fff;
+  border-color: #e9ecef #e9ecef transparent;
+}
+
+#analyticsTab .nav-link.active {
+  color: var(--bs-primary);
+  background-color: #ffffff;
+  border-color: var(--bs-primary) var(--bs-primary) #ffffff;
+  top: 2px;
+  box-shadow: 0 -3px 5px rgba(0,0,0,0.05);
+  z-index: 1;
+  font-weight: 600;
+  position: relative;
+}
+
+#analyticsTab .nav-link.active:after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 2px;
+  background-color: #ffffff;
+}
+
+#analyticsTab .nav-link i {
+  position: relative;
+  top: 0;
+  transition: all 0.2s ease;
+}
+
+#analyticsTab .nav-link.active i {
+  color: var(--bs-primary);
+}
+
+#analyticsTabContent {
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-top: 0;
+  border-radius: 0 0 0.25rem 0.25rem;
+  padding: 1.5rem;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.05);
+  margin-top: -1px;
+}
+
+
+
 
