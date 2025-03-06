@@ -32,6 +32,6 @@
     </div>
 
     <!-- Link to Attendance Page -->
-    <a href="{{ route('attendance.show', $employee->id) }}" class="btn btn-primary">View Attendance</a>
+    <a href="{{ route('attendance.attendanceE', $employee->id) }}" class="btn btn-primary">View Attendance</a>
 </div>
 @endsection

@@ -23,10 +23,30 @@ class Attendance extends Model
         'punch_time',
         'latitude',
         'longitude',
+        'date',
+        'clock_in',
+        'clock_out',
+        'status',
+        'notes'
     ];
 
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+    
+    public function getClockInAttribute()
+    {
+        return $this->attributes['clock_in'] ?? $this->attributes['punch_in'] ?? null;
+    }
+    
+    public function getClockOutAttribute() 
+    {
+        return $this->attributes['clock_out'] ?? $this->attributes['punch_out'] ?? null;
+    }
+    
+    public function getDateAttribute()
+    {
+        return $this->attributes['date'] ?? $this->attributes['punch_date'] ?? null;
     }
 }

@@ -65,4 +65,23 @@ class AttendanceController extends Controller
         
         return view('attendance.analytics', compact('departmentData', 'attendanceData'));
     }
+
+    /**
+     * Display attendance records for a specific employee
+     *
+     * @param int $employeeId
+     * @return \Illuminate\View\View
+     */
+    public function showEmployeeAttendance($employeeId)
+    {
+        $employee = Employee::findOrFail($employeeId);
+        $attendanceRecords = Attendance::where('employee_id', $employeeId)
+            ->orderBy('date', 'desc')
+            ->paginate(15);
+            
+        return view('attendance.attendanceE', [
+            'employee' => $employee,
+            'attendanceRecords' => $attendanceRecords
+        ]);
+    }
 }
