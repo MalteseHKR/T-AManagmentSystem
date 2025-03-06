@@ -54,6 +54,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   late Timer _clockTimer;
   DateTime _currentTime = DateTime.now();
   bool _isCameraError = false;
+  
+  // For screen refresh
+  int _screenRefreshCounter = 0;
 
   @override
   void initState() {
@@ -66,6 +69,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     _initializeCamera();
     _checkAttendanceStatus();
     _getCurrentLocation();
+  }
+
+  // Force screen refresh
+  void _forceScreenRefresh() {
+    setState(() {
+      _screenRefreshCounter++;
+      debugPrint('Forced screen refresh. Counter: $_screenRefreshCounter');
+    });
   }
 
   void _startClockTimer() {
@@ -123,9 +134,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                 final now = _timezoneService.getNow();
                 if (now.difference(punchDateTime).inHours < 12) {
                   debugPrint('Scheduling reminder for existing punch-in');
-                  await _notificationService.schedulePunchOutReminder(
-                    punchInTime: punchDateTime,
-                  );
+                  try {
+                    await _notificationService.schedulePunchOutReminder(
+                      punchInTime: punchDateTime,
+                    );
+                  } catch (notificationError) {
+                    debugPrint('Notification error (handled): $notificationError');
+                  }
                 }
               }
             } catch (parseError) {
@@ -226,7 +241,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       }
     } catch (e) {
       // Ignore errors during disposal
-      print('Camera disposal error (can be ignored): $e');
+      debugPrint('Camera disposal error (can be ignored): $e');
     }
     
     _cameraController = CameraController(
@@ -243,7 +258,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       _isCameraError = false;
       if (mounted) setState(() {});
     } catch (e) {
-      print('Camera initialization error: $e');
+      debugPrint('Camera initialization error: $e');
       setState(() {
         _isCameraError = true;
       });
@@ -337,6 +352,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     });
 
     try {
+      // Debug log before API call
+      debugPrint('STARTING PUNCH OPERATION at ${DateTime.now()}');
+      debugPrint('Current status: ${_isPunchedIn ? 'IN' : 'OUT'}, Current time: $_lastPunchTime');
+      
       final response = await _apiService.recordAttendance(
         punchType: _isPunchedIn ? 'OUT' : 'IN',
         photoFile: _capturedImage!,
@@ -344,54 +363,111 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         longitude: _currentPosition!.longitude,
       );
 
+      // Log the entire response for detailed inspection
+      debugPrint('FULL API RESPONSE: ${response.toString()}');
+      
+      // Log specific time values
+      debugPrint('API PUNCH TIME: ${response['punch_time']}');
+      debugPrint('API PUNCH DATE: ${response['punch_date']}');
+      
+      // Compare with local time
+      final localTime = DateFormat('HH:mm:ss').format(DateTime.now());
+      debugPrint('LOCAL DEVICE TIME: $localTime');
+      
+      // Check time difference
+      try {
+        if (response['punch_time'] != null) {
+          final timeParts = response['punch_time'].split(':');
+          if (timeParts.length >= 2) {
+            final apiHour = int.parse(timeParts[0]);
+            final apiMinute = int.parse(timeParts[1]);
+            
+            final now = DateTime.now();
+            final localHour = now.hour;
+            final localMinute = now.minute;
+            
+            debugPrint('TIME COMPARISON: API time [${apiHour}:${apiMinute}], Local time [${localHour}:${localMinute}]');
+            debugPrint('HOUR DIFFERENCE: ${localHour - apiHour}');
+          }
+        }
+      } catch (timeError) {
+        debugPrint('Error analyzing time difference: $timeError');
+      }
+      
       // Store the new punch status
       final bool newPunchStatus = !_isPunchedIn;
+      final String newPunchTime = response['punch_time'];
+      final String newPunchDate = response['punch_date'];
       
+      debugPrint('New status: ${newPunchStatus ? 'IN' : 'OUT'}, New time: $newPunchTime');
+      
+      // Update the state with new data
       setState(() {
         _isPunchedIn = newPunchStatus;
-        _lastPunchDate = response['punch_date'];
-        _lastPunchTime = response['punch_time'];
+        _lastPunchDate = newPunchDate;
+        _lastPunchTime = newPunchTime;
         _lastPhotoUrl = response['photo_url'];
         _showCamera = true;
         _capturedImage = null;
       });
+      
+      // Force screen refresh
+      _forceScreenRefresh();
+      debugPrint('Screen refreshed. Refresh counter: $_screenRefreshCounter');
 
-      // If the user is punching in, schedule a notification reminder
-      if (newPunchStatus) {
-        debugPrint('User punched in at ${_timezoneService.getNow()}, scheduling punch-out reminder');
-        try {
+      // Handle notifications with error catching
+      try {
+        if (newPunchStatus) {
+          // User punched in
           await _notificationService.schedulePunchOutReminder(
             punchInTime: _timezoneService.getNow(),
           );
-          debugPrint('Punch-out reminder scheduled successfully');
-        } catch (notificationError) {
-          debugPrint('Failed to schedule punch-out reminder: $notificationError');
-        }
-      } else {
-        // If the user is punching out, cancel any pending reminders
-        debugPrint('User punched out, cancelling punch-out reminder');
-        try {
+          debugPrint('Punch-out reminder scheduled');
+        } else {
+          // User punched out
           await _notificationService.cancelPunchOutReminder();
-          debugPrint('Punch-out reminder cancelled successfully');
-        } catch (cancelError) {
-          debugPrint('Failed to cancel punch-out reminder: $cancelError');
+          debugPrint('Punch-out reminder cancelled');
         }
+      } catch (notificationError) {
+        // Just log the error but continue with app flow
+        debugPrint('Notification operation failed: $notificationError');
       }
+
+      // After a short delay, check attendance status again
+      Future.delayed(const Duration(milliseconds: 500), () async {
+        if (mounted) {
+          try {
+            // Re-fetch attendance status from server
+            await _checkAttendanceStatus();
+            
+            // Force another refresh
+            _forceScreenRefresh();
+            debugPrint('Second refresh after status check. Counter: $_screenRefreshCounter');
+          } catch (e) {
+            debugPrint('Error refreshing attendance: $e');
+          }
+        }
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Successfully ${_isPunchedIn ? 'Punched In' : 'Punched Out'} at ${_formatTime(_lastPunchTime)}'),
+          content: Text('Successfully ${_isPunchedIn ? 'Punched In' : 'Punched Out'} at $newPunchTime'),
           backgroundColor: _isPunchedIn ? Colors.green : Colors.red,
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      debugPrint('Error during punch operation: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -750,106 +826,138 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
   // Build last punch card
   Widget _buildLastPunchCard() {
-  return Card(
-    elevation: 4,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Last Punch Details',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text('Date: ${_timezoneService.formatDateWithOffset(_lastPunchDate)}'),
-          // Display the raw time string directly, without formatting
-          Text('Time: ${_lastPunchTime ?? 'N/A'}'),
-          Text(
-            'Status: ${_isPunchedIn ? 'Punched In' : 'Punched Out'}',
-            style: TextStyle(
-              color: _isPunchedIn ? Colors.green : Colors.red,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+    return Card(
+      key: ValueKey('lastPunch-$_screenRefreshCounter-${_lastPunchDate}-${_lastPunchTime}'),
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
       ),
-    ),
-  );
-}
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Last Punch Details',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  onPressed: () async {
+                    await _checkAttendanceStatus();
+                    _forceScreenRefresh();
+                  },
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('Date: ${_timezoneService.formatDateWithOffset(_lastPunchDate)}'),
+            // Display the raw time string directly, without formatting
+            Text('Time: ${_lastPunchTime ?? 'N/A'}'),
+            Text(
+              'Status: ${_isPunchedIn ? 'Punched In' : 'Punched Out'}',
+              style: TextStyle(
+                color: _isPunchedIn ? Colors.green : Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            // Add a small indicator showing when the card was last refreshed
+            Text(
+              'Refreshed: ${DateFormat('HH:mm:ss').format(DateTime.now())} (#$_screenRefreshCounter)',
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Attendance'),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+    return KeyedSubtree(
+      key: ValueKey('attendance-screen-$_screenRefreshCounter'),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Attendance'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () async {
+                await _checkAttendanceStatus();
+                _forceScreenRefresh();
+              },
+              tooltip: 'Refresh Status',
+            ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
 
-                  // Camera error handling
-                  if (_isCameraError) 
-                    Card(
-                      color: Colors.red[50],
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            const Icon(Icons.camera_alt, color: Colors.red, size: 50),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Camera Unavailable',
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold
+                    // Camera error handling
+                    if (_isCameraError) 
+                      Card(
+                        color: Colors.red[50],
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.camera_alt, color: Colors.red, size: 50),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Camera Unavailable',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            ElevatedButton(
-                              onPressed: _initializeCamera,
-                              child: const Text('Retry Camera'),
-                            )
-                          ],
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: _initializeCamera,
+                                child: const Text('Retry Camera'),
+                              )
+                            ],
+                          ),
                         ),
                       ),
-                    ),
 
-                  // Camera section
-                  if (!_isCameraError && _showCamera) ...[
-                    _buildCameraCard(),
-                  ],
-                  
-                  // Preview section
-                  if (_capturedImage != null) ...[
+                    // Camera section
+                    if (!_isCameraError && _showCamera) ...[
+                      _buildCameraCard(),
+                    ],
+                    
+                    // Preview section
+                    if (_capturedImage != null) ...[
+                      const SizedBox(height: 16),
+                      _buildPreviewCard(),
+                    ],
+                    
+                    const SizedBox(height: 24),
+                    _buildPunchButton(),
                     const SizedBox(height: 16),
-                    _buildPreviewCard(),
+                    _buildLocationCard(),
+                    
+                    // Last punch details
+                    if (_lastPunchDate != null && _lastPunchTime != null) ...[
+                      const SizedBox(height: 16),
+                      _buildLastPunchCard(),
+                    ],
                   ],
-                  
-                  const SizedBox(height: 24),
-                  _buildPunchButton(),
-                  const SizedBox(height: 16),
-                  _buildLocationCard(),
-                  
-                  // Last punch details
-                  if (_lastPunchDate != null && _lastPunchTime != null) ...[
-                    const SizedBox(height: 16),
-                    _buildLastPunchCard(),
-                  ],
-                ],
+                ),
               ),
-            ),
+      ),
     );
   }
 

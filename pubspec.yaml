@@ -30,7 +30,7 @@ dependencies:
   image_picker: ^1.1.2
   mime_type: ^1.0.0
   # Added packages for notifications
-  flutter_local_notifications: ^14.1.5
+  flutter_local_notifications: ^16.1.0
   timezone: ^0.9.2
   flutter_timezone: ^4.1.0
   # For background tasks

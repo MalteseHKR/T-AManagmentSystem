@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/foundation.dart';
 
 class TimezoneService {
   static final TimezoneService _instance = TimezoneService._internal();
@@ -10,82 +11,125 @@ class TimezoneService {
   
   String? _currentTimezone;
   tz.Location? _localLocation;
-  bool _verbose = false; // Debug logging flag - set to false to disable logs
+  // Define _cetLocation as nullable
+  tz.Location? _cetLocation;
+  bool _verbose = true; // Debug logging flag - set to false to disable logs
 
   TimezoneService._internal() {
     _initializeTimezone();
   }
 
   Future<void> _initializeTimezone() async {
+    // Initialize timezone database first
     tz.initializeTimeZones();
+    
+    // Then initialize CET location
+    _cetLocation = tz.getLocation('Europe/Paris'); // Paris uses CET/CEST
+    
     try {
       // Dynamically get the device's timezone
       _currentTimezone = await FlutterTimezone.getLocalTimezone();
       
-      // Fallback to UTC if timezone detection fails
+      // Fallback to CET if timezone detection fails
       _localLocation = _currentTimezone != null 
         ? tz.getLocation(_currentTimezone!) 
-        : tz.UTC;
+        : _cetLocation;
       
-      if (_verbose) print('Detected Timezone: $_currentTimezone');
+      if (_verbose) debugPrint('Detected Timezone: $_currentTimezone');
     } catch (e) {
-      if (_verbose) print('Timezone initialization error: $e');
-      _localLocation = tz.UTC;
-      _currentTimezone = 'UTC';
+      if (_verbose) debugPrint('Timezone initialization error: $e');
+      _localLocation = _cetLocation;
+      _currentTimezone = 'Europe/Paris (CET)';
     }
   }
 
   // Get current timezone name
   String? get currentTimezone => _currentTimezone;
 
-  // Get current time in detected timezone
+  // Get current time in detected timezone, fallback to CET
   DateTime getNow() {
-    return _localLocation != null 
-      ? tz.TZDateTime.now(_localLocation!) 
-      : DateTime.now().toUtc();
+    if (_localLocation != null) {
+      return tz.TZDateTime.now(_localLocation!);
+    } else if (_cetLocation != null) {
+      return tz.TZDateTime.now(_cetLocation!);
+    } else {
+      // Ultimate fallback if something is wrong with timezone initialization
+      return DateTime.now();
+    }
   }
   
-  String formatTimeWithOffset(String? timeStr, {String format = 'HH:mm'}) {
-  if (timeStr == null) return 'N/A';
-  try {
-    final timeParts = timeStr.split(':');
-    if (timeParts.length >= 2) {
-      final hours = int.parse(timeParts[0]);
-      final minutes = int.parse(timeParts[1]);
-      
-      // Get the current device timezone offset in hours
-      final now = DateTime.now();
-      final localOffset = now.timeZoneOffset.inHours;
-      
-      // Create a DateTime with the parsed time (assuming server is in UTC)
-      final serverDateTime = DateTime.utc(2000, 1, 1, hours, minutes);
-      
-      // Convert to local time
-      final localDateTime = serverDateTime.toLocal();
-      
-      // Format using 24-hour format
-      final formattedTime = DateFormat(format).format(localDateTime);
-      
-      return formattedTime;
+  String formatTimeWithOffset(String? timeStr, {String format = 'HH:mm', String serverTimezone = 'UTC'}) {
+    if (timeStr == null) return 'N/A';
+    try {
+      final timeParts = timeStr.split(':');
+      if (timeParts.length >= 2) {
+        final hours = int.parse(timeParts[0]);
+        final minutes = int.parse(timeParts[1]);
+        
+        // Get today's date components
+        final now = DateTime.now();
+        
+        // Create a DateTime with the server's timezone
+        tz.Location serverLocation;
+        try {
+          serverLocation = tz.getLocation(serverTimezone);
+        } catch (e) {
+          if (_verbose) debugPrint('Invalid server timezone: $e');
+          // Default to CET if server timezone is invalid and CET is available
+          serverLocation = _cetLocation ?? tz.UTC;
+        }
+        
+        // Create time in the server's timezone
+        final serverDateTime = tz.TZDateTime(
+          serverLocation, now.year, now.month, now.day, hours, minutes);
+        
+        // Convert to the local timezone
+        tz.Location targetLocation = _localLocation ?? (_cetLocation ?? tz.UTC);
+        final localDateTime = tz.TZDateTime.from(serverDateTime, targetLocation);
+        
+        // Format using provided format
+        return DateFormat(format).format(localDateTime);
+      }
+      return timeStr;
+    } catch (e) {
+      if (_verbose) debugPrint('Time formatting error: $e');
+      return timeStr;
     }
-    return timeStr;
-  } catch (e) {
-    print('Time formatting error: $e');
-    return timeStr;
   }
-}
+
+  // Format local time without timezone conversion
+  String formatLocalTime(String? timeStr, {String format = 'HH:mm'}) {
+    if (timeStr == null) return 'N/A';
+    try {
+      final timeParts = timeStr.split(':');
+      if (timeParts.length >= 2) {
+        final hours = int.parse(timeParts[0]);
+        final minutes = int.parse(timeParts[1]);
+        
+        // Create a DateTime using the time directly without conversion
+        final localDateTime = DateTime(2000, 1, 1, hours, minutes);
+        
+        // Format using provided format
+        return DateFormat(format).format(localDateTime);
+      }
+      return timeStr;
+    } catch (e) {
+      if (_verbose) debugPrint('Time formatting error: $e');
+      return timeStr;
+    }
+  }
 
   // Format date with offset
   String formatDateWithOffset(String? dateStr, {String format = 'MMM dd, yyyy'}) {
     if (dateStr == null) return 'N/A';
     try {
       final date = DateTime.parse(dateStr);
-      // Convert to local timezone if possible
-      final tzDate = _localLocation != null 
-        ? tz.TZDateTime.from(date, _localLocation!)
-        : date;
+      // Convert to local timezone if possible, fallback to CET
+      tz.Location targetLocation = _localLocation ?? (_cetLocation ?? tz.UTC);
+      final tzDate = tz.TZDateTime.from(date, targetLocation);
       return DateFormat(format).format(tzDate);
     } catch (e) {
+      if (_verbose) debugPrint('Date formatting error: $e');
       return dateStr;
     }
   }
@@ -110,8 +154,9 @@ class TimezoneService {
           seconds = int.parse(timeParts[2].split('.')[0]);
         }
         
-        // Create a datetime in local timezone
-        final serverTime = tz.TZDateTime(_localLocation ?? tz.UTC, 
+        // Create a datetime in local timezone or fallback to CET
+        tz.Location targetLocation = _localLocation ?? (_cetLocation ?? tz.UTC);
+        final serverTime = tz.TZDateTime(targetLocation, 
           year, month, day, hours, minutes, seconds);
         
         return DateFormat(format).format(serverTime);
@@ -119,6 +164,7 @@ class TimezoneService {
       
       return '$dateStr $timeStr';
     } catch (e) {
+      if (_verbose) debugPrint('Server timestamp formatting error: $e');
       return '$dateStr $timeStr';
     }
   }
