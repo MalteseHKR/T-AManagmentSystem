@@ -7,7 +7,7 @@
     <h1 class="mb-4">Employee Profile</h1>
 
     <!-- Back Link -->
-    <a href="javascript:history.back()" class="btn btn-secondary mb-4">Back</a>
+    <a href="employees" class="btn btn-secondary mb-4">Back</a>
 
     <div class="card mb-4">
         <div class="card-header">

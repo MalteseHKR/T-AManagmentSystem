@@ -38,6 +38,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/attendance/analytics', [App\Http\Controllers\AttendanceController::class, 'analytics'])
         ->name('attendance.analytics')
         ->middleware('auth');
+    Route::get('/attendance/employee', [AttendanceController::class, 'attendanceEmployee'])
+        ->name('attendance.attendanceE');
+    Route::get('/attendance/employee/{employeeId}', [AttendanceController::class, 'showEmployeeAttendance'])
+        ->name('attendance.employee');
 
     Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements');
     Route::get('/announcements/create', [AnnouncementController::class, 'create'])->name('announcements.create');

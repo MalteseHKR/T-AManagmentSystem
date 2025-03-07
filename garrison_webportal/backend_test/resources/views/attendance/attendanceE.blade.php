@@ -6,12 +6,14 @@
         <div class="col-md-10">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Attendance for {{ $employee->first_name }} {{ $employee->surname }}</span>
-                    <a href="{{ route('attendance.attendanceE', $employee->id) }}" class="btn btn-sm btn-secondary">Back to Profile</a>
+                    <span>Attendance for {{ $employee->first_name }} {{ $employee->last_name }}</span>
+                    <a href="{{ route('employee.profile', $employee->id) }}" class="btn btn-sm btn-secondary">
+                        Back to Profile
+                    </a>
                 </div>
                 
                 <div class="card-body">
-                    @if($attendanceRecords->count() > 0)
+                    @if($attendances->count() > 0)
                         <table class="table">
                             <thead>
                                 <tr>
@@ -23,7 +25,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($attendanceRecords as $record)
+                                @foreach($attendances as $record)
                                 <tr>
                                     <td>{{ \Carbon\Carbon::parse($record->date)->format('M d, Y') }}</td>
                                     <td>{{ $record->clock_in ? \Carbon\Carbon::parse($record->clock_in)->format('H:i') : 'N/A' }}</td>
@@ -35,20 +37,27 @@
                                             N/A
                                         @endif
                                     </td>
-                                    <td>{{ $record->status }}</td>
+                                    <td>
+                                        @if(!$record->clock_in)
+                                            <span class="badge bg-warning text-dark">Not Started</span>
+                                        @elseif(!$record->clock_out)
+                                            <span class="badge bg-success">Working</span>
+                                        @else
+                                            <span class="badge bg-primary">Complete</span>
+                                        @endif
+                                    </td>
                                 </tr>
                                 @endforeach
                             </tbody>
                         </table>
                         
-                        <div class="pagination-container">
-                            {{ $attendanceRecords->links('pagination::bootstrap-4') }}
-                            <div class="pagination-info">
-                                Showing {{ $attendanceRecords->firstItem() ?? 0 }} to {{ $attendanceRecords->lastItem() ?? 0 }} of {{ $attendanceRecords->total() }} records
-                            </div>
+                        <div class="mt-4">
+                            {{ $attendances->links() }}
                         </div>
                     @else
-                        <p class="text-center">No attendance records found for this employee.</p>
+                        <div class="alert alert-info">
+                            No attendance records found for this employee.
+                        </div>
                     @endif
                 </div>
             </div>
