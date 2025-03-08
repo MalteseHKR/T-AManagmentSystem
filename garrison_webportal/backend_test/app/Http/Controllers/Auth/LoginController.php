@@ -11,6 +11,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Cache\RateLimiter;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 
 class LoginController extends BaseController
 {
@@ -34,6 +35,7 @@ class LoginController extends BaseController
             'password' => 'required',
         ]);
 
+        // Check for too many login attempts
         if ($this->hasTooManyLoginAttempts($request)) {
             $this->fireLockoutEvent($request);
             $seconds = $this->limiter()->availableIn($this->throttleKey($request));
@@ -43,11 +45,24 @@ class LoginController extends BaseController
             ])->status(429);
         }
 
-        if (Auth::attempt($request->only('email', 'password'))) {
-            $request->session()->regenerate();
-            $this->limiter()->clear($this->throttleKey($request));
-            
-            return redirect()->intended('dashboard');
+        // Get the user manually instead of using Auth::attempt
+        $user = \App\Models\User::where('email', $request->email)->first();
+
+        if ($user) {
+            // Check if the password matches the user_login_pass field
+            // For plain text passwords (current system)
+            if ($request->password === $user->user_login_pass) {    
+                Auth::login($user);
+                $request->session()->regenerate();
+                $this->limiter()->clear($this->throttleKey($request));
+                
+                // Optionally, hash the password for future logins
+                // Comment this out if you want to keep using plain text
+                // $user->user_login_pass = Hash::make($request->password);
+                // $user->save();
+                
+                return redirect()->intended('dashboard');
+            }
         }
 
         $this->incrementLoginAttempts($request);

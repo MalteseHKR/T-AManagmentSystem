@@ -8,7 +8,7 @@
 
     <!-- Customized Welcome Message -->
     <div class="alert alert-info">
-        <h4>Welcome, {{ Auth::user()->name }}!</h4>
+        <h4>Welcome, {{ Auth::user()->userInformation ? Auth::user()->userInformation->user_name : Auth::user()->name }}!</h4>
         <p>We're glad to have you back. Here's an overview of your HR management tools.</p>
     </div>
 
@@ -60,7 +60,7 @@
         </div>
 
         <!-- Payroll -->
-        <div class="card">
+        <!-- <div class="card">
             <div class="card-header">
                 <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -71,7 +71,7 @@
                 <p>Calculate and manage payroll, generate payslips, and handle payroll-related functions.</p>
                 <a href="{{ route('payroll') }}" class="btn btn-primary">Manage Payroll</a>
             </div>
-        </div>
+        </div> -->
 
         <!-- Leave Management -->
         <div class="card">

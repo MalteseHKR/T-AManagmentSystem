@@ -3,39 +3,54 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Employee;
+use App\Models\UserInformation;  // Updated import
 use App\Models\Attendance;
+use App\Models\LogInformation;   // Add this import for attendance records
 
 class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Employee::query();
-
-        // Name filter
-        if ($request->filled('name')) {
-            $query->where(function($q) use ($request) {
-                $q->where('first_name', 'like', '%' . $request->name . '%')
-                  ->orWhere('surname', 'like', '%' . $request->name . '%');
-            });
+        $query = UserInformation::query();
+        
+        // Apply name filter if provided
+        if ($request->has('name') && $request->name) {
+            $query->where('user_name', 'like', '%' . $request->name . '%');
         }
-
-        // Department filter
-        if ($request->filled('department') && $request->department !== '') {
-            $query->where('department', $request->department);
+        
+        // Apply department filter if provided
+        if ($request->has('department') && $request->department) {
+            $query->where('user_department', $request->department);
         }
-
-        $employees = $query->orderBy('surname')->paginate(10);
-
-        return view('employees', compact('employees'));
+        
+        // Get unique departments for the filter dropdown
+        $departments = UserInformation::select('user_department')
+            ->whereNotNull('user_department')  
+            ->where('user_department', '!=', '') 
+            ->distinct()
+            ->orderBy('user_department')
+            ->pluck('user_department')
+            ->toArray();
+        
+        // Get the users with pagination
+        $userInformation = $query->paginate(15);
+        
+        return view('employees', compact('userInformation', 'departments'));
     }
 
     public function show($id)
     {
-        $employee = Employee::findOrFail($id);
-        $attendanceRecords = Attendance::where('employee_id', $id)->get();
+        // Find the user information by user_id instead of id
+        $userInfo = UserInformation::where('user_id', $id)->firstOrFail();
+        
+        // Get the attendance records
+        $attendanceRecords = LogInformation::where('user_id', $userInfo->user_id)
+            ->orderBy('punch_date', 'desc')
+            ->orderBy('punch_time', 'desc')
+            ->get();
 
-        return view('employee_profile', compact('employee', 'attendanceRecords'));
+        // Pass the user information to the view
+        return view('employee_profile', compact('userInfo', 'attendanceRecords'));
     }
 
     /**

@@ -14,15 +14,19 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    protected $table = 'login';
+    protected $primaryKey = 'user_login_id'; 
+    public $timestamps = false;
+
     /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'user_id',
         'email',
-        'password',
+        'user_login_pass',
     ];
 
     /**
@@ -55,9 +59,30 @@ class User extends Authenticatable
         return $this->currentLoginAt ?? now();
     }
 
-    // Define the relationship with the Employee model
+    /**
+     * Get the password for the user.
+     * 
+     * @return string
+     */
+    public function getAuthPassword()
+    {
+        return $this->user_login_pass;
+    }
+
+    /**
+     * Get the user information associated with this login.
+     */
+    public function userInformation()
+    {
+        return $this->belongsTo(UserInformation::class, 'user_id', 'user_id');
+    }
+
+    /**
+     * Define the relationship with the Employee model
+     */
     public function employee()
     {
-        return $this->hasOne(Employee::class);
+        return $this->hasOne(Employee::class, 'user_id', 'user_id');
     }
+
 }

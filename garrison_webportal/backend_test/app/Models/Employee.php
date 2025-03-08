@@ -11,15 +11,15 @@ class Employee extends Model
 
     protected $fillable = [
         'user_id',
-        'first_name',
-        'surname',
-        'job_role',
-        'phone_number',
-        'email',
-        'date_of_birth',
-        'start_date',
-        'is_active',
-        'department',
+        'user_name',
+        'user_surname',
+        'user_title',
+        'user_phone',
+        'user_email',
+        'user_dob',
+        'user_job_start',
+        'user_active',
+        'user_department',
     ];
 
     // Define the relationship with the User model

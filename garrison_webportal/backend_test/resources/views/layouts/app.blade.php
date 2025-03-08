@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,5 +32,7 @@
     <!-- Add jQuery if not already included -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     @vite(['resources/js/session-timeout.js'])
+    <script src="{{ asset('js/app.js') }}"></script>
+    @stack('scripts')
 </body>
 </html>
