@@ -49,47 +49,73 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Display attendance analytics and statistics.
+     * Display the analytics dashboard.
      *
-     * @return \Illuminate\View\View
+     * @return \Illuminate\Http\Response
      */
     public function analytics()
     {
-        // Get department attendance data
-        $departmentData = [
-            'labels' => [],
-            'values' => []
-        ];
-
-        $departmentStats = DB::table('log_information AS li')
-            ->join('user_information AS ui', 'li.user_id', '=', 'ui.user_id')
-            ->select('ui.user_department', DB::raw('COUNT(*) as count'))
-            ->whereNotNull('ui.user_department')
-            ->groupBy('ui.user_department')
-            ->get();
-
-        foreach ($departmentStats as $stat) {
-            $departmentData['labels'][] = $stat->user_department;
-            $departmentData['values'][] = $stat->count;
-        }
+        // Get attendance data for the last 7 days
+        $attendanceData = $this->getAttendanceByDay();
         
-        // Get weekly attendance data
-        $weeklyData = [
-            'labels' => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            'values' => []
-        ];
-
-        // Get counts for each day of the week
-        for ($i = 0; $i < 7; $i++) {
-            $dayCount = DB::table('log_information')
-                ->where(DB::raw('DAYOFWEEK(punch_date)'), '=', $i + 1) // 1 = Sunday in MySQL
-                ->count();
+        // Get department data
+        $departmentData = $this->getAttendanceByDepartment();
+        
+        // Pass the data to the view
+        return view('attendance.analytics', compact('attendanceData', 'departmentData'));
+    }
+    
+    /**
+     * Get attendance data grouped by day for the last 7 days
+     */
+    private function getAttendanceByDay()
+    {
+        // Get the last 7 days
+        $days = [];
+        $values = [];
+        
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i)->format('Y-m-d');
+            $days[] = now()->subDays($i)->format('D, M j'); // Format: Mon, Jan 1
             
-            // Adjust array to make Monday first day of week
-            $weeklyData['values'][($i + 6) % 7] = $dayCount;
+            // Count attendance records for this day
+            $count = LogInformation::whereDate('punch_date', $date)->count();
+            $values[] = $count;
         }
         
-        return view('attendance.analytics', compact('departmentData', 'weeklyData'));
+        return [
+            'labels' => $days,
+            'values' => $values
+        ];
+    }
+    
+    /**
+     * Get attendance data grouped by department
+     */
+    private function getAttendanceByDepartment()
+    {
+        // Get attendance counts by department
+        $departmentCounts = DB::table('user_information')
+            ->join('log_Information', 'user_information.user_id', '=', 'log_Information.user_id')
+            ->select('user_information.user_department', DB::raw('count(*) as count'))
+            ->whereNotNull('user_information.user_department')
+            ->where('user_information.user_department', '!=', '')
+            ->groupBy('user_information.user_department')
+            ->orderBy('count', 'desc')
+            ->get();
+        
+        $labels = [];
+        $values = [];
+        
+        foreach ($departmentCounts as $dept) {
+            $labels[] = $dept->user_department;
+            $values[] = $dept->count;
+        }
+        
+        return [
+            'labels' => $labels,
+            'values' => $values
+        ];
     }
 
     /**
