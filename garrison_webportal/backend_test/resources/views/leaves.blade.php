@@ -198,41 +198,11 @@
 
 @push('scripts')
 <script>
-    // Show notifications based on session data - execute immediately
-    (function() {
-        @if(session('success'))
-            // Execute immediately with a small delay to ensure DOM is ready
-            setTimeout(function() {
-                Swal.fire({
-                    title: 'Success!',
-                    text: "{{ session('success') }}",
-                    icon: 'success',
-                    confirmButtonColor: '#3085d6',
-                    timer: 3000,
-                    timerProgressBar: true
-                });
-            }, 100);
-        @endif
-        
-        @if(session('error'))
-            // Execute immediately with a small delay to ensure DOM is ready
-            setTimeout(function() {
-                Swal.fire({
-                    title: 'Error!',
-                    text: "{{ session('error') }}",
-                    icon: 'error',
-                    confirmButtonColor: '#3085d6'
-                });
-            }, 100);
-        @endif
-    })();
-
-    // Rest of your document ready code...
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl, {
+        // Initialize tooltips - optimized version
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltipTriggerList.forEach(el => {
+            new bootstrap.Tooltip(el, {
                 placement: 'top',
                 trigger: 'hover focus',
                 html: false,
@@ -286,33 +256,54 @@
             });
         });
         
-        // Show notifications based on session data
-        function showNotifications() {
-            // Success notification
-            @if(session('success'))
-                Swal.fire({
-                    title: 'Success!',
-                    text: "{{ session('success') }}",
-                    icon: 'success',
-                    confirmButtonColor: '#3085d6',
-                    timer: 3000,
-                    timerProgressBar: true
-                });
-            @endif
-            
-            // Error notification
-            @if(session('error'))
-                Swal.fire({
-                    title: 'Error!',
-                    text: "{{ session('error') }}",
-                    icon: 'error',
-                    confirmButtonColor: '#3085d6'
-                });
-            @endif
-        }
+        // Show notifications based on session data - ONLY ONCE
+        // FIXED: Removed duplicate notification code and placed it here
+        @if(session('success'))
+            Swal.fire({
+                title: 'Success!',
+                text: "{{ session('success') }}",
+                icon: 'success',
+                confirmButtonColor: '#3085d6',
+                timer: 3000,
+                timerProgressBar: true
+            });
+        @endif
         
-        // Call the function when the page loads
-        showNotifications();
+        @if(session('error'))
+            Swal.fire({
+                title: 'Error!',
+                text: "{{ session('error') }}",
+                icon: 'error',
+                confirmButtonColor: '#3085d6'
+            });
+        @endif
+
+        // Add this for the filter form
+        const filterInput = document.getElementById('employee_name');
+        let debounceTimer;
+
+        filterInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                // Only submit form after typing stops for 500ms
+                document.querySelector('form').submit();
+            }, 500);
+        });
+
+        // Add this to your script if you have many leave rows
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    // Load more leave requests via AJAX
+                    loadMoreLeaves();
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, {threshold: 0.5});
+
+        // Observe the last table row
+        const lastRow = document.querySelector('table.leave-table tbody tr:last-child');
+        if (lastRow) observer.observe(lastRow);
     });
 </script>
 @endpush
