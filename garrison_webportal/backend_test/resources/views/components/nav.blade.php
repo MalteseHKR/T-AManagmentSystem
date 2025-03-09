@@ -1,4 +1,4 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top shadow-sm">
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top shadow-sm py-0">
     <div class="container">
         <!-- Logo and Brand -->
         <a class="navbar-brand d-flex align-items-center" href="{{ route('dashboard') }}">

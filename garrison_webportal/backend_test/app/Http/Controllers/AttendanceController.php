@@ -128,13 +128,32 @@ class AttendanceController extends Controller
     {
         $employee = UserInformation::findOrFail($userId);
         
+        // Get attendance records with photos for this employee
         $attendances = LogInformation::where('user_id', $userId)
             ->orderBy('date_time_event', 'desc')
             ->paginate(15);
-            
-        return view('attendance.attendanceE', [
+        
+        // Get a list of all attendance photos for this employee
+        $attendancePhotos = LogInformation::where('user_id', $userId)
+            ->whereNotNull('photo_url')
+            ->where('photo_url', '!=', '')
+            ->select('photo_url', 'date_time_event')
+            ->orderBy('date_time_event', 'desc')
+            ->get();
+        
+        // Format the attendance photos
+        $formattedPhotos = $attendancePhotos->map(function($item) {
+            return [
+                'url' => route('images.serve', ['filename' => basename($item->photo_url)]),
+                'original_path' => $item->photo_url,
+                'date' => \Carbon\Carbon::parse($item->date_time_event)->format('Y-m-d H:i:s')
+            ];
+        });
+        
+        return view('attendance.employeeAttendance', [
             'employee' => $employee,
-            'attendances' => $attendances
+            'attendances' => $attendances,
+            'attendancePhotos' => $formattedPhotos
         ]);
     }
 

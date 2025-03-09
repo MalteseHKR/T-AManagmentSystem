@@ -12,6 +12,7 @@ use Illuminate\Cache\RateLimiter;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class LoginController extends BaseController
 {
@@ -45,41 +46,76 @@ class LoginController extends BaseController
             ])->status(429);
         }
 
-        // Get the user manually instead of using Auth::attempt
+        // Get the user manually
         $user = \App\Models\User::where('email', $request->email)->first();
 
         if ($user) {
-            // Check if the password matches the user_login_pass field
-            // For plain text passwords (current system)
-            if ($request->password === $user->user_login_pass) {    
+            $authenticated = false;
+            
+            // First try: Check if the password is already hashed and validate with Hash::check
+            if (strlen($user->user_login_pass) > 20) { // Likely a hashed password (bcrypt is long)
+                if (Hash::check($request->password, $user->user_login_pass)) {
+                    $authenticated = true;
+                }
+            } 
+            // Second try: Check if it's a plaintext password that matches
+            else if ($request->password === $user->user_login_pass) {
+                $authenticated = true;
+                
+                // Hash the plaintext password for future logins
+                $this->hashUserPassword($user, $request->password);
+                
+                Log::info("Password hashed for user: {$user->email}");
+            }
+            
+            // If authentication was successful with either method
+            if ($authenticated) {
                 Auth::login($user);
                 $request->session()->regenerate();
                 $this->limiter()->clear($this->throttleKey($request));
-                
-                // Optionally, hash the password for future logins
-                // Comment this out if you want to keep using plain text
-                // $user->user_login_pass = Hash::make($request->password);
-                // $user->save();
                 
                 return redirect()->intended('dashboard');
             }
         }
 
+        // Authentication failed
         $this->incrementLoginAttempts($request);
 
         throw ValidationException::withMessages([
             'email' => ['These credentials do not match our records.'],
         ]);
     }
+    
+    /**
+     * Hash a user's password and save it to the database
+     */
+    protected function hashUserPassword($user, $plainPassword)
+    {
+        try {
+            $user->user_login_pass = Hash::make($plainPassword);
+            $user->save();
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Failed to hash password: " . $e->getMessage());
+            return false;
+        }
+    }
 
+    /**
+     * Log the user out of the application.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
     public function logout(Request $request)
     {
-        Auth::logout();
-        
+        $this->guard()->logout();
+
         $request->session()->invalidate();
+
         $request->session()->regenerateToken();
-        
-        return redirect('/login')->with('status', 'You have been logged out successfully.');
+
+        return $this->loggedOut($request) ?: redirect('/');
     }
 
     protected function hasTooManyLoginAttempts(Request $request)
@@ -106,5 +142,26 @@ class LoginController extends BaseController
     protected function limiter()
     {
         return app(RateLimiter::class);
+    }
+
+    /**
+     * Get the guard to be used during authentication.
+     *
+     * @return \Illuminate\Contracts\Auth\StatefulGuard
+     */
+    protected function guard()
+    {
+        return Auth::guard();
+    }
+
+    /**
+     * The user has logged out of the application.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return mixed
+     */
+    protected function loggedOut(Request $request)
+    {
+        return redirect('/');
     }
 }

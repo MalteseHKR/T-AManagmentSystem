@@ -65,4 +65,32 @@ class LogInformation extends Model
     {
         return $this->belongsTo(Device::class, 'device_id', 'device_id');
     }
+
+    /**
+     * Get the full URL for the photo
+     *
+     * @return string|null
+     */
+    public function getPhotoUrlAttribute()
+    {
+        if (empty($this->attributes['photo_url'])) {
+            return null;
+        }
+
+        // Extract just the filename from the path
+        $filename = basename($this->attributes['photo_url']);
+        
+        // Generate a URL to the images.serve route
+        return route('images.serve', ['filename' => $filename]);
+    }
+
+    /**
+     * Check if the log entry has a photo
+     *
+     * @return bool
+     */
+    public function hasPhoto()
+    {
+        return !empty($this->attributes['photo_url']);
+    }
 }
