@@ -2,6 +2,8 @@
 
 @section('title', 'Attendance - Garrison Time and Attendance System')
 
+@section('show_navbar', true)
+
 @section('content')
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -174,103 +176,132 @@ document.addEventListener('DOMContentLoaded', function() {
     // Get all map links
     const mapLinks = document.querySelectorAll('.map-link');
     
-    // Cache location data in local storage
-    function getLocationFromCache(lat, lng) {
-        const cacheKey = `location_${lat}_${lng}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached && cached !== 'Location unavailable') {
-            return cached;
-        }
-        return null;
-    }
-    
-    function saveLocationToCache(lat, lng, location) {
-        if (location && location !== 'Location unavailable') {
-            const cacheKey = `location_${lat}_${lng}`;
-            localStorage.setItem(cacheKey, location);
-        }
-    }
-    
-    // To avoid rate limiting, add a slight delay between requests
-    let delay = 0;
-    const DELAY_INCREMENT = 1000; // 1 second to avoid rate limiting
-    
-    // Process each link
+    // Process links only when hovered for the first time
     mapLinks.forEach(function(link) {
-        const lat = link.getAttribute('data-lat');
-        const lng = link.getAttribute('data-lng');
-        const locationText = link.querySelector('.location-text');
-        const loadingIndicator = link.querySelector('.loading-indicator');
-        
-        // First check if we have this in cache
-        const cachedLocation = getLocationFromCache(lat, lng);
-        if (cachedLocation) {
-            locationText.textContent = cachedLocation;
-            loadingIndicator.style.display = 'none';
-            return;
-        }
-        
-        // Add a delay to avoid rate limiting
-        setTimeout(function() {
-            // Try both Nominatim and a fallback service
-            tryNominatim(lat, lng, locationText, loadingIndicator);
-        }, delay);
-        
-        // Increase delay for next request
-        delay += DELAY_INCREMENT;
-    });
-    
-    function tryNominatim(lat, lng, locationText, loadingIndicator) {
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('API response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data && data.address) {
-                    // Display city or town, or county if those aren't available
-                    const location = data.address.city || data.address.town || 
-                                    data.address.village || data.address.hamlet ||
-                                    data.address.county || data.address.state;
-                    if (location) {
-                        locationText.textContent = location;
-                        loadingIndicator.style.display = 'none';
-                        saveLocationToCache(lat, lng, location);
-                    } else {
-                        tryFallbackService(lat, lng, locationText, loadingIndicator);
+        link.addEventListener('mouseenter', function() {
+            // Only process once
+            if (link.dataset.processed) return;
+            link.dataset.processed = true;
+            
+            const lat = link.getAttribute('data-lat');
+            const lng = link.getAttribute('data-lng');
+            const locationText = link.querySelector('.location-text');
+            const loadingIndicator = link.querySelector('.loading-indicator');
+            
+            // Continue with your existing geocoding logic...
+            // Cache location data in local storage
+            function getLocationFromCache(lat, lng) {
+                const cacheKey = `location_${lat}_${lng}`;
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    try {
+                        const data = JSON.parse(cached);
+                        // Cache expires after 30 days
+                        if (Date.now() - data.timestamp < 30 * 24 * 60 * 60 * 1000) {
+                            return data.location;
+                        } else {
+                            // Remove expired cache
+                            localStorage.removeItem(cacheKey);
+                        }
+                    } catch (e) {
+                        // Handle old format or invalid data
+                        localStorage.removeItem(cacheKey);
                     }
-                } else {
-                    tryFallbackService(lat, lng, locationText, loadingIndicator);
                 }
-            })
-            .catch(error => {
-                console.error('Error fetching location from Nominatim:', error);
-                tryFallbackService(lat, lng, locationText, loadingIndicator);
-            });
-    }
-    
-    function tryFallbackService(lat, lng, locationText, loadingIndicator) {
-        // Try BigDataCloud as fallback (also free, different rate limits)
-        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && (data.locality || data.city || data.principalSubdivision)) {
-                    const location = data.locality || data.city || data.principalSubdivision;
-                    locationText.textContent = location;
-                    saveLocationToCache(lat, lng, location);
-                } else {
-                    locationText.textContent = 'View Location';
+                return null;
+            }
+            
+            function saveLocationToCache(lat, lng, location) {
+                if (location && location !== 'Location unavailable') {
+                    const cacheKey = `location_${lat}_${lng}`;
+                    const cacheData = {
+                        location: location,
+                        timestamp: Date.now()
+                    };
+                    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
                 }
-                loadingIndicator.style.display = 'none';
-            })
-            .catch(error => {
-                console.error('Error fetching location from fallback:', error);
-                locationText.textContent = 'View Location';
-                loadingIndicator.style.display = 'none';
+            }
+            
+            // To avoid rate limiting, add a slight delay between requests
+            let delay = 0;
+            const DELAY_INCREMENT = 1000; // 1 second to avoid rate limiting
+            
+            // Process each link
+            mapLinks.forEach(function(link) {
+                const lat = link.getAttribute('data-lat');
+                const lng = link.getAttribute('data-lng');
+                const locationText = link.querySelector('.location-text');
+                const loadingIndicator = link.querySelector('.loading-indicator');
+                
+                // First check if we have this in cache
+                const cachedLocation = getLocationFromCache(lat, lng);
+                if (cachedLocation) {
+                    locationText.textContent = cachedLocation;
+                    loadingIndicator.style.display = 'none';
+                    return;
+                }
+                
+                // Add a delay to avoid rate limiting
+                setTimeout(function() {
+                    // Try both Nominatim and a fallback service
+                    tryNominatim(lat, lng, locationText, loadingIndicator);
+                }, delay);
+                
+                // Increase delay for next request
+                delay += DELAY_INCREMENT;
             });
-    }
+            
+            function tryNominatim(lat, lng, locationText, loadingIndicator) {
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('API response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data && data.address) {
+                            // Display city or town, or county if those aren't available
+                            const location = data.address.city || data.address.town || 
+                                            data.address.village || data.address.hamlet ||
+                                            data.address.county || data.address.state;
+                            if (location) {
+                                locationText.textContent = location;
+                                loadingIndicator.style.display = 'none';
+                                saveLocationToCache(lat, lng, location);
+                            } else {
+                                tryFallbackService(lat, lng, locationText, loadingIndicator);
+                            }
+                        } else {
+                            tryFallbackService(lat, lng, locationText, loadingIndicator);
+                        }
+                    })
+                    .catch(error => {
+                        tryFallbackService(lat, lng, locationText, loadingIndicator);
+                    });
+            }
+            
+            function tryFallbackService(lat, lng, locationText, loadingIndicator) {
+                // Try BigDataCloud as fallback (also free, different rate limits)
+                fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && (data.locality || data.city || data.principalSubdivision)) {
+                            const location = data.locality || data.city || data.principalSubdivision;
+                            locationText.textContent = location;
+                            saveLocationToCache(lat, lng, location);
+                        } else {
+                            locationText.textContent = 'View Location';
+                        }
+                        loadingIndicator.style.display = 'none';
+                    })
+                    .catch(error => {
+                        locationText.textContent = 'View Location';
+                        loadingIndicator.style.display = 'none';
+                    });
+            }
+        }, { once: true });
+    });
 });
 </script>
 @endpush

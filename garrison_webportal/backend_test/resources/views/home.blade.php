@@ -24,9 +24,9 @@
                 <!-- Login Button -->
                 <div class="login-section">
                     <div class="button-container">
-                        <a href="{{ route('login') }}" class="login-button">
+                        <a href="{{ route('dashboard') }}" class="dashboard-button">
                             <span class="button-content">
-                                <span class="button-text">Login to Dashboard</span>
+                                <span class="button-text">Go to Dashboard</span>
                                 <svg class="button-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                 </svg>

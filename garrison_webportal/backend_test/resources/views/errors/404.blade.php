@@ -97,6 +97,9 @@
         }
     </style>
 </head>
+
+@section('show_navbar', true)
+
 <body>
     <div class="container">
         <h1 id="glitch-text">404 - Page Not Found</h1>

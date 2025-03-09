@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+@section('show_navbar', true)
+
 @section('content')
 <div class="container">
     <div class="row justify-content-center">

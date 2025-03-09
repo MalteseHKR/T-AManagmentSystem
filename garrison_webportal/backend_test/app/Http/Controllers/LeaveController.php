@@ -8,6 +8,7 @@ use App\Models\LeaveType;
 use App\Models\UserInformation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LeaveController extends Controller
 {
@@ -99,14 +100,15 @@ class LeaveController extends Controller
             'start_date' => $request->start_date,
             'end_date' => $request->end_date,
             'reason' => $request->reason,
-            'status' => 'PENDING', // Changed to uppercase
+            'status' => 'PENDING',
         ]);
         
-        return redirect()->route('leaves')->with('success', 'Leave request created successfully.');
+        // Flash success message for SweetAlert
+        return redirect()->route('leaves')->with('success', 'Leave request created successfully!');
     }
     
     /**
-     * Update the specified leave request status.
+     * Update the status of a leave request.
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  int  $id
@@ -115,14 +117,35 @@ class LeaveController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:APPROVED,REJECTED', // Changed to uppercase
+            'status' => 'required|in:APPROVED,REJECTED',
         ]);
         
+        // Get the leave request
         $leaveRequest = LeaveRequest::findOrFail($id);
+        
+        // Get the currently authenticated user
+        $currentUser = Auth::user();
+        
+        // Check the exact user IDs being compared for debugging
+        Log::info("Comparing user IDs: Auth user ID = {$currentUser->id}, Request user ID = {$leaveRequest->user_id}");
+        
+        // Check if the current user is trying to approve/reject their own request
+        if ((string)$currentUser->id === (string)$leaveRequest->user_id) {
+            Log::info("Attempt to approve own request rejected");
+            return redirect()->route('leaves')
+                ->with('error', 'You cannot approve or reject your own leave request. This action requires approval from another authorized user.');
+        }
+        
+        // If we got here, the user is not the owner of the request
         $leaveRequest->status = $request->status;
         $leaveRequest->save();
         
-        return redirect()->route('leaves')->with('success', 'Leave request status updated to ' . ucfirst(strtolower($request->status)));
+        $statusText = $request->status == 'APPROVED' ? 'approved' : 'rejected';
+        Log::info("Leave request #{$id} updated to {$request->status} by user #{$currentUser->id}");
+        
+        // Return with an explicit success message
+        return redirect()->route('leaves')
+            ->with('success', "Leave request has been successfully {$statusText}.");
     }
     
     /**

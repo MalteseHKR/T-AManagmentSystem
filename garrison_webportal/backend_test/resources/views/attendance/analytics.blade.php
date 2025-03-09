@@ -3,6 +3,8 @@
 
 @section('title', 'Attendance Analytics - Garrison Time and Attendance System')
 
+@section('show_navbar', true)
+
 @section('content')
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">

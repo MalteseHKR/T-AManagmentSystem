@@ -2,6 +2,8 @@
 
 @section('title', 'Dashboard - Garrison Time and Attendance System')
 
+@section('show_navbar', true)
+
 @section('content')
 <div class="container">
     <h1 class="mb-4">HR Dashboard</h1>

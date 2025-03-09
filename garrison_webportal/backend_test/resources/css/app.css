@@ -1111,6 +1111,319 @@ main {
   margin-top: -1px;
 }
 
+/* Leave Management Styles */
+.leave-card {
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+}
+
+.leave-card h5 {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: white;
+}
+
+.leave-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.leave-card .card-header {
+    border-top-left-radius: 0.75rem !important;
+    border-top-right-radius: 0.75rem !important;
+    font-weight: 600;
+}
+
+.leave-table {
+    margin-bottom: 0;
+}
+
+.leave-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    border-top: none;
+}
+
+.leave-table td {
+    vertical-align: middle;
+}
+
+.leave-badge {
+    padding: 0.5rem 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.leave-btn {
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.875rem;
+}
+
+.leave-btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.leave-form-control {
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-color: #e0e0e0;
+}
+
+.leave-form-control:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+}
+
+.leave-hover tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.leave-alert {
+    animation: leaveSlideIn 0.5s ease-out;
+}
+
+@keyframes leaveSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.leave-header {
+    font-weight: 700;
+    color: #343a40;
+    position: relative;
+}
+
+.leave-header:after {
+    content: '';
+    display: block;
+    width: 50px;
+    height: 4px;
+    background: linear-gradient(to right, #007bff, #6610f2);
+    margin-top: 8px;
+    border-radius: 2px;
+}
+
+.leave-filter-section {
+    background-color: #f9fbfd;
+    border-radius: 0.75rem;
+    padding: 1rem;
+}
+
+.status-pending {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.status-approved {
+    background-color: #198754;
+}
+
+.status-rejected {
+    background-color: #dc3545;
+}
+
+.leave-container {
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
+}
+
+.leave-empty-state {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+.leave-empty-state i {
+    font-size: 3rem;
+    color: #dee2e6;
+    margin-bottom: 1rem;
+}
+
+.leave-tooltip .tooltip-inner {
+    background-color: #343a40;
+    padding: 0.5rem 1rem;
+    max-width: 300px;
+}
+
+.leave-pagination .pagination {
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .leave-btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .leave-flex {
+        flex-direction: column;
+    }
+    
+    .leave-btn-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .leave-btn-group .btn {
+        margin-right: 0 !important;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Styling for user's own leave requests */
+.leave-own-request {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.leave-own-request:hover {
+    background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+/* Announcement Styles */
+.announcement-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.announcement-header {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.announcement-card {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.announcement-card:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+}
+
+.announcement-card .card-header {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    font-weight: 600;
+    color: #343a40;
+    border-bottom: 1px solid #dee2e6;
+    padding: 12px 16px;
+}
+
+.announcement-form-control {
+    border-radius: 6px;
+    border: 1px solid #ced4da;
+    padding: 10px 12px;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.announcement-form-control:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.announcement-label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 6px;
+}
+
+.announcement-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.announcement-btn-primary {
+    background-color: #3490dc;
+    border-color: #3490dc;
+}
+
+.announcement-btn-primary:hover {
+    background-color: #2779bd;
+    border-color: #2779bd;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.25);
+}
+
+.announcement-btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.announcement-btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #545b62;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(108, 117, 125, 0.25);
+}
+
+.announcement-author-card {
+    background-color: #f8f9fa;
+    border-left: 4px solid #3490dc;
+}
+
+.avatar-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    font-size: 20px;
+    font-weight: bold;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+/* Category Badge Styles */
+.category-badge {
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 20px;
+}
+
+.category-badge.general { 
+    background-color: #6c757d;
+}
+
+.category-badge.important {
+    background-color: #e74c3c;
+}
+
+.category-badge.hr {
+    background-color: #3498db;
+}
+
+.category-badge.it {
+    background-color: #2ecc71;
+}
+
+.category-badge.finance {
+    background-color: #f39c12;
+}
+
+.category-badge.operations {
+    background-color: #9b59b6;
+}
+
 
 
 
