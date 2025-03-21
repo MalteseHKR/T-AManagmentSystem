@@ -1,59 +1,158 @@
+import os
 import cv2
 import numpy as np
 import time
+import mysql.connector
+import re
 import threading
-from vpn import start_vpn, stop_vpn
-from face_recognition import update_known_faces, recognize_faces
-from camera import capture_frames
-from utils import display_combined_frame
+import fr  # Import face recognition module
+from datetime import datetime
+from camera import capture_frames  # Import camera handling module
+from utils import display_combined_frame, show_punch_alert
+import multiprocessing
+import folder_watcher  # Import folder watcher to auto-update faces
 
-# RTSP URLs
-visual_rtsp_url = "rtsp://admin:PeakySTC2025!!@192.168.8.10:554/cam/realmonitor?channel=1&subtype=0"
-thermal_rtsp_url = "rtsp://admin:PeakySTC2025!!@192.168.8.10:554/cam/realmonitor?channel=2&subtype=0"
+# ✅ Connect to `garrison_records` MySQL
+print("🔄 Connecting to Garrison Database...")
+try:
+    db = mysql.connector.connect(
+        host="192.168.1.5",
+        user="peaky",
+        password="gXkbqb90quESInlDJx1U!",
+        database="garrison_records"
+    )
+    cursor = db.cursor()
+    print("✅ Connected to `garrison_records` database!")
+except mysql.connector.Error as err:
+    print(f"❌ MySQL Connection Failed: {err}")
+    exit()
 
-# Server URL
-server_url = "http://192.168.10.10:5000/upload"
+# ✅ Ensure NFS Uploads Directory Exists
+nfs_upload_path = "/mnt/nfs_uploads"
+if not os.path.exists(nfs_upload_path):
+    os.makedirs(nfs_upload_path)
 
-# Start OpenVPN connection
-vpn_process, credentials_path = start_vpn("dmercieca", "Yw7Oh5BlLc392pBUu3Mv")
+# ✅ Start Folder Watcher in a separate process
+if __name__ == '__main__':
+    watcher_process = multiprocessing.Process(target=folder_watcher.Watcher().run)
+    watcher_process.start()
 
-# Capture frames from the visual and thermal streams
-frames = capture_frames(visual_rtsp_url, thermal_rtsp_url)
+# ✅ Start Capturing Frames
+frames = capture_frames(
+    "rtsp://admin:PeakySTC2025!!@192.168.8.10:554/cam/realmonitor?channel=1&subtype=0",
+    "rtsp://admin:PeakySTC2025!!@192.168.8.10:554/cam/realmonitor?channel=2&subtype=0"
+)
 
-# Initialize known faces
-known_face_encodings = []
-known_face_names = []
+print("🔄 Loading known faces...")
+fr.load_known_faces()
 
-# Periodically update known faces list
-update_interval = 60  # Update every 60 seconds
-last_update_time = time.time()
+# ✅ Track Last Punch Times
+last_punches = {}
 
-while True:
-    start_time = time.time()
+def extract_user_id(name):
+    """Extracts the correct user ID from the new filename format."""
+    parts = name.split()  # Splitting by spaces
+    if len(parts) > 1 and parts[-1].isdigit():  # Last part is the user ID (e.g., "Daniel Mercieca2 3")
+        return int(parts[-1])  # ✅ Extract last number as ID
+    return None  # Return None if no valid ID found
 
-    frame = frames['frame']
-    thermal_frame = frames['thermal_frame']
+def get_punch_type(user_id):
+    """Determine if the user should be punched IN or OUT."""
+    sql = "SELECT punch_type FROM log_Information WHERE user_id = %s ORDER BY date_time_event DESC LIMIT 1"
+    cursor.execute(sql, (user_id,))
+    last_punch = cursor.fetchone()
 
-    if frame is None or thermal_frame is None:
-        print("Waiting for feed...")
-        time.sleep(1)
-        continue
+    return "OUT" if last_punch and last_punch[0] == "IN" else "IN"
 
-    # Recognize faces
-    face_names = recognize_faces(frame, thermal_frame, known_face_encodings, known_face_names, server_url)
+def capture_punch_photo(frame, user_name, user_id):
+    """Capture and save a punch-in image with correctly formatted filename."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # ✅ Timestamp for uniqueness
+    safe_name = user_name.replace(" ", "_")  # ✅ Replace spaces with underscores
+    photo_filename = f"{safe_name}_{user_id}_{timestamp}.jpg"  # ✅ Unique filename
 
-    # Display the combined frame
-    display_combined_frame(frame, thermal_frame, face_names)
+    # ✅ Save in `/mnt/nfs_uploads/`
+    photo_path = os.path.join(nfs_upload_path, photo_filename)
 
-    # Control the frame rate
-    elapsed_time = (time.time() - start_time) * 1000
-    if elapsed_time < 100:
-        time.sleep((100 - elapsed_time) / 1000)
+    cv2.imwrite(photo_path, frame)
+    print(f"📸 Saved Punch Photo: {photo_path}")
 
-    # Periodically update known faces list
-    if time.time() - last_update_time > update_interval:
-        update_known_faces()
-        last_update_time = time.time()
+    # ✅ Return DB-friendly path (`/uploads/`)
+    return f"/uploads/{photo_filename}"
 
-# Stop OpenVPN connection and remove credentials file
-stop_vpn(vpn_process, credentials_path)
+
+def punch_attendance(name):
+    """Logs attendance in the `garrison_records.log_Information` database."""
+    global last_punches
+    current_datetime = datetime.now()
+
+    user_id = extract_user_id(name)  # ✅ Extract user ID from new format
+    if user_id is None:
+        print(f"⚠️ Skipping unknown user: {name}")
+        return
+
+    user_name = " ".join(name.split()[:-1])  # ✅ Extract full name without user ID
+
+    # Prevent multiple punches within 30 seconds
+    if user_id in last_punches:
+        last_punch_time = last_punches[user_id]
+        if (current_datetime - last_punch_time).total_seconds() < 30:
+            print(f"⏳ {user_name} ({user_id}) recently punched. Skipping duplicate.")
+            return
+
+    punch_type = get_punch_type(user_id)  # ✅ Get IN/OUT status
+
+    # Capture and save punch image
+    frame = frames["frame"]
+    photo_url = capture_punch_photo(frame, user_name, user_id)  # ✅ Now returns `/uploads/`
+
+    # Extract punch date and time
+    punch_date = current_datetime.strftime("%Y-%m-%d")
+    punch_time = current_datetime.strftime("%H:%M:%S")
+
+    # ✅ Insert punch into `log_Information`
+    try:
+        sql = """INSERT INTO log_Information 
+                 (date_time_saved, date_time_event, device_id, punch_type, photo_url, longitude, latitude, punch_date, punch_time, user_id) 
+                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+        values = (current_datetime, current_datetime, 1, punch_type, photo_url, "14.47631000", "35.92584060", punch_date, punch_time, user_id)
+        cursor.execute(sql, values)
+        db.commit()
+
+        last_punches[user_id] = current_datetime  # ✅ Update last punch time
+
+        print(f"✅ {user_name} ({user_id}) punched {punch_type} at {current_datetime}")
+        show_punch_alert(user_name)
+
+    except mysql.connector.Error as err:
+        print(f"❌ MySQL Error: {err}")
+
+
+try:
+    while True:
+        # ✅ Get latest frames
+        frame_data = frames
+        frame = frame_data["frame"]
+        thermal_frame = frame_data["thermal_frame"]
+
+        if frame is None or thermal_frame is None:
+            print("⚠️ ERROR: One or both frames are empty! Skipping recognition.")
+            time.sleep(1)
+            continue
+
+        # ✅ Perform Face Recognition
+        face_names = fr.recognize_faces(frame, thermal_frame, fr.known_face_encodings, fr.known_face_names)
+
+        for name in face_names:
+            if name != "Unknown" and name != "Fake Face":  # ✅ Skip "Fake Face" entries
+                punch_attendance(name)
+
+        # ✅ Display camera feeds
+        display_combined_frame(frame, thermal_frame, face_names)
+
+except KeyboardInterrupt:
+    print("🛑 Shutting down...")
+
+cursor.close()
+db.close()
+cv2.destroyAllWindows()
+
