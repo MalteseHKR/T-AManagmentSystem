@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart'; // Add this import for DateFormat
 import 'timezone_service.dart';
 
 class ApiService {
@@ -18,7 +16,7 @@ class ApiService {
   // Add timezone service
   final TimezoneService _timezoneService = TimezoneService();
 
-  // Login
+  // Login with improved error handling for attempts and lockout
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       print('Attempting login with email: $email');
@@ -35,9 +33,10 @@ class ApiService {
       print('Login response status: ${response.statusCode}');
       print('Raw response body: ${response.body}');
 
+      // Success case
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        print('Decoded data: $data');  // Let's see the full decoded data
+        print('Decoded data: $data');
         
         if (data.containsKey('token')) {
           _token = data['token'];
@@ -46,15 +45,32 @@ class ApiService {
           print('No token found in response data');
         }
 
-        // Make sure we're returning the exact structure we receive
-        return data;  // Return the raw data instead of restructuring it
-      } else {
+        return data;
+      } 
+      // Handle different error cases
+      else {
         final errorBody = jsonDecode(response.body);
-        throw Exception(errorBody['message'] ?? 'Login failed');
+        
+        // Handle lockout (429 status)
+        if (response.statusCode == 429) {
+          final int lockoutRemaining = errorBody['lockout_remaining'] ?? 5;
+          throw Exception('429: Account locked. lockout_remaining: $lockoutRemaining');
+        }
+        // Handle invalid credentials with remaining attempts
+        else if (response.statusCode == 401 && errorBody.containsKey('remaining_attempts')) {
+          final int remainingAttempts = errorBody['remaining_attempts'];
+          throw Exception('401: Incorrect email or password. remaining_attempts: $remainingAttempts');
+        }
+        // Generic error case
+        else {
+          throw Exception(errorBody['message'] ?? 'Login failed');
+        }
       }
+    } on SocketException {
+      throw Exception('Network error: Unable to connect to the server');
     } catch (e) {
       print('Login error caught: $e');
-      throw Exception('Login error: $e');
+      rethrow; // Rethrow to preserve error message with attempt info
     }
   }
 
@@ -320,6 +336,27 @@ class ApiService {
       return data.cast<Map<String, dynamic>>();
     } else {
       throw Exception('Failed to load leave requests');
+    }
+  }
+  
+  // Get Attendance History
+  Future<List<Map<String, dynamic>>> getAttendanceHistory(String userId) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/attendance-history/$userId'),
+      headers: {
+        'Authorization': 'Bearer $_token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to load attendance history');
     }
   }
 }
