@@ -1,0 +1,215 @@
+commit 323cfecc98d44a6bc5416021cc34ec39e6b0043e
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Thu Mar 6 23:50:59 2025 +0100
+
+    Fixed timezone on the server.js of the api that was sent to the application, updates flutter notification dependency and edited java file for the depenedency.
+
+commit b529e1240c3d8f90843ee1149baf88fbc713365b
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sun Mar 2 22:37:45 2025 +0100
+
+    fixed one hour offset from last puch detail and tested release version on android
+
+commit ed379b50e7e73c5fe44ef89f0e09610351aed7ac
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sun Mar 2 18:07:41 2025 +0100
+
+    Fixed time offset from attendance screen and created face detection square with auto crop function
+
+commit c7ace9920e863f1d47595041856e548743d59da8
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sat Mar 1 10:16:24 2025 +0100
+
+    fixed android notifications with hybrid approach
+
+commit da1fe9699c12d17139204f436acdcdeba771f37a
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Fri Feb 28 22:35:59 2025 +0100
+
+    iphone notifications successful
+
+commit 0cdd8eec6e398919f11118e27d45e1fa90a8f23d
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Wed Feb 26 22:04:18 2025 +0100
+
+    Fixed face detection on Iphone and changed location from just coodinates to map on screen.
+
+commit b5cc8dcf06bfc525fe1389b8bb1f3b5f23de0106
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Sun Feb 23 20:18:44 2025 +0100
+
+    Add initial implementation of attendance and employee models; include localization for currency and update CORS configuration; add views for login, announcements, and performance review
+
+commit f7f30207a7e18ffba9fcb90ab185ceb977ca23e1
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Sun Feb 23 20:18:14 2025 +0100
+
+    Add migrations for personal access tokens, employees, and attendances tables; update filesystem configuration for improved storage management
+
+commit a3b563ee5ff435a7dc0f4b1f116edfbd35d5a4e6
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Sun Feb 23 20:17:57 2025 +0100
+
+    Remove DefaultUserSeeder to clean up unused database seeder
+
+commit 924f9d4f31aa9ea2c026594ce665f6f0a7b9c1a9
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Sun Feb 23 20:17:45 2025 +0100
+
+    Remove obsolete authentication models and migration files to streamline the codebase
+
+commit 2209b3fef3a6471f6def9d345f31f26b8cd69df4
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Sun Feb 23 20:17:22 2025 +0100
+
+    Add initial setup for backend test environment; include mix configuration, environment variables, and attendance chart implementation
+
+commit 2edd858fe6401d5223d3c16849a7c0ba56d41288
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Sun Feb 23 20:16:32 2025 +0100
+
+    Remove unused middleware and user resource files; add LoginController and AttendanceController for improved authentication and attendance management
+
+commit f7da7e62cdc99782525ee27a3b4fa4653535e3e9
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Sun Feb 23 20:15:37 2025 +0100
+
+    Add migration files for user information, users, departments, and login tables
+
+commit f874636d4bf71c2c897b1dacac6a811107687cc8
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Thu Feb 20 00:21:59 2025 +0100
+
+    Implement user authentication improvements, add inactive account handling, and update dashboard routes
+
+commit eb27c106a21daac78b4ab8f9201061cdf72844c9
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Wed Feb 19 21:41:04 2025 +0100
+
+    Remove unused frontend and backend test files to clean up the project structure. Dully working login and register systems with databse.
+
+commit 598c84ba49a45fd91bb91253ccd13d2146ee5c28
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Wed Feb 19 17:14:14 2025 +0100
+
+    Refactor authentication logic to use UserInformation model and improve password verification. Successfully entered a user in the database
+
+commit 20b60a32712eb9e752e611c63fb473ac61f14978
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Wed Feb 19 16:57:47 2025 +0100
+
+    Implement user registration and optimised login functionality
+
+commit 7f278e20c61ec9450a5b66a5503da863885883ed
+Merge: cea8c81 5f4d981
+Author: Xdfighter97 <145494769+Xdfighter97@users.noreply.github.com>
+Date:   Tue Feb 18 18:09:04 2025 +0100
+
+    Merge pull request #4 from MalteseHKR/garrison_webportal
+    
+    Added a live and test for backend due to problems during developement
+
+commit 5f4d9819ecf8e68b5976610d421b7ef1fea3d36d
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Tue Feb 18 17:53:24 2025 +0100
+
+    Added a live and test for backend due to problems during developement
+
+commit cea8c81edbd79f3250bb62af4dac2673f91216c9
+Merge: 08b868a 293a68c
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Mon Feb 17 23:29:31 2025 +0100
+
+    Merge branch 'main' of https://github.com/MalteseHKR/T-AManagmentSystem
+
+commit 08b868aabe73d4d97c2ea432ebd0fd59a909f3f3
+Merge: 4ce000b 2b41e2f
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Mon Feb 17 23:29:21 2025 +0100
+
+    Merge branch 'garrison_webportal'
+
+commit 05946863841aa31857966377b5ca08b8e8d80dcb
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Mon Feb 17 22:02:51 2025 +0100
+
+    added certificate upload function for sick leave requests
+
+commit 293a68c1533acb81f6246792d8a503bd6cc99e46
+Merge: 4ce000b 2b41e2f
+Author: Xdfighter97 <145494769+Xdfighter97@users.noreply.github.com>
+Date:   Mon Feb 17 20:20:28 2025 +0100
+
+    Merge pull request #3 from MalteseHKR/garrison_webportal
+    
+    Added garrison_webportal with backend and frontend structure
+
+commit 2b41e2fb08101d4e5b0227514792718b482ee034
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Mon Feb 17 20:16:26 2025 +0100
+
+    Added garrison_webportal with backend and frontend structure
+
+commit 4ce000beca1f32fc967d507b15ddec6ce554d73b
+Merge: 7146b28 d473783
+Author: Xdfighter97 <145494769+Xdfighter97@users.noreply.github.com>
+Date:   Mon Feb 17 20:07:25 2025 +0100
+
+    Merge pull request #2 from MalteseHKR/garrison_webportal
+    
+    Added garrison_webportal with backend and frontend folders
+
+commit d473783059cb9ea1236d077208f921831b786003
+Author: Keith Dougall <keithdougall97@gmail.com>
+Date:   Mon Feb 17 20:05:09 2025 +0100
+
+    Added garrison_webportal with backend and frontend folders
+
+commit 25fd676494b0c00c248660e928a61f0795c3c15e
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Mon Feb 17 19:36:51 2025 +0100
+
+    implemented face recognition in app to check if face is in the photo or not
+
+commit 20b2848ebaa513f78a0a24c87c172d22f4eb2413
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Thu Feb 13 18:58:03 2025 +0100
+
+    installed flutter dependency to create icon for app and moved punch button over the location card
+
+commit 33b64b960f52e2b1e39ca869025ed9f616f2dd91
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Tue Feb 11 19:19:32 2025 +0100
+
+    Fixed icons, fixed punch inputs and fixed leave request sqls and db entry
+
+commit 9e53ef55b63f5927f0f3d2da327bd8049f18751c
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Tue Feb 11 13:13:44 2025 +0100
+
+    Fixed sql querries for Attandence punch in and out and fixed token transfer from server to app
+
+commit 5f849e5cc6a73c72b6a9da39e3ab2c4a6d4e1174
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Tue Feb 11 07:41:38 2025 +0100
+
+    Server integration on App with login working.
+
+commit 7146b2810daa0fde2c731ec5fcee01ceb4c0267a
+Merge: 527e851 e60ab71
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sat Feb 8 19:30:18 2025 +0100
+
+    First commit test after code writing and testing on android and iphone. Worked edited some camera settings
+
+commit 527e851f050398fc703fa19145bd1facafcd6718
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sat Feb 8 19:23:57 2025 +0100
+
+    Initial commit
+
+commit e60ab714ad04ed452f9995b8358333b3b4c0dadd
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sat Feb 8 19:23:06 2025 +0100
+
+    Initial commit

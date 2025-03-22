@@ -1,0 +1,20 @@
+{
+  "buildFiles": [
+    "/Users/michaelfarrugia/flutter/packages/flutter_tools/gradle/src/main/groovy/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/michaelfarrugia/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/michaelfarrugia/Desktop/Colaborative development/time_attendance_app/android/app/.cxx/RelWithDebInfo/335103f1/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/michaelfarrugia/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/michaelfarrugia/Desktop/Colaborative development/time_attendance_app/android/app/.cxx/RelWithDebInfo/335103f1/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {}
+}

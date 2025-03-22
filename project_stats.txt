@@ -1,0 +1,741 @@
+commit 323cfecc98d44a6bc5416021cc34ec39e6b0043e
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Thu Mar 6 23:50:59 2025 +0100
+
+    Fixed timezone on the server.js of the api that was sent to the application, updates flutter notification dependency and edited java file for the depenedency.
+
+ .vscode/settings.json                              |   2 +-
+ .../6o69556i/arm64-v8a/configure_fingerprint.bin   |  24 +-
+ .../6o69556i/armeabi-v7a/configure_fingerprint.bin |  24 +-
+ .../Debug/6o69556i/x86/configure_fingerprint.bin   |  24 +-
+ .../6o69556i/x86_64/configure_fingerprint.bin      |  24 +-
+ .../335103f1/arm64-v8a/configure_fingerprint.bin   |  24 +-
+ .../335103f1/armeabi-v7a/configure_fingerprint.bin |  24 +-
+ .../335103f1/x86/configure_fingerprint.bin         |  24 +-
+ .../335103f1/x86_64/configure_fingerprint.bin      |  24 +-
+ android/app/build.gradle                           |   8 +-
+ android/app/proguard-rules.pro                     |  16 +
+ lib/screens/attendance_screen.dart                 | 338 ++++++++++++++-------
+ lib/services/notification_service.dart             |   2 +-
+ lib/services/timezone_service.dart                 | 134 +++++---
+ pubspec.yaml                                       |   2 +-
+ 15 files changed, 434 insertions(+), 260 deletions(-)
+
+commit b529e1240c3d8f90843ee1149baf88fbc713365b
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sun Mar 2 22:37:45 2025 +0100
+
+    fixed one hour offset from last puch detail and tested release version on android
+
+ .../.cmake/api/v1/query/client-agp/cache-v2        |    0
+ .../.cmake/api/v1/query/client-agp/cmakeFiles-v1   |    0
+ .../.cmake/api/v1/query/client-agp/codemodel-v2    |    0
+ .../v1/reply/cache-v2-9ba2b805a798b7dfa7dc.json    | 1391 ++++++++++++++++++++
+ .../reply/cmakeFiles-v1-8c50ac98c404ad19fbf4.json  |  799 +++++++++++
+ .../reply/codemodel-v2-530cbfa448c434563e32.json   |   43 +
+ ...tory-.-RelWithDebInfo-f5ebdc15457944623624.json |   14 +
+ .../v1/reply/index-2025-03-02T21-05-15-0643.json   |   92 ++
+ .../335103f1/arm64-v8a/CMakeCache.txt              |  405 ++++++
+ .../3.22.1-g37088a8/CMakeCCompiler.cmake           |   72 +
+ .../3.22.1-g37088a8/CMakeCXXCompiler.cmake         |   83 ++
+ .../CMakeDetermineCompilerABI_C.bin                |  Bin 0 -> 7960 bytes
+ .../CMakeDetermineCompilerABI_CXX.bin              |  Bin 0 -> 8120 bytes
+ .../CMakeFiles/3.22.1-g37088a8/CMakeSystem.cmake   |   15 +
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.c |  803 +++++++++++
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.o |  Bin 0 -> 6096 bytes
+ .../CompilerIdCXX/CMakeCXXCompilerId.cpp           |  791 +++++++++++
+ .../CompilerIdCXX/CMakeCXXCompilerId.o             |  Bin 0 -> 6104 bytes
+ .../335103f1/arm64-v8a/CMakeFiles/CMakeOutput.log  |  264 ++++
+ .../arm64-v8a/CMakeFiles/TargetDirectories.txt     |    2 +
+ .../arm64-v8a/CMakeFiles/cmake.check_cache         |    1 +
+ .../335103f1/arm64-v8a/CMakeFiles/rules.ninja      |   45 +
+ .../arm64-v8a/additional_project_files.txt         |    0
+ .../335103f1/arm64-v8a/android_gradle_build.json   |   28 +
+ .../arm64-v8a/android_gradle_build_mini.json       |   20 +
+ .../RelWithDebInfo/335103f1/arm64-v8a/build.ninja  |  112 ++
+ .../335103f1/arm64-v8a/build_file_index.txt        |    1 +
+ .../335103f1/arm64-v8a/cmake_install.cmake         |   54 +
+ .../335103f1/arm64-v8a/configure_fingerprint.bin   |   28 +
+ .../arm64-v8a/metadata_generation_command.txt      |   20 +
+ .../335103f1/arm64-v8a/prefab_config.json          |    4 +
+ .../335103f1/arm64-v8a/symbol_folder_index.txt     |    1 +
+ .../.cmake/api/v1/query/client-agp/cache-v2        |    0
+ .../.cmake/api/v1/query/client-agp/cmakeFiles-v1   |    0
+ .../.cmake/api/v1/query/client-agp/codemodel-v2    |    0
+ .../v1/reply/cache-v2-6dd42e36e81f824c9561.json    | 1391 ++++++++++++++++++++
+ .../reply/cmakeFiles-v1-c5b821f893c67020bcb8.json  |  799 +++++++++++
+ .../reply/codemodel-v2-1d7c21010fb1eb8859ba.json   |   43 +
+ ...tory-.-RelWithDebInfo-f5ebdc15457944623624.json |   14 +
+ .../v1/reply/index-2025-03-02T21-05-16-0568.json   |   92 ++
+ .../335103f1/armeabi-v7a/CMakeCache.txt            |  405 ++++++
+ .../3.22.1-g37088a8/CMakeCCompiler.cmake           |   72 +
+ .../3.22.1-g37088a8/CMakeCXXCompiler.cmake         |   83 ++
+ .../CMakeDetermineCompilerABI_C.bin                |  Bin 0 -> 5800 bytes
+ .../CMakeDetermineCompilerABI_CXX.bin              |  Bin 0 -> 5956 bytes
+ .../CMakeFiles/3.22.1-g37088a8/CMakeSystem.cmake   |   15 +
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.c |  803 +++++++++++
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.o |  Bin 0 -> 4188 bytes
+ .../CompilerIdCXX/CMakeCXXCompilerId.cpp           |  791 +++++++++++
+ .../CompilerIdCXX/CMakeCXXCompilerId.o             |  Bin 0 -> 4228 bytes
+ .../armeabi-v7a/CMakeFiles/CMakeOutput.log         |  268 ++++
+ .../armeabi-v7a/CMakeFiles/TargetDirectories.txt   |    2 +
+ .../armeabi-v7a/CMakeFiles/cmake.check_cache       |    1 +
+ .../335103f1/armeabi-v7a/CMakeFiles/rules.ninja    |   45 +
+ .../armeabi-v7a/additional_project_files.txt       |    0
+ .../335103f1/armeabi-v7a/android_gradle_build.json |   28 +
+ .../armeabi-v7a/android_gradle_build_mini.json     |   20 +
+ .../335103f1/armeabi-v7a/build.ninja               |  112 ++
+ .../335103f1/armeabi-v7a/build_file_index.txt      |    1 +
+ .../335103f1/armeabi-v7a/cmake_install.cmake       |   54 +
+ .../335103f1/armeabi-v7a/configure_fingerprint.bin |   29 +
+ .../armeabi-v7a/metadata_generation_command.txt    |   20 +
+ .../335103f1/armeabi-v7a/prefab_config.json        |    4 +
+ .../335103f1/armeabi-v7a/symbol_folder_index.txt   |    1 +
+ .../app/.cxx/RelWithDebInfo/335103f1/hash_key.txt  |   27 +
+ .../x86/.cmake/api/v1/query/client-agp/cache-v2    |    0
+ .../.cmake/api/v1/query/client-agp/cmakeFiles-v1   |    0
+ .../.cmake/api/v1/query/client-agp/codemodel-v2    |    0
+ .../v1/reply/cache-v2-a13bbfe31d277331b95d.json    | 1391 ++++++++++++++++++++
+ .../reply/cmakeFiles-v1-c20f18a0f670a3c6c03a.json  |  799 +++++++++++
+ .../reply/codemodel-v2-883aac400ebea40ce915.json   |   43 +
+ ...tory-.-RelWithDebInfo-f5ebdc15457944623624.json |   14 +
+ .../v1/reply/index-2025-03-02T21-05-17-0462.json   |   92 ++
+ .../RelWithDebInfo/335103f1/x86/CMakeCache.txt     |  405 ++++++
+ .../3.22.1-g37088a8/CMakeCCompiler.cmake           |   72 +
+ .../3.22.1-g37088a8/CMakeCXXCompiler.cmake         |   83 ++
+ .../CMakeDetermineCompilerABI_C.bin                |  Bin 0 -> 5752 bytes
+ .../CMakeDetermineCompilerABI_CXX.bin              |  Bin 0 -> 5892 bytes
+ .../CMakeFiles/3.22.1-g37088a8/CMakeSystem.cmake   |   15 +
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.c |  803 +++++++++++
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.o |  Bin 0 -> 3972 bytes
+ .../CompilerIdCXX/CMakeCXXCompilerId.cpp           |  791 +++++++++++
+ .../CompilerIdCXX/CMakeCXXCompilerId.o             |  Bin 0 -> 4008 bytes
+ .../335103f1/x86/CMakeFiles/CMakeOutput.log        |  258 ++++
+ .../335103f1/x86/CMakeFiles/TargetDirectories.txt  |    2 +
+ .../335103f1/x86/CMakeFiles/cmake.check_cache      |    1 +
+ .../335103f1/x86/CMakeFiles/rules.ninja            |   45 +
+ .../335103f1/x86/additional_project_files.txt      |    0
+ .../335103f1/x86/android_gradle_build.json         |   28 +
+ .../335103f1/x86/android_gradle_build_mini.json    |   20 +
+ .../.cxx/RelWithDebInfo/335103f1/x86/build.ninja   |  112 ++
+ .../335103f1/x86/build_file_index.txt              |    1 +
+ .../335103f1/x86/cmake_install.cmake               |   54 +
+ .../335103f1/x86/configure_fingerprint.bin         |   28 +
+ .../335103f1/x86/metadata_generation_command.txt   |   20 +
+ .../RelWithDebInfo/335103f1/x86/prefab_config.json |    4 +
+ .../335103f1/x86/symbol_folder_index.txt           |    1 +
+ .../x86_64/.cmake/api/v1/query/client-agp/cache-v2 |    0
+ .../.cmake/api/v1/query/client-agp/cmakeFiles-v1   |    0
+ .../.cmake/api/v1/query/client-agp/codemodel-v2    |    0
+ .../v1/reply/cache-v2-ac6e01d59bedc5ec8a14.json    | 1391 ++++++++++++++++++++
+ .../reply/cmakeFiles-v1-b6306cfd95f8787beb76.json  |  799 +++++++++++
+ .../reply/codemodel-v2-6878359e207850ed5a2a.json   |   43 +
+ ...tory-.-RelWithDebInfo-f5ebdc15457944623624.json |   14 +
+ .../v1/reply/index-2025-03-02T21-05-18-0570.json   |   92 ++
+ .../RelWithDebInfo/335103f1/x86_64/CMakeCache.txt  |  405 ++++++
+ .../3.22.1-g37088a8/CMakeCCompiler.cmake           |   72 +
+ .../3.22.1-g37088a8/CMakeCXXCompiler.cmake         |   83 ++
+ .../CMakeDetermineCompilerABI_C.bin                |  Bin 0 -> 6968 bytes
+ .../CMakeDetermineCompilerABI_CXX.bin              |  Bin 0 -> 7136 bytes
+ .../CMakeFiles/3.22.1-g37088a8/CMakeSystem.cmake   |   15 +
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.c |  803 +++++++++++
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.o |  Bin 0 -> 5464 bytes
+ .../CompilerIdCXX/CMakeCXXCompilerId.cpp           |  791 +++++++++++
+ .../CompilerIdCXX/CMakeCXXCompilerId.o             |  Bin 0 -> 5520 bytes
+ .../335103f1/x86_64/CMakeFiles/CMakeOutput.log     |  258 ++++
+ .../x86_64/CMakeFiles/TargetDirectories.txt        |    2 +
+ .../335103f1/x86_64/CMakeFiles/cmake.check_cache   |    1 +
+ .../335103f1/x86_64/CMakeFiles/rules.ninja         |   45 +
+ .../335103f1/x86_64/additional_project_files.txt   |    0
+ .../335103f1/x86_64/android_gradle_build.json      |   28 +
+ .../335103f1/x86_64/android_gradle_build_mini.json |   20 +
+ .../RelWithDebInfo/335103f1/x86_64/build.ninja     |  112 ++
+ .../335103f1/x86_64/build_file_index.txt           |    1 +
+ .../335103f1/x86_64/cmake_install.cmake            |   54 +
+ .../335103f1/x86_64/configure_fingerprint.bin      |   28 +
+ .../x86_64/metadata_generation_command.txt         |   20 +
+ .../335103f1/x86_64/prefab_config.json             |    4 +
+ .../335103f1/x86_64/symbol_folder_index.txt        |    1 +
+ lib/screens/attendance_screen.dart                 |   91 +-
+ 130 files changed, 20427 insertions(+), 36 deletions(-)
+
+commit ed379b50e7e73c5fe44ef89f0e09610351aed7ac
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sun Mar 2 18:07:41 2025 +0100
+
+    Fixed time offset from attendance screen and created face detection square with auto crop function
+
+ .../6o69556i/arm64-v8a/configure_fingerprint.bin   |  24 +-
+ .../6o69556i/armeabi-v7a/configure_fingerprint.bin |  24 +-
+ .../Debug/6o69556i/x86/configure_fingerprint.bin   |  24 +-
+ .../6o69556i/x86_64/configure_fingerprint.bin      |  24 +-
+ lib/main.dart                                      | 180 +++--
+ lib/screens/attendance_screen.dart                 | 766 ++++++++++++++-------
+ lib/screens/leave_screen.dart                      |  51 +-
+ lib/screens/login_screen.dart                      |   9 +
+ lib/services/api_service.dart                      |  96 +--
+ lib/services/face_recognition_service.dart         |  19 +-
+ lib/services/notification_service.dart             |  12 +-
+ lib/services/session_service.dart                  |  98 +++
+ lib/services/timezone_service.dart                 | 125 ++++
+ lib/widgets/user_activity_detector.dart            |  24 +
+ server.js                                          | 576 ++++++++++++----
+ 15 files changed, 1509 insertions(+), 543 deletions(-)
+
+commit c7ace9920e863f1d47595041856e548743d59da8
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sat Mar 1 10:16:24 2025 +0100
+
+    fixed android notifications with hybrid approach
+
+ .DS_Store                                          | Bin 10244 -> 12292 bytes
+ .vscode/settings.json                              |   3 +
+ android/.DS_Store                                  | Bin 8196 -> 8196 bytes
+ android/app/.DS_Store                              | Bin 6148 -> 6148 bytes
+ .../6o69556i/arm64-v8a/configure_fingerprint.bin   |  24 +-
+ .../6o69556i/armeabi-v7a/configure_fingerprint.bin |  24 +-
+ .../Debug/6o69556i/x86/configure_fingerprint.bin   |  24 +-
+ .../6o69556i/x86_64/configure_fingerprint.bin      |  24 +-
+ android/app/build.gradle                           |  43 +-
+ android/app/src/.DS_Store                          | Bin 6148 -> 6148 bytes
+ android/app/src/main/.DS_Store                     | Bin 6148 -> 8196 bytes
+ android/app/src/main/AndroidManifest.xml           |  64 ++-
+ android/app/src/main/kotlin/.DS_Store              | Bin 0 -> 6148 bytes
+ ios/Runner/Info.plist                              |  20 +-
+ lib/main.dart                                      |   5 +-
+ lib/services/background_service.dart               | 199 ++++---
+ lib/services/notification_service.dart             |   4 +-
+ linux/flutter/generated_plugin_registrant.cc       |   4 +
+ linux/flutter/generated_plugins.cmake              |   1 +
+ macos/Flutter/GeneratedPluginRegistrant.swift      |   4 +-
+ pubspec.yaml                                       |   8 +-
+ server.js                                          | 578 ++++++---------------
+ windows/flutter/generated_plugin_registrant.cc     |   3 +
+ windows/flutter/generated_plugins.cmake            |   1 +
+ 24 files changed, 423 insertions(+), 610 deletions(-)
+
+commit da1fe9699c12d17139204f436acdcdeba771f37a
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Fri Feb 28 22:35:59 2025 +0100
+
+    iphone notifications successful
+
+ android/app/src/main/AndroidManifest.xml      |  25 ++++
+ ios/Podfile                                   |   5 +
+ ios/Runner/Info.plist                         |  14 ++
+ ios/Runner/Runner.entitlements                |  10 ++
+ lib/main.dart                                 |  81 ++++++++++--
+ lib/screens/attendance_screen.dart            | 182 ++++++++++++++++++--------
+ lib/services/background_service.dart          |  94 +++++++++++++
+ lib/services/notification_service.dart        | 170 ++++++++++++++++++++++++
+ macos/Flutter/GeneratedPluginRegistrant.swift |   4 +
+ pubspec.yaml                                  |   9 +-
+ 10 files changed, 523 insertions(+), 71 deletions(-)
+
+commit 0cdd8eec6e398919f11118e27d45e1fa90a8f23d
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Wed Feb 26 22:04:18 2025 +0100
+
+    Fixed face detection on Iphone and changed location from just coodinates to map on screen.
+
+ .DS_Store                                          |  Bin 10244 -> 10244 bytes
+ .../.cmake/api/v1/query/client-agp/cache-v2        |    0
+ .../.cmake/api/v1/query/client-agp/cmakeFiles-v1   |    0
+ .../.cmake/api/v1/query/client-agp/codemodel-v2    |    0
+ .../v1/reply/cache-v2-b04087f7125f86e8246b.json    | 1391 ++++++++++++++++++++
+ .../reply/cmakeFiles-v1-031ee6070b4106f9ecfb.json  |  799 +++++++++++
+ .../reply/codemodel-v2-43850eee9866b4a32990.json   |   43 +
+ .../directory-.-Debug-f5ebdc15457944623624.json    |   14 +
+ .../v1/reply/index-2025-02-20T18-10-13-0689.json   |   92 ++
+ .../.cxx/Debug/6o69556i/arm64-v8a/CMakeCache.txt   |  405 ++++++
+ .../3.22.1-g37088a8/CMakeCCompiler.cmake           |   72 +
+ .../3.22.1-g37088a8/CMakeCXXCompiler.cmake         |   83 ++
+ .../CMakeDetermineCompilerABI_C.bin                |  Bin 0 -> 7952 bytes
+ .../CMakeDetermineCompilerABI_CXX.bin              |  Bin 0 -> 8112 bytes
+ .../CMakeFiles/3.22.1-g37088a8/CMakeSystem.cmake   |   15 +
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.c |  803 +++++++++++
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.o |  Bin 0 -> 6088 bytes
+ .../CompilerIdCXX/CMakeCXXCompilerId.cpp           |  791 +++++++++++
+ .../CompilerIdCXX/CMakeCXXCompilerId.o             |  Bin 0 -> 6096 bytes
+ .../6o69556i/arm64-v8a/CMakeFiles/CMakeOutput.log  |  264 ++++
+ .../arm64-v8a/CMakeFiles/TargetDirectories.txt     |    2 +
+ .../arm64-v8a/CMakeFiles/cmake.check_cache         |    1 +
+ .../6o69556i/arm64-v8a/CMakeFiles/rules.ninja      |   45 +
+ .../arm64-v8a/additional_project_files.txt         |    0
+ .../6o69556i/arm64-v8a/android_gradle_build.json   |   28 +
+ .../arm64-v8a/android_gradle_build_mini.json       |   20 +
+ .../app/.cxx/Debug/6o69556i/arm64-v8a/build.ninja  |  112 ++
+ .../Debug/6o69556i/arm64-v8a/build_file_index.txt  |    1 +
+ .../Debug/6o69556i/arm64-v8a/cmake_install.cmake   |   54 +
+ .../6o69556i/arm64-v8a/configure_fingerprint.bin   |   28 +
+ .../arm64-v8a/metadata_generation_command.txt      |   20 +
+ .../Debug/6o69556i/arm64-v8a/prefab_config.json    |    4 +
+ .../6o69556i/arm64-v8a/symbol_folder_index.txt     |    1 +
+ .../.cmake/api/v1/query/client-agp/cache-v2        |    0
+ .../.cmake/api/v1/query/client-agp/cmakeFiles-v1   |    0
+ .../.cmake/api/v1/query/client-agp/codemodel-v2    |    0
+ .../v1/reply/cache-v2-50980ad287b5bc29e4ec.json    | 1391 ++++++++++++++++++++
+ .../reply/cmakeFiles-v1-6eb20ac4f611edfeda1a.json  |  799 +++++++++++
+ .../reply/codemodel-v2-fe8aeecd52db7f7a287a.json   |   43 +
+ .../directory-.-Debug-f5ebdc15457944623624.json    |   14 +
+ .../v1/reply/index-2025-02-20T18-12-41-0073.json   |   92 ++
+ .../.cxx/Debug/6o69556i/armeabi-v7a/CMakeCache.txt |  405 ++++++
+ .../3.22.1-g37088a8/CMakeCCompiler.cmake           |   72 +
+ .../3.22.1-g37088a8/CMakeCXXCompiler.cmake         |   83 ++
+ .../CMakeDetermineCompilerABI_C.bin                |  Bin 0 -> 5792 bytes
+ .../CMakeDetermineCompilerABI_CXX.bin              |  Bin 0 -> 5944 bytes
+ .../CMakeFiles/3.22.1-g37088a8/CMakeSystem.cmake   |   15 +
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.c |  803 +++++++++++
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.o |  Bin 0 -> 4180 bytes
+ .../CompilerIdCXX/CMakeCXXCompilerId.cpp           |  791 +++++++++++
+ .../CompilerIdCXX/CMakeCXXCompilerId.o             |  Bin 0 -> 4216 bytes
+ .../armeabi-v7a/CMakeFiles/CMakeOutput.log         |  268 ++++
+ .../armeabi-v7a/CMakeFiles/TargetDirectories.txt   |    2 +
+ .../armeabi-v7a/CMakeFiles/cmake.check_cache       |    1 +
+ .../6o69556i/armeabi-v7a/CMakeFiles/rules.ninja    |   45 +
+ .../armeabi-v7a/additional_project_files.txt       |    0
+ .../6o69556i/armeabi-v7a/android_gradle_build.json |   28 +
+ .../armeabi-v7a/android_gradle_build_mini.json     |   20 +
+ .../.cxx/Debug/6o69556i/armeabi-v7a/build.ninja    |  112 ++
+ .../6o69556i/armeabi-v7a/build_file_index.txt      |    1 +
+ .../Debug/6o69556i/armeabi-v7a/cmake_install.cmake |   54 +
+ .../6o69556i/armeabi-v7a/configure_fingerprint.bin |   28 +
+ .../armeabi-v7a/metadata_generation_command.txt    |   20 +
+ .../Debug/6o69556i/armeabi-v7a/prefab_config.json  |    4 +
+ .../6o69556i/armeabi-v7a/symbol_folder_index.txt   |    1 +
+ android/app/.cxx/Debug/6o69556i/hash_key.txt       |   27 +
+ .../x86/.cmake/api/v1/query/client-agp/cache-v2    |    0
+ .../.cmake/api/v1/query/client-agp/cmakeFiles-v1   |    0
+ .../.cmake/api/v1/query/client-agp/codemodel-v2    |    0
+ .../v1/reply/cache-v2-f329f23aaf709d23635c.json    | 1391 ++++++++++++++++++++
+ .../reply/cmakeFiles-v1-bb4135e86451156e7df1.json  |  799 +++++++++++
+ .../reply/codemodel-v2-d1d92f1a1daffde4844d.json   |   43 +
+ .../directory-.-Debug-f5ebdc15457944623624.json    |   14 +
+ .../v1/reply/index-2025-02-20T18-12-42-0667.json   |   92 ++
+ android/app/.cxx/Debug/6o69556i/x86/CMakeCache.txt |  405 ++++++
+ .../3.22.1-g37088a8/CMakeCCompiler.cmake           |   72 +
+ .../3.22.1-g37088a8/CMakeCXXCompiler.cmake         |   83 ++
+ .../CMakeDetermineCompilerABI_C.bin                |  Bin 0 -> 5744 bytes
+ .../CMakeDetermineCompilerABI_CXX.bin              |  Bin 0 -> 5880 bytes
+ .../CMakeFiles/3.22.1-g37088a8/CMakeSystem.cmake   |   15 +
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.c |  803 +++++++++++
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.o |  Bin 0 -> 3964 bytes
+ .../CompilerIdCXX/CMakeCXXCompilerId.cpp           |  791 +++++++++++
+ .../CompilerIdCXX/CMakeCXXCompilerId.o             |  Bin 0 -> 3996 bytes
+ .../Debug/6o69556i/x86/CMakeFiles/CMakeOutput.log  |  258 ++++
+ .../6o69556i/x86/CMakeFiles/TargetDirectories.txt  |    2 +
+ .../6o69556i/x86/CMakeFiles/cmake.check_cache      |    1 +
+ .../.cxx/Debug/6o69556i/x86/CMakeFiles/rules.ninja |   45 +
+ .../6o69556i/x86/additional_project_files.txt      |    0
+ .../Debug/6o69556i/x86/android_gradle_build.json   |   28 +
+ .../6o69556i/x86/android_gradle_build_mini.json    |   20 +
+ android/app/.cxx/Debug/6o69556i/x86/build.ninja    |  112 ++
+ .../.cxx/Debug/6o69556i/x86/build_file_index.txt   |    1 +
+ .../.cxx/Debug/6o69556i/x86/cmake_install.cmake    |   54 +
+ .../Debug/6o69556i/x86/configure_fingerprint.bin   |   28 +
+ .../6o69556i/x86/metadata_generation_command.txt   |   20 +
+ .../app/.cxx/Debug/6o69556i/x86/prefab_config.json |    4 +
+ .../Debug/6o69556i/x86/symbol_folder_index.txt     |    1 +
+ .../x86_64/.cmake/api/v1/query/client-agp/cache-v2 |    0
+ .../.cmake/api/v1/query/client-agp/cmakeFiles-v1   |    0
+ .../.cmake/api/v1/query/client-agp/codemodel-v2    |    0
+ .../v1/reply/cache-v2-9b5617289b8e593ae0da.json    | 1391 ++++++++++++++++++++
+ .../reply/cmakeFiles-v1-0b90935d36666c0a79a3.json  |  799 +++++++++++
+ .../reply/codemodel-v2-7d20bf2a82d55fe3e7d1.json   |   43 +
+ .../directory-.-Debug-f5ebdc15457944623624.json    |   14 +
+ .../v1/reply/index-2025-02-20T18-12-44-0222.json   |   92 ++
+ .../app/.cxx/Debug/6o69556i/x86_64/CMakeCache.txt  |  405 ++++++
+ .../3.22.1-g37088a8/CMakeCCompiler.cmake           |   72 +
+ .../3.22.1-g37088a8/CMakeCXXCompiler.cmake         |   83 ++
+ .../CMakeDetermineCompilerABI_C.bin                |  Bin 0 -> 6960 bytes
+ .../CMakeDetermineCompilerABI_CXX.bin              |  Bin 0 -> 7128 bytes
+ .../CMakeFiles/3.22.1-g37088a8/CMakeSystem.cmake   |   15 +
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.c |  803 +++++++++++
+ .../3.22.1-g37088a8/CompilerIdC/CMakeCCompilerId.o |  Bin 0 -> 5456 bytes
+ .../CompilerIdCXX/CMakeCXXCompilerId.cpp           |  791 +++++++++++
+ .../CompilerIdCXX/CMakeCXXCompilerId.o             |  Bin 0 -> 5512 bytes
+ .../6o69556i/x86_64/CMakeFiles/CMakeOutput.log     |  258 ++++
+ .../x86_64/CMakeFiles/TargetDirectories.txt        |    2 +
+ .../6o69556i/x86_64/CMakeFiles/cmake.check_cache   |    1 +
+ .../Debug/6o69556i/x86_64/CMakeFiles/rules.ninja   |   45 +
+ .../6o69556i/x86_64/additional_project_files.txt   |    0
+ .../6o69556i/x86_64/android_gradle_build.json      |   28 +
+ .../6o69556i/x86_64/android_gradle_build_mini.json |   20 +
+ android/app/.cxx/Debug/6o69556i/x86_64/build.ninja |  112 ++
+ .../Debug/6o69556i/x86_64/build_file_index.txt     |    1 +
+ .../.cxx/Debug/6o69556i/x86_64/cmake_install.cmake |   54 +
+ .../6o69556i/x86_64/configure_fingerprint.bin      |   28 +
+ .../x86_64/metadata_generation_command.txt         |   20 +
+ .../.cxx/Debug/6o69556i/x86_64/prefab_config.json  |    4 +
+ .../Debug/6o69556i/x86_64/symbol_folder_index.txt  |    1 +
+ ios/Flutter/Release.xcconfig                       |    1 +
+ ios/Podfile                                        |   49 +-
+ ios/Runner.xcodeproj/project.pbxproj               |  133 +-
+ .../xcshareddata/xcschemes/Runner.xcscheme         |    1 +
+ ios/Runner/Info.plist                              |    8 +-
+ lib/screens/attendance_screen.dart                 |  206 ++-
+ lib/screens/leave_screen.dart                      |   32 +-
+ lib/services/api_service.dart                      |  111 +-
+ lib/services/face_recognition_service.dart         |  167 ++-
+ lib/widgets/medical_certificate_uploader.dart      |  111 +-
+ pubspec.yaml                                       |   10 +-
+ server.js                                          |    7 +-
+ serverold.js                                       |  458 +++++++
+ 143 files changed, 21444 insertions(+), 221 deletions(-)
+
+commit 05946863841aa31857966377b5ca08b8e8d80dcb
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Mon Feb 17 22:02:51 2025 +0100
+
+    added certificate upload function for sick leave requests
+
+ lib/screens/leave_screen.dart                  | 133 ++++++++++++++-------
+ lib/services/api_service.dart                  | 159 +++++++++++++++----------
+ lib/widgets/medical_certificate_uploader.dart  | 125 +++++++++++++++++++
+ linux/flutter/generated_plugin_registrant.cc   |   4 +
+ linux/flutter/generated_plugins.cmake          |   1 +
+ macos/Flutter/GeneratedPluginRegistrant.swift  |   2 +
+ pubspec.yaml                                   |   1 +
+ server.js                                      |  38 ++++++
+ windows/flutter/generated_plugin_registrant.cc |   3 +
+ windows/flutter/generated_plugins.cmake        |   1 +
+ 10 files changed, 359 insertions(+), 108 deletions(-)
+
+commit 25fd676494b0c00c248660e928a61f0795c3c15e
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Mon Feb 17 19:36:51 2025 +0100
+
+    implemented face recognition in app to check if face is in the photo or not
+
+ android/app/build.gradle                   |   6 +-
+ config.js                                  |  22 ++
+ ios/Podfile                                |   2 +-
+ lib/screens/attendance_screen.dart         | 118 ++++++--
+ lib/services/face_recognition_service.dart |  78 ++++++
+ pubspec.yaml                               |   6 +-
+ server.js                                  | 420 +++++++++++++++++++++++++++++
+ 7 files changed, 619 insertions(+), 33 deletions(-)
+
+commit 20b2848ebaa513f78a0a24c87c172d22f4eb2413
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Thu Feb 13 18:58:03 2025 +0100
+
+    installed flutter dependency to create icon for app and moved punch button over the location card
+
+ .DS_Store                                        | Bin 8196 -> 10244 bytes
+ android/.DS_Store                                | Bin 6148 -> 8196 bytes
+ android/app/.DS_Store                            | Bin 6148 -> 6148 bytes
+ android/app/src/.DS_Store                        | Bin 6148 -> 6148 bytes
+ android/app/src/main/.DS_Store                   | Bin 6148 -> 6148 bytes
+ android/app/src/main/res/.DS_Store               | Bin 10244 -> 10244 bytes
+ android/app/src/main/res/mipmap-xxhdpi/.DS_Store | Bin 6148 -> 6148 bytes
+ android/gradle/.DS_Store                         | Bin 6148 -> 6148 bytes
+ assets/.DS_Store                                 | Bin 6148 -> 6148 bytes
+ ios/.DS_Store                                    | Bin 8196 -> 10244 bytes
+ ios/Runner/.DS_Store                             | Bin 6148 -> 8196 bytes
+ ios/Runner/Assets.xcassets/.DS_Store             | Bin 6148 -> 8196 bytes
+ lib/.DS_Store                                    | Bin 6148 -> 8196 bytes
+ lib/screens/attendance_screen.dart               |  51 +++-------
+ lib/screens/leave_screen.dart                    | 113 ++++++++++++++---------
+ macos/.DS_Store                                  | Bin 0 -> 6148 bytes
+ 16 files changed, 84 insertions(+), 80 deletions(-)
+
+commit 33b64b960f52e2b1e39ca869025ed9f616f2dd91
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Tue Feb 11 19:19:32 2025 +0100
+
+    Fixed icons, fixed punch inputs and fixed leave request sqls and db entry
+
+ .DS_Store                                          | Bin 8196 -> 8196 bytes
+ android/app/src/.DS_Store                          | Bin 6148 -> 6148 bytes
+ android/app/src/main/res/.DS_Store                 | Bin 8196 -> 10244 bytes
+ android/app/src/main/res/mipmap-hdpi/.DS_Store     | Bin 0 -> 6148 bytes
+ .../app/src/main/res/mipmap-hdpi/ic_launcher.png   | Bin 544 -> 7995 bytes
+ .../app/src/main/res/mipmap-hdpi/ic_launcher2.png  | Bin 0 -> 544 bytes
+ android/app/src/main/res/mipmap-mdpi/.DS_Store     | Bin 0 -> 6148 bytes
+ .../app/src/main/res/mipmap-mdpi/ic_launcher.png   | Bin 442 -> 4292 bytes
+ .../app/src/main/res/mipmap-mdpi/ic_launcher2.png  | Bin 0 -> 442 bytes
+ android/app/src/main/res/mipmap-xhdpi/.DS_Store    | Bin 0 -> 6148 bytes
+ .../app/src/main/res/mipmap-xhdpi/ic_launcher.png  | Bin 721 -> 12408 bytes
+ .../app/src/main/res/mipmap-xhdpi/ic_launcher2.png | Bin 0 -> 721 bytes
+ android/app/src/main/res/mipmap-xxhdpi/.DS_Store   | Bin 0 -> 6148 bytes
+ .../app/src/main/res/mipmap-xxhdpi/ic_launcher.png | Bin 1031 -> 23170 bytes
+ .../src/main/res/mipmap-xxhdpi/ic_launcher2.png    | Bin 0 -> 1031 bytes
+ .../src/main/res/mipmap-xxxhdpi/ic_launcher.png    | Bin 627916 -> 36278 bytes
+ assets/.DS_Store                                   | Bin 6148 -> 6148 bytes
+ assets/icon/.DS_Store                              | Bin 0 -> 6148 bytes
+ assets/icon/icon.png                               | Bin 0 -> 627916 bytes
+ ios/.DS_Store                                      | Bin 0 -> 8196 bytes
+ ios/Runner.xcodeproj/project.pbxproj               |   7 ++-
+ ios/Runner/.DS_Store                               | Bin 0 -> 6148 bytes
+ ios/Runner/Assets.xcassets/.DS_Store               | Bin 0 -> 6148 bytes
+ .../Assets.xcassets/AppIcon.appiconset/.DS_Store   | Bin 0 -> 8196 bytes
+ .../AppIcon.appiconset/Icon-App-1024x1024@1x.png   | Bin 10932 -> 539285 bytes
+ .../AppIcon.appiconset/Icon-App-1024x1024@1x2.png  | Bin 0 -> 10932 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@1x.png       | Bin 295 -> 1291 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@1x2.png      | Bin 0 -> 295 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@2x.png       | Bin 406 -> 3261 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@2x2.png      | Bin 0 -> 406 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@3x.png       | Bin 450 -> 5980 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@3x2.png      | Bin 0 -> 450 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@1x.png       | Bin 282 -> 2098 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@1x2.png      | Bin 0 -> 282 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@2x.png       | Bin 462 -> 5701 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@2x2.png      | Bin 0 -> 462 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@3x.png       | Bin 704 -> 10577 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@3x2.png      | Bin 0 -> 704 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@1x.png       | Bin 406 -> 3261 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@1x2.png      | Bin 0 -> 406 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@2x.png       | Bin 586 -> 9393 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@2x2.png      | Bin 0 -> 586 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@3x.png       | Bin 862 -> 17408 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@3x2.png      | Bin 0 -> 862 bytes
+ .../AppIcon.appiconset/Icon-App-50x50@1x.png       | Bin 0 -> 4550 bytes
+ .../AppIcon.appiconset/Icon-App-50x50@2x.png       | Bin 0 -> 13128 bytes
+ .../AppIcon.appiconset/Icon-App-57x57@1x.png       | Bin 0 -> 5577 bytes
+ .../AppIcon.appiconset/Icon-App-57x57@2x.png       | Bin 0 -> 16104 bytes
+ .../AppIcon.appiconset/Icon-App-60x60@2x.png       | Bin 862 -> 17408 bytes
+ .../AppIcon.appiconset/Icon-App-60x60@2x2.png      | Bin 0 -> 862 bytes
+ .../AppIcon.appiconset/Icon-App-60x60@3x.png       | Bin 1674 -> 32759 bytes
+ .../AppIcon.appiconset/Icon-App-60x60@3x2.png      | Bin 0 -> 1674 bytes
+ .../AppIcon.appiconset/Icon-App-72x72@1x.png       | Bin 0 -> 7995 bytes
+ .../AppIcon.appiconset/Icon-App-72x72@2x.png       | Bin 0 -> 23170 bytes
+ .../AppIcon.appiconset/Icon-App-76x76@1x.png       | Bin 762 -> 8569 bytes
+ .../AppIcon.appiconset/Icon-App-76x76@1x2.png      | Bin 0 -> 762 bytes
+ .../AppIcon.appiconset/Icon-App-76x76@2x.png       | Bin 1226 -> 25178 bytes
+ .../AppIcon.appiconset/Icon-App-76x76@2x2.png      | Bin 0 -> 1226 bytes
+ .../AppIcon.appiconset/Icon-App-83.5x83.5@2x.png   | Bin 1418 -> 29180 bytes
+ .../AppIcon.appiconset/Icon-App-83.5x83.5@2x2.png  | Bin 0 -> 1418 bytes
+ .../Assets.xcassets/AppIcon.appiconset/image 2.png | Bin 0 -> 561 bytes
+ .../Assets.xcassets/AppIcon.appiconset/image 3.png | Bin 0 -> 561 bytes
+ lib/screens/leave_screen.dart                      |  36 +++++++++------
+ lib/services/api_service.dart                      |  49 ++++++++++++---------
+ pubspec.yaml                                       |   7 +++
+ 65 files changed, 62 insertions(+), 37 deletions(-)
+
+commit 9e53ef55b63f5927f0f3d2da327bd8049f18751c
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Tue Feb 11 13:13:44 2025 +0100
+
+    Fixed sql querries for Attandence punch in and out and fixed token transfer from server to app
+
+ android/app/src/main/AndroidManifest.xml |   2 +-
+ ios/Runner/Info.plist                    |   4 +-
+ lib/main.dart                            |  62 ++++-
+ lib/screens/attendance_screen.dart       | 436 ++++++++++++++++++-------------
+ lib/screens/leave_screen.dart            | 321 ++++++++++++++---------
+ lib/screens/login_screen.dart            | 256 +++++++++++-------
+ lib/screens/profile_screen.dart          |  85 ++++--
+ lib/services/api_service.dart            | 130 +++++----
+ 8 files changed, 806 insertions(+), 490 deletions(-)
+
+commit 5f849e5cc6a73c72b6a9da39e3ab2c4a6d4e1174
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Tue Feb 11 07:41:38 2025 +0100
+
+    Server integration on App with login working.
+
+ .DS_Store                                          | Bin 8196 -> 8196 bytes
+ android/.DS_Store                                  | Bin 6148 -> 6148 bytes
+ android/app/.DS_Store                              | Bin 0 -> 6148 bytes
+ android/app/src/.DS_Store                          | Bin 0 -> 6148 bytes
+ android/app/src/main/.DS_Store                     | Bin 0 -> 6148 bytes
+ android/app/src/main/res/.DS_Store                 | Bin 0 -> 8196 bytes
+ android/app/src/main/res/mipmap-xxxhdpi/.DS_Store  | Bin 0 -> 6148 bytes
+ .../src/main/res/mipmap-xxxhdpi/ic_launcher.png    | Bin 1443 -> 627916 bytes
+ .../src/main/res/mipmap-xxxhdpi/ic_launcherold.png | Bin 0 -> 1443 bytes
+ new_test.iml => garrison_app.iml                   |   0
+ lib/.DS_Store                                      | Bin 0 -> 6148 bytes
+ lib/.env                                           |   5 +
+ lib/config.env                                     |   0
+ lib/main.dart                                      |  39 +-
+ lib/screens/attendance_screen.dart                 | 415 +++++++------
+ lib/screens/leave_screen.dart                      | 363 +++++++-----
+ lib/screens/login_screen.dart                      | 170 ++++++
+ lib/screens/profile_screen.dart                    | 323 +++++++---
+ lib/server/config.js                               |  21 +
+ lib/server/server.js                               | 281 +++++++++
+ lib/services/api_service.dart                      | 206 +++++++
+ macos/Flutter/GeneratedPluginRegistrant.swift      |   2 +
+ node_modules/.package-lock.json                    |  19 +
+ node_modules/dotenv/CHANGELOG.md                   | 488 +++++++++++++++
+ node_modules/dotenv/LICENSE                        |  23 +
+ node_modules/dotenv/README-es.md                   | 448 ++++++++++++++
+ node_modules/dotenv/README.md                      | 651 +++++++++++++++++++++
+ node_modules/dotenv/config.d.ts                    |   1 +
+ node_modules/dotenv/config.js                      |   9 +
+ node_modules/dotenv/lib/cli-options.js             |  11 +
+ node_modules/dotenv/lib/env-options.js             |  24 +
+ node_modules/dotenv/lib/main.d.ts                  | 153 +++++
+ node_modules/dotenv/lib/main.js                    | 361 ++++++++++++
+ node_modules/dotenv/package.json                   |  61 ++
+ package-lock.json                                  |  24 +
+ package.json                                       |   5 +
+ pubspec.yaml                                       |   2 +
+ 37 files changed, 3659 insertions(+), 446 deletions(-)
+
+commit 7146b2810daa0fde2c731ec5fcee01ceb4c0267a
+Merge: 527e851 e60ab71
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sat Feb 8 19:30:18 2025 +0100
+
+    First commit test after code writing and testing on android and iphone. Worked edited some camera settings
+
+commit 527e851f050398fc703fa19145bd1facafcd6718
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sat Feb 8 19:23:57 2025 +0100
+
+    Initial commit
+
+ .DS_Store                                          | Bin 0 -> 8196 bytes
+ .gitignore                                         |   8 +
+ .metadata                                          |  45 ++
+ README.md                                          |   3 +
+ analysis_options.yaml                              |   1 +
+ android/.DS_Store                                  | Bin 0 -> 6148 bytes
+ android/.gitignore                                 |  13 +
+ android/app/build.gradle                           |  49 ++
+ android/app/src/debug/AndroidManifest.xml          |   7 +
+ android/app/src/main/AndroidManifest.xml           |  55 ++
+ .../kotlin/com/example/new_test/MainActivity.kt    |   5 +
+ .../main/res/drawable-v21/launch_background.xml    |  12 +
+ .../src/main/res/drawable/launch_background.xml    |  12 +
+ .../app/src/main/res/mipmap-hdpi/ic_launcher.png   | Bin 0 -> 544 bytes
+ .../app/src/main/res/mipmap-mdpi/ic_launcher.png   | Bin 0 -> 442 bytes
+ .../app/src/main/res/mipmap-xhdpi/ic_launcher.png  | Bin 0 -> 721 bytes
+ .../app/src/main/res/mipmap-xxhdpi/ic_launcher.png | Bin 0 -> 1031 bytes
+ .../src/main/res/mipmap-xxxhdpi/ic_launcher.png    | Bin 0 -> 1443 bytes
+ android/app/src/main/res/values-night/styles.xml   |  18 +
+ android/app/src/main/res/values/styles.xml         |  18 +
+ android/app/src/profile/AndroidManifest.xml        |   7 +
+ android/build.gradle                               |  18 +
+ android/gradle.properties                          |   3 +
+ android/gradle/.DS_Store                           | Bin 0 -> 6148 bytes
+ android/gradle/wrapper/.DS_Store                   | Bin 0 -> 6148 bytes
+ android/gradle/wrapper/gradle-wrapper.properties   |   5 +
+ android/new_test_android.iml                       |  29 +
+ android/settings.gradle                            |  26 +
+ assets/.DS_Store                                   | Bin 0 -> 6148 bytes
+ assets/profile.png                                 | Bin 0 -> 995790 bytes
+ ios/.gitignore                                     |  34 +
+ ios/Flutter/AppFrameworkInfo.plist                 |  26 +
+ ios/Flutter/Debug.xcconfig                         |   2 +
+ ios/Flutter/Release.xcconfig                       |   2 +
+ ios/Podfile                                        |  44 ++
+ ios/Runner.xcodeproj/project.pbxproj               | 748 +++++++++++++++++++++
+ .../project.xcworkspace/contents.xcworkspacedata   |   7 +
+ .../xcshareddata/IDEWorkspaceChecks.plist          |   8 +
+ .../xcshareddata/WorkspaceSettings.xcsettings      |   8 +
+ .../xcshareddata/xcschemes/Runner.xcscheme         |  98 +++
+ ios/Runner.xcworkspace/contents.xcworkspacedata    |  10 +
+ .../xcshareddata/IDEWorkspaceChecks.plist          |   8 +
+ .../xcshareddata/WorkspaceSettings.xcsettings      |   8 +
+ ios/Runner/AppDelegate.swift                       |  13 +
+ .../AppIcon.appiconset/Contents.json               | 122 ++++
+ .../AppIcon.appiconset/Icon-App-1024x1024@1x.png   | Bin 0 -> 10932 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@1x.png       | Bin 0 -> 295 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@2x.png       | Bin 0 -> 406 bytes
+ .../AppIcon.appiconset/Icon-App-20x20@3x.png       | Bin 0 -> 450 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@1x.png       | Bin 0 -> 282 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@2x.png       | Bin 0 -> 462 bytes
+ .../AppIcon.appiconset/Icon-App-29x29@3x.png       | Bin 0 -> 704 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@1x.png       | Bin 0 -> 406 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@2x.png       | Bin 0 -> 586 bytes
+ .../AppIcon.appiconset/Icon-App-40x40@3x.png       | Bin 0 -> 862 bytes
+ .../AppIcon.appiconset/Icon-App-60x60@2x.png       | Bin 0 -> 862 bytes
+ .../AppIcon.appiconset/Icon-App-60x60@3x.png       | Bin 0 -> 1674 bytes
+ .../AppIcon.appiconset/Icon-App-76x76@1x.png       | Bin 0 -> 762 bytes
+ .../AppIcon.appiconset/Icon-App-76x76@2x.png       | Bin 0 -> 1226 bytes
+ .../AppIcon.appiconset/Icon-App-83.5x83.5@2x.png   | Bin 0 -> 1418 bytes
+ .../LaunchImage.imageset/Contents.json             |  23 +
+ .../LaunchImage.imageset/LaunchImage.png           | Bin 0 -> 68 bytes
+ .../LaunchImage.imageset/LaunchImage@2x.png        | Bin 0 -> 68 bytes
+ .../LaunchImage.imageset/LaunchImage@3x.png        | Bin 0 -> 68 bytes
+ .../Assets.xcassets/LaunchImage.imageset/README.md |   5 +
+ ios/Runner/Base.lproj/LaunchScreen.storyboard      |  37 +
+ ios/Runner/Base.lproj/Main.storyboard              |  26 +
+ ios/Runner/Info.plist                              |  55 ++
+ ios/Runner/Runner-Bridging-Header.h                |   1 +
+ ios/RunnerTests/RunnerTests.swift                  |  12 +
+ lib/main.dart                                      |  90 +++
+ lib/screens/attendance_screen.dart                 | 322 +++++++++
+ lib/screens/leave_screen.dart                      | 310 +++++++++
+ lib/screens/profile_screen.dart                    | 130 ++++
+ lib/widgets/camera_widget.dart                     |   0
+ lib/widgets/leave_request_widget.dart              |   0
+ linux/.gitignore                                   |   1 +
+ linux/CMakeLists.txt                               | 128 ++++
+ linux/flutter/CMakeLists.txt                       |  88 +++
+ linux/flutter/generated_plugin_registrant.cc       |  11 +
+ linux/flutter/generated_plugin_registrant.h        |  15 +
+ linux/flutter/generated_plugins.cmake              |  23 +
+ linux/runner/CMakeLists.txt                        |  26 +
+ linux/runner/main.cc                               |   6 +
+ linux/runner/my_application.cc                     | 130 ++++
+ linux/runner/my_application.h                      |  18 +
+ macos/.gitignore                                   |   7 +
+ macos/Flutter/Flutter-Debug.xcconfig               |   2 +
+ macos/Flutter/Flutter-Release.xcconfig             |   2 +
+ macos/Flutter/GeneratedPluginRegistrant.swift      |  14 +
+ macos/Podfile                                      |  43 ++
+ macos/Runner.xcodeproj/project.pbxproj             | 705 +++++++++++++++++++
+ .../xcshareddata/IDEWorkspaceChecks.plist          |   8 +
+ .../xcshareddata/xcschemes/Runner.xcscheme         |  98 +++
+ macos/Runner.xcworkspace/contents.xcworkspacedata  |   7 +
+ .../xcshareddata/IDEWorkspaceChecks.plist          |   8 +
+ macos/Runner/AppDelegate.swift                     |  13 +
+ .../AppIcon.appiconset/Contents.json               |  68 ++
+ .../AppIcon.appiconset/app_icon_1024.png           | Bin 0 -> 102994 bytes
+ .../AppIcon.appiconset/app_icon_128.png            | Bin 0 -> 5680 bytes
+ .../AppIcon.appiconset/app_icon_16.png             | Bin 0 -> 520 bytes
+ .../AppIcon.appiconset/app_icon_256.png            | Bin 0 -> 14142 bytes
+ .../AppIcon.appiconset/app_icon_32.png             | Bin 0 -> 1066 bytes
+ .../AppIcon.appiconset/app_icon_512.png            | Bin 0 -> 36406 bytes
+ .../AppIcon.appiconset/app_icon_64.png             | Bin 0 -> 2218 bytes
+ macos/Runner/Base.lproj/MainMenu.xib               | 343 ++++++++++
+ macos/Runner/Configs/AppInfo.xcconfig              |  14 +
+ macos/Runner/Configs/Debug.xcconfig                |   2 +
+ macos/Runner/Configs/Release.xcconfig              |   2 +
+ macos/Runner/Configs/Warnings.xcconfig             |  13 +
+ macos/Runner/DebugProfile.entitlements             |  12 +
+ macos/Runner/Info.plist                            |  32 +
+ macos/Runner/MainFlutterWindow.swift               |  15 +
+ macos/Runner/Release.entitlements                  |   8 +
+ macos/RunnerTests/RunnerTests.swift                |  12 +
+ new_test.iml                                       |  17 +
+ pubspec.yaml                                       |  32 +
+ web/favicon.png                                    | Bin 0 -> 917 bytes
+ web/icons/Icon-192.png                             | Bin 0 -> 5292 bytes
+ web/icons/Icon-512.png                             | Bin 0 -> 8252 bytes
+ web/icons/Icon-maskable-192.png                    | Bin 0 -> 5594 bytes
+ web/icons/Icon-maskable-512.png                    | Bin 0 -> 20998 bytes
+ web/index.html                                     |  38 ++
+ web/manifest.json                                  |  35 +
+ windows/.gitignore                                 |  17 +
+ windows/CMakeLists.txt                             | 108 +++
+ windows/flutter/CMakeLists.txt                     | 109 +++
+ windows/flutter/generated_plugin_registrant.cc     |  17 +
+ windows/flutter/generated_plugin_registrant.h      |  15 +
+ windows/flutter/generated_plugins.cmake            |  25 +
+ windows/runner/CMakeLists.txt                      |  40 ++
+ windows/runner/Runner.rc                           | 121 ++++
+ windows/runner/flutter_window.cpp                  |  71 ++
+ windows/runner/flutter_window.h                    |  33 +
+ windows/runner/main.cpp                            |  43 ++
+ windows/runner/resource.h                          |  16 +
+ windows/runner/resources/app_icon.ico              | Bin 0 -> 33772 bytes
+ windows/runner/runner.exe.manifest                 |  14 +
+ windows/runner/utils.cpp                           |  65 ++
+ windows/runner/utils.h                             |  19 +
+ windows/runner/win32_window.cpp                    | 288 ++++++++
+ windows/runner/win32_window.h                      | 102 +++
+ 142 files changed, 5582 insertions(+)
+
+commit e60ab714ad04ed452f9995b8358333b3b4c0dadd
+Author: MalteseHKR <ssj4mic@yahoo.com>
+Date:   Sat Feb 8 19:23:06 2025 +0100
+
+    Initial commit
+
+ README.md | 2 ++
+ 1 file changed, 2 insertions(+)

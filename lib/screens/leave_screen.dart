@@ -1,56 +1,215 @@
+// lib/screens/leave_screen.dart
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart';
+import '../services/api_service.dart';
+import '../services/timezone_service.dart';
+import '../services/session_service.dart';
+import '../widgets/medical_certificate_uploader.dart';
 
 class LeaveScreen extends StatefulWidget {
-  const LeaveScreen({Key? key}) : super(key: key);
+  final Map<String, dynamic> userDetails;
+
+  const LeaveScreen({
+    Key? key,
+    required this.userDetails,
+  }) : super(key: key);
 
   @override
   State<LeaveScreen> createState() => _LeaveScreenState();
 }
 
 class _LeaveScreenState extends State<LeaveScreen> {
-  late CalendarFormat _calendarFormat;
+  final _apiService = ApiService();
+  final _timezoneService = TimezoneService(); // Add timezone service
+  final _sessionService = SessionService(); // Add session service
+  Map<String, dynamic> _leaveBalance = {};
+  List<Map<String, dynamic>> _leaveRequests = [];
+  bool _isLoading = false;
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
-  List<Map<String, dynamic>> _leaveRequests = [];
   String _selectedLeaveType = 'Annual';
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
-  RangeSelectionMode _rangeSelectionMode = RangeSelectionMode.toggledOn;
+  final _reasonController = TextEditingController();
+  File? _medicalCertificate;
 
   @override
   void initState() {
     super.initState();
-    _calendarFormat = CalendarFormat.month;
+    _loadLeaveBalance();
+    _loadLeaveRequests();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leave Management'),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildLeaveBalanceCard(),
-            const SizedBox(height: 16),
-            _buildCalendarCard(),
-            const SizedBox(height: 16),
-            _buildRequestButton(),
-            const SizedBox(height: 16),
-            _buildLeaveRequestsList(),
-          ],
-        ),
-      ),
-    );
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadLeaveBalance() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final balance = await _apiService.getLeaveBalance(widget.userDetails['id'].toString());
+      if (mounted) {
+        setState(() {
+          _leaveBalance = balance;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading leave balance: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadLeaveRequests() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
+    try {
+      final requests = await _apiService.getLeaveRequests(widget.userDetails['id'].toString());
+      if (mounted) {
+        setState(() {
+          _leaveRequests = requests;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading leave requests: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _submitLeaveRequest() async {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
+    if (_rangeStart == null || _rangeEnd == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select date range')),
+      );
+      return;
+    }
+
+    if (_selectedLeaveType == 'Sick' && _medicalCertificate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please upload a medical certificate')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      String? certificateUrl;
+      // Add more detailed logging
+      print('Leave Type: $_selectedLeaveType');
+      print('Medical Certificate: $_medicalCertificate');
+      print('Start Date: $_rangeStart');
+      print('End Date: $_rangeEnd');
+      print('Reason: ${_reasonController.text.trim()}');
+
+      if (_medicalCertificate != null && _selectedLeaveType == 'Sick') {
+        try {
+          certificateUrl = await _apiService.uploadMedicalCertificate(_medicalCertificate!);
+          print('Uploaded Certificate URL: $certificateUrl');
+        } catch (uploadError) {
+          print('Medical Certificate Upload Error: $uploadError');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to upload medical certificate: $uploadError'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
+      print('Submitting Leave Request:');
+      print('Certificate URL: $certificateUrl');
+
+      await _apiService.submitLeaveRequest(
+        leaveType: _selectedLeaveType,
+        startDate: _rangeStart!,
+        endDate: _rangeEnd!,
+        reason: _reasonController.text.trim(),
+        certificateUrl: certificateUrl,
+      );
+
+      if (mounted) {
+        // Refresh data
+        await _loadLeaveBalance();
+        await _loadLeaveRequests();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Leave request submitted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Reset form
+        setState(() {
+          _rangeStart = null;
+          _rangeEnd = null;
+          _reasonController.clear();
+          _medicalCertificate = null;
+        });
+      }
+    } catch (e) {
+      print('Complete Leave Request Submission Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting leave request: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   Widget _buildLeaveBalanceCard() {
     return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -64,9 +223,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildLeaveBalance('Annual', 15, Colors.blue),
-                _buildLeaveBalance('Sick', 7, Colors.red),
-                _buildLeaveBalance('Personal', 3, Colors.green),
+                _buildLeaveBalanceItem('Annual', _leaveBalance['annual']?['remaining']),
+                _buildLeaveBalanceItem('Sick', _leaveBalance['sick']?['remaining']),
+                _buildLeaveBalanceItem('Personal', _leaveBalance['personal']?['remaining']),
               ],
             ),
           ],
@@ -74,24 +233,35 @@ class _LeaveScreenState extends State<LeaveScreen> {
       ),
     );
   }
+  Widget _buildLeaveBalanceItem(String type, dynamic days) {
+    num balanceDays = 0;
+    if (days != null) {
+      if (days is String) {
+        balanceDays = num.tryParse(days) ?? 0;
+      } else if (days is num) {
+        balanceDays = days;
+      }
+    }
 
-  Widget _buildLeaveBalance(String type, int days, Color color) {
     return Column(
       children: [
         CircleAvatar(
           radius: 25,
-          backgroundColor: color.withOpacity(0.2),
+          backgroundColor: Colors.blue.withOpacity(0.2),
           child: Text(
-            days.toString(),
-            style: TextStyle(
-              color: color,
+            balanceDays.toString(),
+            style: const TextStyle(
+              color: Colors.blue,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
           ),
         ),
         const SizedBox(height: 8),
-        Text(type),
+        Text(
+          type,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
       ],
     );
   }
@@ -99,115 +269,232 @@ class _LeaveScreenState extends State<LeaveScreen> {
   Widget _buildCalendarCard() {
     return Card(
       elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: TableCalendar(
-          firstDay: DateTime.now().subtract(const Duration(days: 365)),
-          lastDay: DateTime.now().add(const Duration(days: 365)),
-          focusedDay: _focusedDay,
-          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-          rangeStartDay: _rangeStart,
-          rangeEndDay: _rangeEnd,
-          calendarFormat: _calendarFormat,
-          rangeSelectionMode: _rangeSelectionMode,
-          onDaySelected: (selectedDay, focusedDay) {
-            setState(() {
-              _selectedDay = selectedDay;
-              _focusedDay = focusedDay;
-              _rangeStart = null;
-              _rangeEnd = null;
-              _rangeSelectionMode = RangeSelectionMode.toggledOff;
-            });
-          },
-          onRangeSelected: (start, end, focusedDay) {
-            setState(() {
-              _selectedDay = focusedDay;
-              _focusedDay = focusedDay;
-              _rangeStart = start;
-              _rangeEnd = end;
-              _rangeSelectionMode = RangeSelectionMode.toggledOn;
-            });
-          },
-          onFormatChanged: (format) {
-            if (_calendarFormat != format) {
-              setState(() {
-                _calendarFormat = format;
-              });
-            }
-          },
-          calendarStyle: CalendarStyle(
-            rangeHighlightColor: Colors.blue.withOpacity(0.2),
-            rangeStartDecoration: const BoxDecoration(
-              color: Colors.blue,
-              shape: BoxShape.circle,
-            ),
-            rangeEndDecoration: const BoxDecoration(
-              color: Colors.blue,
-              shape: BoxShape.circle,
-            ),
-            todayDecoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.5),
-              shape: BoxShape.circle,
-            ),
-            selectedDecoration: const BoxDecoration(
-              color: Colors.blue,
-              shape: BoxShape.circle,
-            ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TableCalendar(
+        firstDay: DateTime.now(),
+        lastDay: DateTime.now().add(const Duration(days: 365)),
+        focusedDay: _focusedDay,
+        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+        rangeStartDay: _rangeStart,
+        rangeEndDay: _rangeEnd,
+        calendarFormat: CalendarFormat.month,
+        rangeSelectionMode: RangeSelectionMode.enforced,
+        onDaySelected: (selectedDay, focusedDay) {
+          // Reset session timer on calendar interaction
+          _sessionService.userActivity();
+          
+          setState(() {
+            _selectedDay = selectedDay;
+            _focusedDay = focusedDay;
+          });
+        },
+        onRangeSelected: (start, end, focusedDay) {
+          // Reset session timer on calendar interaction
+          _sessionService.userActivity();
+          
+          setState(() {
+            _rangeStart = start;
+            _rangeEnd = end;
+            _focusedDay = focusedDay;
+          });
+        },
+        calendarStyle: CalendarStyle(
+          rangeHighlightColor: Colors.blue.withOpacity(0.2),
+          rangeStartDecoration: const BoxDecoration(
+            color: Colors.blue,
+            shape: BoxShape.circle,
           ),
-          headerStyle: const HeaderStyle(
-            formatButtonVisible: true,
-            titleCentered: true,
+          rangeEndDecoration: const BoxDecoration(
+            color: Colors.blue,
+            shape: BoxShape.circle,
           ),
+          todayDecoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.5),
+            shape: BoxShape.circle,
+          ),
+          selectedDecoration: const BoxDecoration(
+            color: Colors.blue,
+            shape: BoxShape.circle,
+          ),
+        ),
+        headerStyle: const HeaderStyle(
+          formatButtonVisible: false,
         ),
       ),
     );
   }
 
-  Widget _buildRequestButton() {
-    return ElevatedButton.icon(
-      onPressed: () => _showLeaveRequestDialog(),
-      icon: const Icon(Icons.add),
-      label: const Text('Request Leave'),
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size.fromHeight(50),
+  void _showLeaveRequestDialog() {
+    // Reset session timer on user interaction
+    _sessionService.userActivity();
+    
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Request Leave',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  StatefulBuilder(
+                    builder: (context, setState) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: _selectedLeaveType,
+                          items: ['Annual', 'Sick', 'Personal']
+                              .map((type) => DropdownMenuItem(
+                                    value: type,
+                                    child: Text(type),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            // Reset session timer on user interaction
+                            _sessionService.userActivity();
+                            setState(() => _selectedLeaveType = value!);
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Leave Type',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Selected Range: ${_rangeStart != null ? _formatDate(_rangeStart.toString()) : 'Start Date'} - ${_rangeEnd != null ? _formatDate(_rangeEnd.toString()) : 'End Date'}',
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _reasonController,
+                          decoration: const InputDecoration(
+                            labelText: 'Reason',
+                            border: OutlineInputBorder(),
+                          ),
+                          maxLines: 3,
+                          onChanged: (_) {
+                            // Reset session timer on user interaction
+                            _sessionService.userActivity();
+                          },
+                        ),
+                        if (_selectedLeaveType == 'Sick') ...[
+                          const SizedBox(height: 16),
+                          MedicalCertificateUploader(
+                            onFileSelected: (file) {
+                              // Reset session timer on user interaction
+                              _sessionService.userActivity();
+                              setState(() => _medicalCertificate = file);
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await _submitLeaveRequest();
+                        },
+                        child: const Text('Submit'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
-
-  Widget _buildLeaveRequestsList() {
+  Widget _buildLeaveRequestHistory() {
     if (_leaveRequests.isEmpty) {
-      return const Card(
+      return Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('No leave requests yet'),
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: Text(
+              'No leave requests',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+          ),
         ),
       );
     }
 
     return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
             padding: EdgeInsets.all(16),
             child: Text(
-              'Recent Requests',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'Leave Request History',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-          ListView.builder(
+          ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _leaveRequests.length,
+            separatorBuilder: (context, index) => const Divider(),
             itemBuilder: (context, index) {
               final request = _leaveRequests[index];
               return ListTile(
-                title: Text(request['type']),
-                subtitle: Text('${request['startDate']} - ${request['endDate']}'),
-                trailing: Chip(
-                  label: Text(request['status']),
-                  backgroundColor: _getStatusColor(request['status']),
+                title: Text(request['leave_type']?.toString() ?? 'Unknown'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_formatDate(request['start_date']?.toString())} to ${_formatDate(request['end_date']?.toString())}',
+                    ),
+                    if (request['medical_certificate_url'] != null)
+                      TextButton.icon(
+                        icon: const Icon(Icons.medical_services),
+                        label: const Text('View Medical Certificate'),
+                        onPressed: () {
+                          // Reset session timer on user interaction
+                          _sessionService.userActivity();
+                          // Implement view certificate functionality
+                        },
+                      ),
+                  ],
                 ),
+                trailing: _buildStatusChip(request['status']?.toString()),
               );
             },
           ),
@@ -216,95 +503,75 @@ class _LeaveScreenState extends State<LeaveScreen> {
     );
   }
 
-  void _showLeaveRequestDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Request Leave'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              value: _selectedLeaveType,
-              items: ['Annual', 'Sick', 'Personal']
-                  .map((type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() => _selectedLeaveType = value!);
-              },
-              decoration: const InputDecoration(labelText: 'Leave Type'),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Start Date',
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
-              readOnly: true,
-              controller: TextEditingController(
-                text: _rangeStart != null 
-                    ? '${_rangeStart!.year}-${_rangeStart!.month}-${_rangeStart!.day}'
-                    : '',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'End Date',
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
-              readOnly: true,
-              controller: TextEditingController(
-                text: _rangeEnd != null 
-                    ? '${_rangeEnd!.year}-${_rangeEnd!.month}-${_rangeEnd!.day}'
-                    : '',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (_rangeStart != null && _rangeEnd != null) {
-                setState(() {
-                  _leaveRequests.add({
-                    'type': _selectedLeaveType,
-                    'startDate': '${_rangeStart!.year}-${_rangeStart!.month}-${_rangeStart!.day}',
-                    'endDate': '${_rangeEnd!.year}-${_rangeEnd!.month}-${_rangeEnd!.day}',
-                    'status': 'Pending',
-                  });
-                });
-                Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please select date range from calendar')),
-                );
-              }
-            },
-            child: const Text('Submit'),
-          ),
-        ],
+  Widget _buildStatusChip(String? status) {
+    Color chipColor;
+    switch (status?.toLowerCase() ?? 'pending') {
+      case 'approved':
+        chipColor = Colors.green;
+        break;
+      case 'pending':
+        chipColor = Colors.orange;
+        break;
+      case 'rejected':
+        chipColor = Colors.red;
+        break;
+      default:
+        chipColor = Colors.grey;
+    }
+
+    return Chip(
+      label: Text(
+        status?.toString() ?? 'Pending',
+        style: const TextStyle(color: Colors.white),
       ),
+      backgroundColor: chipColor,
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  String _formatDate(String? dateString) {
+    // Use timezone service to format the date with timezone offset
+    return _timezoneService.formatDateWithOffset(dateString, format: 'dd/MM/yyyy');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Leave Management'),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () async {
+                // Reset session timer on user interaction
+                _sessionService.userActivity();
+                await _loadLeaveBalance();
+                await _loadLeaveRequests();
+              },
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildLeaveBalanceCard(),
+                    const SizedBox(height: 16),
+                    _buildCalendarCard(),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _showLeaveRequestDialog,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Request Leave'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildLeaveRequestHistory(),
+                  ],
+                ),
+              ),
+            ),
+    );
   }
 }
