@@ -8,11 +8,16 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const config = require('./config');
 
+// Add Laravel APP_KEY (handles both base64: prefix and raw key formats)
+const LARAVEL_APP_KEY = process.env.APP_KEY || 'base64:4ULzgiK3Nu3wF5eXEzVdTizEBPLKCPuS3TVCZA6LGF4=';
+const APP_KEY = LARAVEL_APP_KEY.startsWith('base64:') ? LARAVEL_APP_KEY.substring(7) : LARAVEL_APP_KEY;
+
+console.log('Laravel APP_KEY loaded for password verification');
+
 const app = express();
-
-
 
 // Authentication Middleware
 const createAuthenticateToken = (secret) => (req, res, next) => {
@@ -54,9 +59,9 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ 
+const upload = multer({
     storage: storage,
-    limits: { 
+    limits: {
         fileSize: 5 * 1024 * 1024, // 5MB file size limit
         files: 1 // Limit to one file upload
     }
@@ -65,70 +70,130 @@ const upload = multer({
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));
 
-// Login Route
+// Login Route with support for PHP bcrypt hashes and Laravel APP_KEY
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        
+
         // Basic input validation
         if (!email || !password) {
             return res.status(400).json({ message: 'Email and password are required' });
         }
 
-        // Query to find user
+        console.log(`Login attempt for email: ${email}`);
+
+        // Check if account is already locked
+        const [lockStatus] = await db.execute(
+            'SELECT user_login_id, login_attempts, last_login_attempt FROM login WHERE email = ?',
+            [email]
+        );
+
+        if (lockStatus.length > 0 && lockStatus[0].login_attempts >= 4) {
+            const lastAttempt = new Date(lockStatus[0].last_login_attempt);
+            const currentTime = new Date();
+            const diffMinutes = Math.floor((currentTime - lastAttempt) / (1000 * 60));
+
+            // If less than 5 minutes have passed since the lockout
+            if (diffMinutes < 5) {
+                return res.status(429).json({
+                    message: 'Account temporarily locked. Too many failed attempts.',
+                    lockout_remaining: 5 - diffMinutes
+                });
+            }
+            // If 5 minutes have passed, we'll allow them to try again
+        }
+
+        // Query to find user - Note we're only fetching the user by email, not checking password yet
         const [rows] = await db.execute(
-            'SELECT l.user_login_id, l.email, l.user_id, ui.user_name, ui.user_surname, ui.user_department, ui.user_email FROM login l JOIN user_information ui ON l.user_id = ui.user_id WHERE l.email = ? AND l.user_login_pass = ?',
-            [email, password]
+            'SELECT l.user_login_id, l.email, l.user_login_pass, l.user_id, ui.user_name, ui.user_surname, ui.user_department, ui.user_email FROM login l JOIN user_information ui ON l.user_id = ui.user_id WHERE l.email = ?',
+            [email]
         );
 
-        if (rows.length > 0) {
-            const user = rows[0];
+        if (rows.length === 0) {
+            // User not found - Return generic error
+            console.log(`User not found for email: ${email}`);
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
 
-            console.log('User found: ', user);
+        const user = rows[0];
+        console.log(`User found, comparing passwords for user ID: ${user.user_id}`);
 
-            const token = jwt.sign({
-                userId: user.user_id,
-                email: user.email
-            }, JWT_SECRET, { expiresIn: '24h'});
+        // Get the stored hash
+        let hashedPassword = user.user_login_pass;
 
-            console.log('Token generated: ', token);
+        // Check if it's a PHP bcrypt hash ($2y$) and convert to Node's format ($2a$)
+        if (hashedPassword.startsWith('$2y$')) {
+            hashedPassword = hashedPassword.replace('$2y$', '$2a$');
+            console.log('Converted PHP bcrypt hash to Node.js compatible format');
+        }
 
-         // Update login attempts and last login
-         await db.execute(
-             'UPDATE login SET login_attampts = ?, last_login_attampt = NOW() WHERE user_login_id = ?',
-                          [0, user.user_login_id]
-        );
+        try {
+            // In Laravel, passwords are not typically combined with the APP_KEY for bcrypt verification
+            // The key is used for encryption but not for password hashing
+            // So we'll try direct comparison with the hash
+            const passwordMatch = await bcrypt.compare(password, hashedPassword);
+            console.log(`Password match result: ${passwordMatch}`);
 
-         //response
-         const response = {
-            token: token,
-            user: {
-            id: user.user_id,
-            email: user.user_email,
-            full_name: '${user.user_name} ${user.user_surname}',
-            department: user.user_department
-            }
-        };
+            if (passwordMatch) {
+                // Password matches - generate token and login user
+                const token = jwt.sign({
+                    userId: user.user_id,
+                    email: user.email
+                }, JWT_SECRET, { expiresIn: '24h'});
 
-         console.log('Sending response with token');
-            
-            res.json(response);
+                console.log('Token generated: ', token);
 
-        } else {
-            // Increment login attempts
-            const [userRecord] = await db.execute(
-                'SELECT user_login_id, login_attampts FROM login WHERE email = ?',
-                [email]
-            );
-
-            if (userRecord.length >0) {
+                // Reset login attempts on successful login
                 await db.execute(
-                    'UPDATE login SET login_attampts = login_attampts + 1, last_login_attampt = NOW() WHERE user_login_id = ?',
-                                 [userRecord[0].user_login_id]
+                    'UPDATE login SET login_attempts = 0, last_login_attempt = NOW() WHERE user_login_id = ?',
+                    [user.user_login_id]
                 );
-            }
 
-            res.status(401).json({ message: 'Invalid credentials' });
+                // Response
+                const response = {
+                    token: token,
+                    user: {
+                        id: user.user_id,
+                        email: user.user_email,
+                        full_name: `${user.user_name} ${user.user_surname}`,
+                        department: user.user_department
+                    }
+                };
+
+                console.log('Sending response with token');
+                return res.json(response);
+            } else {
+                // Password doesn't match - Increment login attempts
+                const newAttemptCount = (lockStatus.length > 0)
+                    ? lockStatus[0].login_attempts + 1
+                    : 1;
+
+                await db.execute(
+                    'UPDATE login SET login_attempts = ?, last_login_attempt = NOW() WHERE user_login_id = ?',
+                    [newAttemptCount, user.user_login_id]
+                );
+
+                // Calculate remaining attempts
+                const remainingAttempts = Math.max(0, 4 - newAttemptCount);
+
+                console.log(`Login failed for user ID: ${user.user_id}. Attempt ${newAttemptCount} of 4`);
+
+                // If this was the 4th failed attempt (now at limit)
+                if (newAttemptCount >= 4) {
+                    return res.status(429).json({
+                        message: 'Account locked for 5 minutes due to too many failed attempts',
+                        lockout_remaining: 5
+                    });
+                } else {
+                    return res.status(401).json({
+                        message: 'Invalid credentials',
+                        remaining_attempts: remainingAttempts
+                    });
+                }
+            }
+        } catch (bcryptError) {
+            console.error('Bcrypt error during password comparison:', bcryptError);
+            return res.status(500).json({ error: 'Error verifying password' });
         }
     } catch (error) {
         console.error('Login error:', error);
@@ -142,7 +207,6 @@ app.post('/api/attendance', authenticateToken, upload.single('photo'), async (re
         const userId = req.user.userId;
         const { punch_type, latitude, longitude } = req.body;
         const photoUrl = req.file ? `/uploads/${req.file.filename}` : '';
-        const punchDateTime = new Date();
         const now = new Date();
 
         const [result] = await db.execute(
@@ -150,19 +214,31 @@ app.post('/api/attendance', authenticateToken, upload.single('photo'), async (re
             [
                 2,
                 userId,
-                punch_type, 
-                photoUrl, 
+                punch_type,
+                photoUrl,
                 latitude || 0,
                 longitude || 0,
             ]
         );
 
+        // Format time including timezone
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const localTime = `${hours}:${minutes}:${seconds}`;
+
+        // Format date
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const localDate = `${year}-${month}-${day}`;
+
         res.json({
             success: true,
             message: 'Attendance recorded successfully',
             record_id: result.insertId,
-            punch_date: now.toISOString().split('T')[0],
-            punch_time: now.toISOString().split('T')[1].split('.')[0]
+            punch_date: localDate,
+            punch_time: localTime
         });
     } catch (error) {
         console.error('Attendance record error:', error);
@@ -273,11 +349,11 @@ app.post('/api/leave', authenticateToken, async (req, res) => {
             console.log('Received leave request', req.body);
 
 
-        console.log('Inserting leave request for user: ', userId);
+            console.log('Inserting leave request for user: ', userId);
 
             // Insert leave request
             const [result] = await connection.execute(
-               'INSERT INTO leave_requests (user_id, leave_type_id, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, ?)', [userId, leave_type_id, start_date, end_date, reason || null, 'pending']);
+                'INSERT INTO leave_requests (user_id, leave_type_id, start_date, end_date, reason, status) VALUES (?, ?, ?, ?, ?, ?)', [userId, leave_type_id, start_date, end_date, reason || null, 'pending']);
 
             console.log('Leave request inserted: ', result);
 
@@ -351,7 +427,7 @@ app.get('/api/leave-requests/:userId', authenticateToken, async (req, res) => {
 });
 
 // Get Attendance History Route
-app.get('/api/attendance-history/:userId', async (req, res) => {
+app.get('/api/attendance-history/:userId', authenticateToken, async (req, res) => {
     try {
         const userId = req.params.userId;
 
@@ -370,41 +446,41 @@ app.get('/api/attendance-history/:userId', async (req, res) => {
 
 // Medical certificate upload configuration
 const certificateStorage = multer.diskStorage({
-  destination: './uploads/certificates',
-  filename: function(req, file, cb) {
-    cb(null, 'CERT_' + Date.now() + path.extname(file.originalname));
-  }
+    destination: './uploads/certificates',
+    filename: function(req, file, cb) {
+        cb(null, 'CERT_' + Date.now() + path.extname(file.originalname));
+    }
 });
 
 const certificateUpload = multer({
-  storage: certificateStorage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf', 'application/octet-stream'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      console.log('Invalid file type rejected:', file.mimetype);
-      cb(new Error('Invalid file type. Only JPEG, PNG, and PDF are allowed.'), false);
+    storage: certificateStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf', 'application/octet-stream'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            console.log('Invalid file type rejected:', file.mimetype);
+            cb(new Error('Invalid file type. Only JPEG, PNG, and PDF are allowed.'), false);
+        }
     }
-  }
 });
 
 // Route for medical certificate upload
-app.post('/api/upload-medical-certificate', 
-  authenticateToken, 
-  certificateUpload.single('certificate'),
-  (req, res) => {
-    if (!req.file) {
-	console.log('No file uploaded');
-      return res.status(400).json({ message: 'No file uploaded' });
+app.post('/api/upload-medical-certificate',
+    authenticateToken,
+    certificateUpload.single('certificate'),
+    (req, res) => {
+        if (!req.file) {
+            console.log('No file uploaded');
+            return res.status(400).json({ message: 'No file uploaded' });
+        }
+        res.json({
+            fileUrl: `/uploads/certificates/${req.file.filename}`
+        });
     }
-    res.json({ 
-      fileUrl: `/uploads/certificates/${req.file.filename}`
-    });
-  }
 );
 
 
@@ -437,12 +513,17 @@ app.get('/api/user/:userId', authenticateToken, async (req, res) => {
     }
 });
 
+// Helper function to hash passwords (for future use when creating/updating user passwords)
+async function hashPassword(password) {
+    return await bcrypt.hash(password, 12); // Using 12 rounds for bcrypt
+}
+
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error('Unhandled Error:', err);
-    res.status(500).json({ 
+    res.status(500).json({
         error: 'Internal Server Error',
-        message: err.message 
+        message: err.message
     });
 });
 
