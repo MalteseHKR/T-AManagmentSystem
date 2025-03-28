@@ -20,29 +20,27 @@ return [
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |
-    | Here you may configure as many filesystem "disks" as you wish, and you
-    | may even configure multiple disks of the same driver. Defaults have
-    | been set up for each driver as an example of the required values.
+    | Below you may configure as many filesystem disks as necessary, and you
+    | may even configure multiple disks for the same driver. Examples for
+    | most supported storage drivers are configured here for reference.
+    |
+    | Supported drivers: "local", "ftp", "sftp", "s3"
     |
     */
 
-    'disks' => [
 
-        'local' => [
-            'driver' => 'local',
-            'root' => storage_path('app'),
-            'throw' => false,
-        ],
-
-        'public' => [
-            'driver' => 'local',
-            'root' => storage_path('app/public'),
-            'url' => env('APP_URL').'/storage',
-            'visibility' => 'public',
-            'throw' => false,
-        ],
-
+'disks' => [
+    'local' => [
+        'driver' => 'local',
+        'root' => storage_path('app'),
     ],
+    'uploads' => [
+        'driver' => 'local',
+        'root' => env('UPLOADS_PATH', '/home/softwaredev/garrison-app-server/uploads'),
+        'visibility' => 'public',
+    ],
+],
+        
 
     /*
     |--------------------------------------------------------------------------
