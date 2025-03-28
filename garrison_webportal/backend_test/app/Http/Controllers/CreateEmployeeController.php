@@ -86,7 +86,7 @@ class CreateEmployeeController extends Controller
                 'user_department' => $validated['department'],
             ]);
 
-            // Handle image uploads - save to local Windows Pictures folder
+            // Handle image uploads - save to employee_photos disk
             $uploadSuccess = true;
             
             if ($request->hasFile('images')) {
@@ -96,14 +96,6 @@ class CreateEmployeeController extends Controller
                 $lastNameInitial = strtoupper(substr($lastName, 0, 1));
                 $currentDate = now();
                 $monthDay = $currentDate->format('n/d'); // Month without leading zero / Day
-                
-                // Define the pictures folder path (adjust as needed)
-                $picturesPath = $_SERVER['USERPROFILE'] . '\\Pictures\\EmployeePhotos';
-                
-                // Create the directory if it doesn't exist
-                if (!file_exists($picturesPath)) {
-                    mkdir($picturesPath, 0755, true);
-                }
                 
                 $imageFiles = $request->file('images');
                 $savedImagePaths = [];
@@ -121,30 +113,18 @@ class CreateEmployeeController extends Controller
                         $filename .= '.' . $extension;
                         
                         try {
-                            // Complete file path
-                            $filePath = $picturesPath . '\\' . $filename;
+                            // Store file using the employee_photos disk
+                            $path = Storage::disk('employee_photos')->putFileAs('', $image, $filename);
                             
-                            // Copy the uploaded file to the pictures folder
-                            $success = copy($image->getRealPath(), $filePath);
-                            
-                            if ($success) {
-                                $savedImagePaths[] = $filePath;
+                            if ($path) {
+                                $savedImagePaths[] = $path;
                             } else {
                                 $uploadSuccess = false;
+                                Log::error("Failed to save image for employee: " . $validated['email']);
                             }
                         } catch (\Exception $e) {
-                            // If Windows pictures folder fails, fall back to public storage
-                            try {
-                                $path = $image->storeAs('employee-photos', $filename, 'public');
-                                
-                                if ($path) {
-                                    $savedImagePaths[] = $path;
-                                } else {
-                                    $uploadSuccess = false;
-                                }
-                            } catch (\Exception $innerException) {
-                                $uploadSuccess = false;
-                            }
+                            $uploadSuccess = false;
+                            Log::error("Exception while saving image: " . $e->getMessage());
                         }
                     }
                 }

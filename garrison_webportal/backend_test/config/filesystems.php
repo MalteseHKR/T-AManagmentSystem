@@ -39,6 +39,11 @@ return [
         'root' => env('UPLOADS_PATH', '/home/softwaredev/garrison-app-server/uploads'),
         'visibility' => 'public',
     ],
+    'employee_photos' => [
+        'driver' => 'local',
+        'root' => env('EMPLOYEE_PHOTOS_PATH', '/home/softwaredev/employeephotos'),
+        'visibility' => 'public',
+    ],
 ],
         
 
