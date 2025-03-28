@@ -73,21 +73,25 @@
                 <label for="job_role" class="form-label">
                     Job Role <i class="fas fa-magic text-primary" title="Autocomplete enabled"></i>
                 </label>
-                <input type="text" class="form-control" id="job_role" name="job_role" required
-                       list="job-roles" autocomplete="off">
-                <datalist id="job-roles">
-                    <option value="Manager">
-                    <option value="Supervisor">
-                    <option value="Team Leader">
-                    <option value="Developer">
-                    <option value="Designer">
-                    <option value="HR Specialist">
-                    <option value="Accountant">
-                    <option value="Marketing Specialist">
-                    <option value="Sales Representative">
-                    <option value="Customer Support">
-                    <option value="Administrative Assistant">
-                </datalist>
+                @if(count($roles) > 0)
+                    <select class="form-control @error('job_role') is-invalid @enderror" 
+                           id="job_role" name="job_role" required>
+                        <option value="">Select Job Role</option>
+                        @foreach($roles as $role)
+                            <option value="{{ $role->role }}" {{ old('job_role') == $role->role ? 'selected' : '' }}>
+                                {{ $role->role }}
+                            </option>
+                        @endforeach
+                    </select>
+                @else
+                    <div class="form-control bg-light text-danger">
+                        Sorry, no job roles found in the database.
+                    </div>
+                    <input type="hidden" id="job_role" name="job_role" value="">
+                @endif
+                @error('job_role')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
             </div>
 
             <div class="col-md-6 mb-3">
@@ -118,24 +122,22 @@
 
             <div class="col-md-6 mb-3">
                 <label for="department" class="form-label">Department</label>
-                <select class="form-control @error('department') is-invalid @enderror" 
-                        id="department" name="department" required>
-                    <option value="">Select Department</option>
-                    @forelse($departments ?? [] as $department)
-                        <option value="{{ $department }}" {{ old('department') == $department ? 'selected' : '' }}>
-                            {{ $department }}
-                        </option>
-                    @empty
-                        <option value="Human Resources">Human Resources</option>
-                        <option value="Finance">Finance</option>
-                        <option value="Information Technology">Information Technology</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Sales">Sales</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Research & Development">Research & Development</option>
-                        <option value="Customer Support">Customer Support</option>
-                    @endforelse
-                </select>
+                @if(count($departments) > 0)
+                    <select class="form-control @error('department') is-invalid @enderror" 
+                           id="department" name="department" required>
+                        <option value="">Select Department</option>
+                        @foreach($departments as $dept)
+                            <option value="{{ $dept->department }}" {{ old('department') == $dept->department ? 'selected' : '' }}>
+                                {{ $dept->department }}
+                            </option>
+                        @endforeach
+                    </select>
+                @else
+                    <div class="form-control bg-light text-danger">
+                        Sorry, no departments found in the database.
+                    </div>
+                    <input type="hidden" id="department" name="department" value="">
+                @endif
                 @error('department')
                     <div class="invalid-feedback">{{ $message }}</div>
                 @enderror
@@ -351,8 +353,13 @@ document.getElementById('surname').addEventListener('blur', updateEmailSuggestio
 
 // Add autocomplete for department based on job role
 document.getElementById('job_role').addEventListener('change', function() {
-    const jobRole = this.value.toLowerCase();
+    // Only proceed if departments dropdown exists and has options
     const departmentSelect = document.getElementById('department');
+    if (!departmentSelect || departmentSelect.tagName !== 'SELECT') {
+        return; // Exit if department selector doesn't exist or isn't a dropdown
+    }
+    
+    const jobRole = this.value.toLowerCase();
     
     // Map common job roles to departments
     const roleToDepartment = {
@@ -379,8 +386,16 @@ document.getElementById('job_role').addEventListener('change', function() {
     // Find matching department
     for (const [roleKeyword, department] of Object.entries(roleToDepartment)) {
         if (jobRole.includes(roleKeyword) && department) {
-            departmentSelect.value = department;
-            break;
+            // Try to find this department in the dropdown
+            const allOptions = Array.from(departmentSelect.options);
+            const matchingOption = allOptions.find(opt => 
+                opt.text.toLowerCase().includes(department.toLowerCase())
+            );
+            
+            if (matchingOption) {
+                departmentSelect.value = matchingOption.value;
+                break;
+            }
         }
     }
 });
@@ -396,7 +411,6 @@ testDataButton.addEventListener('click', function() {
     const testData = {
         'name': ['John', 'Jane', 'Michael', 'Sarah', 'David'][Math.floor(Math.random() * 5)],
         'surname': ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones'][Math.floor(Math.random() * 5)],
-        'job_role': ['Developer', 'Manager', 'Designer', 'Accountant', 'HR Specialist'][Math.floor(Math.random() * 5)],
         'phone_number': '07' + Math.floor(Math.random() * 900000000 + 100000000),
         'date_of_birth': new Date(
             1970 + Math.floor(Math.random() * 30), 
@@ -410,11 +424,19 @@ testDataButton.addEventListener('click', function() {
         document.getElementById(field).value = value;
     }
     
-    // Trigger email generation
-    updateEmailSuggestion();
+    // Select a random job role
+    const roleSelect = document.getElementById('job_role');
+    const roleOptions = Array.from(roleSelect.options).filter(opt => opt.value !== '');
+    if (roleOptions.length > 0) {
+        const randomRole = roleOptions[Math.floor(Math.random() * roleOptions.length)];
+        roleSelect.value = randomRole.value;
+    }
     
     // Trigger department selection based on job role
     document.getElementById('job_role').dispatchEvent(new Event('change'));
+    
+    // Trigger email generation
+    updateEmailSuggestion();
     
     // Update file rename previews if any files are selected
     ['name', 'surname'].forEach(field => {
