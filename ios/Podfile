@@ -46,11 +46,7 @@ end
 
 post_install do |installer|
   installer.pods_project.build_configurations.each do |config|
-    # Remove architecture exclusion
-    # config.build_settings["EXCLUDED_ARCHS[sdk=*]"] = "armv7"
-    
-    # Instead, explicitly set architectures
-    config.build_settings['ARCHS'] = 'arm64'
+    # Set iOS deployment target for all configurations
     config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = $iOSVersion
   end
 
@@ -58,31 +54,39 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
 
     target.build_configurations.each do |config|
+      # Set iOS deployment target
       if Gem::Version.new($iOSVersion) > Gem::Version.new(config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'])
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = $iOSVersion
       end
       
-      # Set architecture for all targets
-      config.build_settings['ARCHS'] = 'arm64'
+      # Fix for the EXCLUDED_ARCHS conflict - standardize across all pods
+      if config.name == 'Debug' && target.name != 'Runner'
+        # For DEBUG simulator builds, exclude arm64 consistently for all pods
+        config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+      end
       
-      # Enable bitcode for better performance
-      config.build_settings['ENABLE_BITCODE'] = 'NO' # Flutter doesn't support bitcode
+      # For device builds, ensure arm64 is included
+      config.build_settings['ARCHS[sdk=iphoneos*]'] = 'arm64'
       
-      # Add these settings for better iOS compatibility
-      config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
+      # Disable bitcode (required for Flutter)
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+      
+      # Additional performance settings
       config.build_settings['DEAD_CODE_STRIPPING'] = 'YES'
 
+      # Add permission definitions
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
         '$(inherited)',
         'PERMISSION_NOTIFICATIONS=1',
       ]
     end
     
-    # Ensure ML Kit pods have consistent settings
-    if target.name.include?('MLKit') || target.name.include?('GoogleMLKit')
+    # Special handling for TensorFlow and MLKit
+    if target.name.include?('MLKit') || target.name.include?('TensorFlow') || 
+       target.name.include?('GoogleMLKit') || target.name.include?('FaceDetection')
       target.build_configurations.each do |config|
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = $iOSVersion
-        config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
+        # Ensure these pods have the exact same architecture settings
+        config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
         config.build_settings['VALID_ARCHS'] = 'arm64'
       end
     end

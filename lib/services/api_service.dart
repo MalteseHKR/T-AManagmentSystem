@@ -12,6 +12,8 @@ class ApiService {
 
   static const String baseUrl = 'http://195.158.75.66:3000/api';
   String? _token;
+
+  String? get token => _token;
   
   // Add timezone service
   final TimezoneService _timezoneService = TimezoneService();
