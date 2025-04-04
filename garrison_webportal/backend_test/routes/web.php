@@ -28,8 +28,16 @@ Route::get('/login', function () {
 Route::post('/login', [App\Http\Controllers\Auth\LoginController::class, 'login']);
 Route::post('/logout', [App\Http\Controllers\Auth\LoginController::class, 'logout'])->name('logout');
 
-// Protected routes
+// Password change routes
 Route::middleware(['auth'])->group(function () {
+    Route::get('/change-password', [App\Http\Controllers\Auth\LoginController::class, 'showChangePasswordForm'])
+        ->name('password.change');
+    Route::post('/change-password', [App\Http\Controllers\Auth\LoginController::class, 'changePassword'])
+        ->name('password.change.submit');
+});
+
+// Protected routes
+Route::middleware(['auth', 'password.changed'])->group(function () {
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');

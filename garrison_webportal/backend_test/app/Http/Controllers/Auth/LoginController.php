@@ -13,6 +13,7 @@ use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class LoginController extends BaseController
 {
@@ -74,7 +75,12 @@ class LoginController extends BaseController
                 $request->session()->regenerate();
                 $this->limiter()->clear($this->throttleKey($request));
                 
-                return redirect()->intended('dashboard');
+                // Check if password reset is required
+                if ($user->password_reset == 1) {
+                    return redirect()->route('password.change');
+                }
+                
+                return redirect()->route('dashboard');
             }
         }
 
@@ -163,5 +169,64 @@ class LoginController extends BaseController
     protected function loggedOut(Request $request)
     {
         return redirect('/');
+    }
+
+    /**
+     * Show the change password form
+     */
+    public function showChangePasswordForm()
+    {
+        if (!Auth::check()) {
+            return redirect()->route('login');
+        }
+        
+        return view('auth.change-password');
+    }
+
+    /**
+     * Process the password change
+     */
+    public function changePassword(Request $request)
+    {
+        if (!Auth::check()) {
+            return redirect()->route('login');
+        }
+        
+        // Validate password with all required conditions
+        $request->validate([
+            'new_password' => [
+                'required',
+                'string',
+                'min:8',
+                'max:50',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_+\-=\[\]{}|;:,.<>?\/\\~`])/',
+            ],
+        ], [
+            'new_password.regex' => 'The password must contain at least one uppercase letter, one number, and one special character.',
+        ]);
+        
+        $user = Auth::user();
+        
+        try {
+            // Update the password in the login table
+            DB::table('login')
+                ->where('user_id', $user->user_id)
+                ->update([
+                    'user_login_pass' => Hash::make($request->new_password),
+                    'password_reset' => 0 // Reset the flag
+                ]);
+            
+            // Log the successful password change
+            Log::info("Password changed successfully for user ID: {$user->user_id}");
+            
+            return redirect()->route('dashboard')
+                ->with('success', 'Your password has been changed successfully.');
+        } catch (\Exception $e) {
+            Log::error("Failed to update password: " . $e->getMessage());
+            
+            return redirect()->back()
+                ->with('error', 'Failed to update password. Please try again.');
+        }
     }
 }

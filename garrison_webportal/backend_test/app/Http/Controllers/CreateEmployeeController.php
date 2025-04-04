@@ -39,6 +39,9 @@ class CreateEmployeeController extends Controller
         ]);
 
         try {
+            // Begin a database transaction
+            DB::beginTransaction();
+            
             $roleData = DB::table('roles')->where('role', $validated['job_role'])->first();
             $departmentData = DB::table('departments')->where('department', $validated['department'])->first();
 
@@ -61,6 +64,32 @@ class CreateEmployeeController extends Controller
                 'department_id' => $departmentData->department_id
             ]);
 
+            // Create login entry for the new user
+            $hashedPassword = bcrypt('garrisonpass!2025');
+            
+            // Check if the login table structure matches what we're trying to insert
+            $loginInsertData = [
+                'email' => $validated['email'],
+                'user_login_pass' => $hashedPassword,
+                'password_reset' => 1,
+                'user_id' => $userId
+            ];
+            
+            // Only add these fields if they exist in your table structure
+            if (DB::getSchemaBuilder()->hasColumn('login', 'login_attempts')) {
+                $loginInsertData['login_attempts'] = 0;
+            }
+            
+            if (DB::getSchemaBuilder()->hasColumn('login', 'last_login')) {
+                $loginInsertData['last_login'] = now();
+            }
+            
+            // Insert the login record
+            $loginId = DB::table('login')->insertGetId($loginInsertData);
+            
+            Log::info("Created login account for user: {$validated['email']} (ID: $userId, Login ID: $loginId)");
+
+            // Process image uploads
             if ($request->hasFile('images')) {
                 $images = $request->file('images');
                 $photoNumber = 1;
@@ -72,52 +101,45 @@ class CreateEmployeeController extends Controller
 
                 foreach ($images as $index => $image) {
                     if ($image && $image->isValid()) {
-                        Log::info("Processing image index: $index");
-
                         $extension = strtolower($image->getClientOriginalExtension());
                         if ($extension === 'jfif') $extension = 'jpg';
 
                         $filename = "{$firstName}{$lastName}Photo{$photoNumber}_{$userId}.{$extension}";
                         $filename = preg_replace('/[^A-Za-z0-9_.-]/', '_', $filename);
 
-                        try {
-                            // Save all images to employee photo storage
-                            Storage::disk('local_uploads')->putFileAs('', $image, $filename);
-                            Log::info("? Saved to local_uploads: $filename");
+                        // Save all images to employee photo storage
+                        Storage::disk('local_uploads')->putFileAs('', $image, $filename);
 
-                            // Save first image as profile photo
-                            if ($index === 0) {
-                                $profilePhotoFilename = "{$firstName}{$lastName}_profile_{$userId}." . $extension;
-                                $profilePhotoFilename = preg_replace('/[^A-Za-z0-9_.-]/', '_', $profilePhotoFilename);
+                        // Save first image as profile photo
+                        if ($index === 0) {
+                            $profilePhotoFilename = "{$firstName}{$lastName}_profile_{$userId}." . $extension;
+                            $profilePhotoFilename = preg_replace('/[^A-Za-z0-9_.-]/', '_', $profilePhotoFilename);
 
-                                Storage::disk('profile_photos')->putFileAs('', $image, $profilePhotoFilename);
-                                Log::info("? Saved to profile_photos: $profilePhotoFilename");
+                            Storage::disk('profile_photos')->putFileAs('', $image, $profilePhotoFilename);
+                            $absolutePath = Storage::disk('profile_photos')->path($profilePhotoFilename);
 
-                                $absolutePath = Storage::disk('profile_photos')->path($profilePhotoFilename);
-
-                                DB::table('user_profile_photo')->insert([
-                                    'file_name_link' => $absolutePath,
-                                    'user_id' => $userId
-                                ]);
-
-                                Log::info("? Inserted full profile photo path for user_id: $userId");
-                            }
-
-                            $photoNumber++;
-                        } catch (\Exception $e) {
-                            Log::error("? Error saving image or inserting DB: " . $e->getMessage());
+                            DB::table('user_profile_photo')->insert([
+                                'file_name_link' => $absolutePath,
+                                'user_id' => $userId
+                            ]);
                         }
-                    } else {
-                        Log::warning("? Invalid or empty image at index: $index");
+
+                        $photoNumber++;
                     }
                 }
             }
 
-            return redirect()->route('employees')->with('success', 'Employee created successfully.');
+            // Commit the transaction
+            DB::commit();
+            
+            return redirect()->route('employees')->with('success', 'Employee created successfully with login credentials.');
         } catch (\Exception $e) {
-            Log::error("? Error creating employee: " . $e->getMessage());
+            // Rollback the transaction
+            DB::rollBack();
+            
+            Log::error("Error creating employee: " . $e->getMessage());
             return redirect()->route('create')
-                ->with('error', 'Something went wrong while creating the employee.')
+                ->with('error', 'Error creating employee: ' . $e->getMessage())
                 ->withInput();
         }
     }
