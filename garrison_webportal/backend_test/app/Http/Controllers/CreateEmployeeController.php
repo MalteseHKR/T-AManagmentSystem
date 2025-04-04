@@ -39,22 +39,22 @@ class CreateEmployeeController extends Controller
 
     public function store(Request $request)
     {
-        // Validation
+        // Validation remains the same
         $validated = $request->validate([
             'name' => 'required|string|max:50',
             'surname' => 'required|string|max:50',
-            'job_role' => 'required|exists:roles,role', // Validate role exists in roles table
+            'job_role' => 'required|exists:roles,role',
             'phone_number' => 'required|string|max:50',
             'email' => 'required|email|max:50|unique:user_information,user_email',
             'date_of_birth' => 'required|date',
             'start_date' => 'required|date',
-            'department' => 'required|exists:departments,department', // Validate department exists
+            'department' => 'required|exists:departments,department',
             'active' => 'required|boolean',
             'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
         try {
-            // Get the role_id from the roles table based on the selected role name
+            // Get the role_id and department_id as before
             $roleData = DB::table('roles')
                 ->where('role', $validated['job_role'])
                 ->first();
@@ -63,7 +63,6 @@ class CreateEmployeeController extends Controller
                 return redirect()->back()->with('error', 'Selected job role does not exist.')->withInput();
             }
             
-            // Get the department_id from the departments table based on the selected department name
             $departmentData = DB::table('departments')
                 ->where('department', $validated['department'])
                 ->first();
@@ -72,71 +71,97 @@ class CreateEmployeeController extends Controller
                 return redirect()->back()->with('error', 'Selected department does not exist.')->withInput();
             }
             
-            // Create employee record directly in user_information table
-            // Store both the text values (for backwards compatibility) and the IDs (for the new normalized structure)
+            // Create employee record first to get the user_id
             $userId = DB::table('user_information')->insertGetId([
                 'user_name' => $validated['name'],
                 'user_surname' => $validated['surname'],
-                'user_title' => $validated['job_role'],    // Keep storing for backwards compatibility
+                'user_title' => $validated['job_role'],
                 'user_phone' => $validated['phone_number'],
                 'user_email' => $validated['email'],
                 'user_dob' => $validated['date_of_birth'],
                 'user_job_start' => $validated['start_date'],
                 'user_job_end' => null,
                 'user_active' => $validated['active'],
-                'user_department' => $validated['department'], // Keep storing for backwards compatibility
-                'role_id' => $roleData->role_id,           // New FK relation
-                'department_id' => $departmentData->department_id, // New FK relation
+                'user_department' => $validated['department'],
+                'role_id' => $roleData->role_id,
+                'department_id' => $departmentData->department_id
             ]);
-
-            // Handle image uploads
+            
+            // Now that we have the user_id, we can handle the image uploads
             $uploadSuccess = true;
             if ($request->hasFile('images')) {
                 $firstName = $validated['name'];
                 $lastName = $validated['surname'];
-                $firstNameInitial = strtoupper(substr($firstName, 0, 1));
-                $lastNameInitial = strtoupper(substr($lastName, 0, 1));
-                $currentDate = now();
-                $monthDay = $currentDate->format('n/j'); // Month without leading zero / Day
+                
+                // Remove spaces and special characters from names
+                $sanitizedFirstName = preg_replace('/[^A-Za-z0-9]/', '', $firstName);
+                $sanitizedLastName = preg_replace('/[^A-Za-z0-9]/', '', $lastName);
                 
                 $imageFiles = $request->file('images');
                 $savedImagePaths = [];
                 
-                foreach ($imageFiles as $index => $image) {
-                    if ($image) {
-                        $imageNumber = $index + 1;
-                        
-                        // Format: "FirstName LastName(Image Number) (SurnameInitial FirstnameInitial)(m/dd)"
-                        $filename = $firstName . ' ' . $lastName . '(' . $imageNumber . ') ' . 
-                                    '(' . $lastNameInitial . $firstNameInitial . ')(' . $monthDay . ')';
-                        
-                        // Add original file extension
-                        $extension = $image->getClientOriginalExtension();
-                        $filename .= '.' . $extension;
-                        
-                        try {
-                            // Store file using the employee_photos disk
-                            $path = Storage::disk('employee_photos')->putFileAs('', $image, $filename);
+                // Make sure the directory exists and is writable
+                $storagePath = config('filesystems.disks.employee_photos.root');
+                
+                // Log the path for debugging
+                Log::info("Employee photos storage path: " . $storagePath);
+                
+                // Ensure directory exists - use filesystem-independent approach
+                try {
+                    // Use Storage facade to ensure the disk exists
+                    if (!Storage::disk('employee_photos')->exists('')) {
+                        Storage::disk('employee_photos')->makeDirectory('');
+                        Log::info("Created employee photos directory");
+                    }
+                    
+                    foreach ($imageFiles as $index => $image) {
+                        if ($image) {
+                            // Calculate the image number (1-based index)
+                            $imageNumber = $index + 1;
                             
-                            if ($path) {
-                                $savedImagePaths[] = $path;
+                            // New format: FirstnameLastname{index} {user_id}.{extension}
+                            $filename = $sanitizedFirstName . $sanitizedLastName . $imageNumber . ' ' . $userId;
+                            
+                            // Add original file extension
+                            $extension = $image->getClientOriginalExtension();
+                            $filename .= '.' . $extension;
+                            
+                            try {
+                                // Store file using the employee_photos disk
+                                $path = Storage::disk('employee_photos')->putFileAs('', $image, $filename);
                                 
-                                // Optionally store image reference in a separate table
-                                // DB::table('employee_images')->insert([
-                                //     'employee_id' => $userId,
-                                //     'image_path' => $filename,
-                                //     'created_at' => now(),
-                                //     'updated_at' => now()
-                                // ]);
-                            } else {
+                                // Log success for debugging
+                                Log::info("Image uploaded successfully: " . $filename);
+                                
+                                if ($path) {
+                                    $savedImagePaths[] = $path;
+                                    
+                                    // Check if employee_images table exists
+                                    try {
+                                        // Store image reference in employee_images table
+                                        DB::table('employee_images')->insert([
+                                            'employee_id' => $userId,
+                                            'image_path' => $filename
+                                        ]);
+                                    } catch (\Exception $tableException) {
+                                        // Log but don't fail the upload if table doesn't exist
+                                        Log::warning("Could not insert into employee_images table: " . $tableException->getMessage());
+                                    }
+                                } else {
+                                    $uploadSuccess = false;
+                                    Log::error("Failed to save image for employee: " . $validated['email']);
+                                }
+                            } catch (\Exception $e) {
                                 $uploadSuccess = false;
-                                Log::error("Failed to save image for employee: " . $validated['email']);
+                                Log::error("Exception while saving image: " . $e->getMessage());
+                                Log::error("Exception details: " . $e->getTraceAsString());
                             }
-                        } catch (\Exception $e) {
-                            $uploadSuccess = false;
-                            Log::error("Exception while saving image: " . $e->getMessage());
                         }
                     }
+                } catch (\Exception $e) {
+                    $uploadSuccess = false;
+                    Log::error("Error working with employee_photos disk: " . $e->getMessage());
+                    Log::error("Exception details: " . $e->getTraceAsString());
                 }
             }
             
