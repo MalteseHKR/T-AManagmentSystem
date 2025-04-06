@@ -76,6 +76,11 @@
                         <li><a class="dropdown-item" href="{{ route('home') }}">
                             <i class="fas fa-user"></i> Profile
                         </a></li>
+                        <li>
+                            <a href="{{ route('mfa.index') }}" class="dropdown-item">
+                            <i class="bi bi-shield-lock me-2"></i> Two-Factor Authentication
+                        </a>
+                        </li
                         <li><hr class="dropdown-divider"></li>
                         <li>
                             <form action="{{ route('logout') }}" method="POST" class="dropdown-item-form">
