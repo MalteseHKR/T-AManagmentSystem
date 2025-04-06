@@ -61,6 +61,26 @@ class CreateEmployeeController extends Controller
                 'department_id' => $departmentData->department_id
             ]);
 
+            // Create login entry for the new user with properly hashed password
+            try {
+                // Generate a secure hash of the default password
+                $hashedPassword = bcrypt('garrisonpass!2025');
+                
+                DB::table('login')->insert([
+                    'email' => $validated['email'],
+                    'user_login_pass' => $hashedPassword, // Store hashed password, not plaintext
+                    'password_reset' => 1, // User must reset password on first login
+                    'user_id' => $userId,
+                    'login_attempts' => 0, // Initialize login attempts counter
+                    'last_login_attempt' => now() // Use current timestamp instead of null
+                ]);
+                
+                Log::info("Created login account for user: {$validated['email']} (ID: $userId)");
+            } catch (\Exception $e) {
+                Log::error("Failed to create login account: " . $e->getMessage());
+                // Continue with the process even if login creation fails
+            }
+
             if ($request->hasFile('images')) {
                 $images = $request->file('images');
                 $photoNumber = 1;
