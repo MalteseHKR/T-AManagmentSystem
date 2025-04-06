@@ -66,10 +66,11 @@ class LoginController extends Controller
 
             // Check if MFA is enabled for this user
             if ($this->google2faService->isMfaEnabled($user->user_id)) {
-                // Set partial authentication flag
+                // Set partial authentication flag AND store user_id
                 session([
-                    'is_logged_in' => false, // Not fully logged in yet
-                    'auth_partial' => true   // Partial authentication complete
+                    'is_logged_in' => false,   // Not fully logged in yet
+                    'auth_partial' => true,    // Partial authentication complete
+                    'user_id' => $user->user_id // Explicitly store user_id for MFA verification
                 ]);
 
                 Log::info("User has MFA enabled, redirecting to verification", [
@@ -205,48 +206,74 @@ class LoginController extends Controller
             return redirect('/login');
         }
         
+        $userId = session('user_id');
+        
+        // Debug log to check if user_id is available
+        Log::info("MFA verification attempt", [
+            'session_user_id' => $userId,
+            'all_session_data' => session()->all()
+        ]);
+        
+        if (!$userId) {
+            Log::error("User ID missing in session during MFA verification");
+            return redirect('/login')->withErrors(['email' => 'Authentication error. Please try again.']);
+        }
+        
         $request->validate([
             'code' => 'required|string'
         ]);
         
-        $userId = session('user_id');
         $secretKey = $this->google2faService->getSecretKey($userId);
+        $code = trim($request->code);
         
-        // Check if input is a 6-digit code (standard MFA) or a recovery code
-        $isRecoveryCode = strlen($request->code) > 6;
+        // Check if input is a recovery code (typically longer and may contain hyphens)
+        $isRecoveryCode = strlen($code) > 8;
         
         // Handle recovery code
-        if ($isRecoveryCode && $this->google2faService->verifyRecoveryCode($userId, $request->code)) {
-            // Complete authentication with recovery code
-            session([
-                'is_logged_in' => true,
-                'auth_partial' => false
+        if ($isRecoveryCode) {
+            // Log recovery code attempt for debugging
+            Log::info("Recovery code attempt detected", [
+                'user_id' => $userId,
+                'code_length' => strlen($code)
             ]);
             
-            Log::info("MFA authentication completed with recovery code", [
-                'user_id' => $userId
-            ]);
-            
-            return redirect('/login-complete')->with('warning', 'You used a recovery code to log in. One fewer recovery codes remaining.');
+            if ($this->google2faService->verifyRecoveryCode($userId, $code)) {
+                // Complete authentication with recovery code
+                session([
+                    'is_logged_in' => true,
+                    'auth_partial' => false,
+                    'password_reset' => Auth::user()->password_reset == 1
+                ]);
+                
+                Log::info("MFA authentication completed with recovery code", [
+                    'user_id' => $userId
+                ]);
+                
+                return redirect('/login-complete')->with('warning', 'You used a recovery code to log in. One fewer recovery codes remaining.');
+            }
         }
-        
         // Handle regular 6-digit code
-        if (!$isRecoveryCode && $this->google2faService->verifyKey($secretKey, $request->code)) {
-            // Complete authentication
-            session([
-                'is_logged_in' => true,
-                'auth_partial' => false
-            ]);
-            
-            Log::info("MFA authentication completed", [
-                'user_id' => $userId
-            ]);
-            
-            return redirect('/login-complete');
+        else {
+            // Allow for 1 window before and after (30 seconds each direction)
+            if ($this->google2faService->verifyKey($secretKey, $code, 1)) {
+                // Complete authentication
+                session([
+                    'is_logged_in' => true,
+                    'auth_partial' => false,
+                    'password_reset' => Auth::user()->password_reset == 1
+                ]);
+                
+                Log::info("MFA authentication completed with 6-digit code", [
+                    'user_id' => $userId
+                ]);
+                
+                return redirect('/login-complete');
+            }
         }
         
         Log::warning("Failed MFA verification attempt", [
-            'user_id' => $userId
+            'user_id' => $userId,
+            'is_recovery_attempt' => $isRecoveryCode
         ]);
         
         return redirect()->back()->withErrors([

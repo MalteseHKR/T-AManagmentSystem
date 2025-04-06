@@ -45,6 +45,37 @@ class MfaController extends Controller
         return view('auth.mfa.setup', compact('secretKey', 'qrCodeUrl'));
     }
     
+    public function showSetupForm()
+    {
+        if (!\Illuminate\Support\Facades\Auth::check()) {
+            return redirect('/login');
+        }
+
+        $user = \Illuminate\Support\Facades\Auth::user();
+        $google2fa = app(\PragmaRX\Google2FA\Google2FA::class);
+        
+        // Generate the secret key
+        $secretKey = $google2fa->generateSecretKey();
+        
+        // Store the secret key in the session for later verification
+        session(['2fa_secret' => $secretKey]);
+        
+        // Generate the QR code as an image
+        $qrCodeUrl = $google2fa->getQRCodeUrl(
+            config('app.name', 'Garrison T&A System'),
+            $user->email,
+            $secretKey
+        );
+        
+        // Log QR code generation for debugging
+        Log::debug('Generated QR code for MFA setup', [
+            'user_id' => $user->user_id,
+            'has_qr_data' => !empty($qrCodeUrl)
+        ]);
+        
+        return view('auth.mfa.setup', compact('secretKey', 'qrCodeUrl'));
+    }
+    
     public function enable(Request $request)
     {
         $request->validate([

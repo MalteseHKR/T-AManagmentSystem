@@ -19,43 +19,13 @@
                     <form method="POST" action="{{ route('mfa.verify') }}">
                         @csrf
                         
-                        <div class="mb-3">
-                            <label for="code" class="form-label">Authentication Code</label>
-                            <input type="text" class="form-control @error('code') is-invalid @enderror" 
-                                   id="code" name="code" required autocomplete="off" autofocus>
-                            
-                            @error('code')
-                                <div class="invalid-feedback">
-                                    {{ $message }}
-                                </div>
-                            @enderror
+                        <div class="form-group">
+                            <label for="code">Authentication Code</label>
+                            <input id="code" type="text" class="form-control" name="code" required autofocus>
+                            <small class="form-text text-muted">Enter the 6-digit code from your authenticator app OR enter a recovery code.</small>
                         </div>
                         
-                        <div class="d-grid mb-3">
-                            <button type="submit" class="btn btn-primary">Verify</button>
-                        </div>
-                        
-                        <p class="text-center">
-                            <a href="#" data-bs-toggle="collapse" data-bs-target="#recoveryCodeForm">
-                                Lost access to your authenticator app?
-                            </a>
-                        </p>
-                        
-                        <div class="collapse mt-3" id="recoveryCodeForm">
-                            <div class="card card-body">
-                                <h6>Use a Recovery Code</h6>
-                                <p class="small">If you can't access your authenticator app, you can use one of your recovery codes to sign in.</p>
-                                
-                                <div class="mb-3">
-                                    <label for="recovery_code" class="form-label">Recovery Code</label>
-                                    <input type="text" class="form-control" id="recovery_code" name="code">
-                                </div>
-                                
-                                <div class="d-grid">
-                                    <button type="submit" class="btn btn-warning">Use Recovery Code</button>
-                                </div>
-                            </div>
-                        </div>
+                        <button type="submit" class="btn btn-primary">Verify</button>
                     </form>
                 </div>
             </div>
