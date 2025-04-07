@@ -57,13 +57,20 @@ class _LeaveScreenState extends State<LeaveScreen> {
     });
 
     try {
-      final balance = await _apiService.getLeaveBalance(widget.userDetails['id'].toString());
+      // Log token information for debugging
+      print('Token before getLeaveBalance: ${_apiService.token != null ? "Token exists" : "No token"}');
+      
+      // Make sure we're using id as a string
+      final userId = widget.userDetails['id'].toString();
+      final balance = await _apiService.getLeaveBalance(userId);
+      
       if (mounted) {
         setState(() {
           _leaveBalance = balance;
         });
       }
     } catch (e) {
+      print('Complete leave balance error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -86,13 +93,17 @@ class _LeaveScreenState extends State<LeaveScreen> {
     _sessionService.userActivity();
     
     try {
-      final requests = await _apiService.getLeaveRequests(widget.userDetails['id'].toString());
+      // Make sure we're using id as a string
+      final userId = widget.userDetails['id'].toString();
+      final requests = await _apiService.getLeaveRequests(userId);
+      
       if (mounted) {
         setState(() {
           _leaveRequests = requests;
         });
       }
     } catch (e) {
+      print('Complete leave requests error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

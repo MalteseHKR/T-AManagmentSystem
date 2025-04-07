@@ -224,26 +224,30 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     // Reset session timer on user interaction
     _sessionService.userActivity();
     
-    // Use medium resolution on iOS and high on Android
+    debugPrint("Initializing camera on ${Platform.isIOS ? 'iOS' : 'Android'}");
+    
+    // Platform-specific resolution settings
     final ResolutionPreset resolution = Platform.isIOS 
         ? ResolutionPreset.medium
-        : ResolutionPreset.high;
+        : ResolutionPreset.high; // Use medium for Android too for better compatibility
         
-    // Use different image format for iOS
+    // Platform-specific image format
     final ImageFormatGroup formatGroup = Platform.isIOS
         ? ImageFormatGroup.yuv420
-        : ImageFormatGroup.bgra8888;
+        : ImageFormatGroup.jpeg; // Use jpeg instead of bgra8888 for Android
     
     try {
       // First dispose any existing camera controller
-      if (_isCameraInitialized && _cameraController.value.isInitialized) {
+      if (_cameraController != null && _cameraController.value.isInitialized) {
         await _cameraController.dispose();
+        debugPrint("Disposed existing camera controller");
       }
     } catch (e) {
       // Ignore errors during disposal
       debugPrint('Camera disposal error (can be ignored): $e');
     }
     
+    // Create a new controller
     _cameraController = CameraController(
       widget.camera,
       resolution,
@@ -252,10 +256,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     );
       
     try {
+      debugPrint("Starting camera initialization");
       _initializeCameraFuture = _cameraController.initialize();
       await _initializeCameraFuture;
       _isCameraInitialized = true;
       _isCameraError = false;
+      
+      if (Platform.isAndroid) {
+        // For Android, set flash mode and exposure to improve camera stability
+        await _cameraController.setFlashMode(FlashMode.off);
+        await _cameraController.setExposureMode(ExposureMode.auto);
+      }
+      
+      debugPrint("Camera initialized successfully");
+      
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Camera initialization error: $e');
@@ -274,6 +288,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   Future<void> _takePhoto() async {
     // Reset session timer on user interaction
     _sessionService.userActivity();
+    
+    // Reset all attempt counters
+    _faceRecognitionService.resetAllCounters();
     
     if (!_isCameraInitialized || !_cameraController.value.isInitialized) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -856,10 +873,12 @@ Future<void> _reinitializeCamera() async {
       }
     }
   }
-
+  // Method to retake photo
   void _retakePhoto() {
     // Reset session timer on user interaction
     _sessionService.userActivity();
+    
+    debugPrint("Retaking photo on ${Platform.isIOS ? 'iOS' : 'Android'}");
     
     // First reset UI state
     setState(() {
@@ -868,29 +887,54 @@ Future<void> _reinitializeCamera() async {
       _faceValidationMessage = null;
       _isFaceValid = false;
       _faceBounds = null;
+      // Set to false during reinitialization
+      _isCameraInitialized = false;
     });
     
-    // Add a small delay before reinitializing camera to ensure proper resource cleanup
-    Future.delayed(Duration(milliseconds: 200), () {
-      // Explicitly reinitialize the camera
-      if (_isCameraInitialized) {
-        try {
-          _cameraController.dispose();
-          _isCameraInitialized = false;
-        } catch (e) {
-          debugPrint("Error disposing camera: $e");
-        }
-      }
-      
-      // Reinitialize camera
-      _initializeCamera().then((_) {
-        if (mounted) {
-          setState(() {
-            // Force UI refresh after camera is reinitialized
+    // Platform-specific camera handling
+    if (Platform.isAndroid) {
+      // Android needs more careful camera disposal
+      if (_cameraController != null && _cameraController.value.isInitialized) {
+        debugPrint("Android: Properly disposing camera");
+        _cameraController.dispose().then((_) {
+          debugPrint("Android: Camera disposed successfully");
+          // Add slightly longer delay for Android
+          Future.delayed(Duration(milliseconds: 500), () {
+            debugPrint("Android: Reinitializing camera after delay");
+            _initializeCamera().then((_) {
+              debugPrint("Android: Camera reinitialized");
+              if (mounted) {
+                setState(() {
+                  // Force UI refresh after camera is reinitialized
+                });
+              }
+            });
           });
+        }).catchError((error) {
+          debugPrint("Android: Error disposing camera: $error");
+          // Even if disposal fails, try to reinitialize
+          Future.delayed(Duration(milliseconds: 500), () {
+            _initializeCamera();
+          });
+        });
+      } else {
+        // If camera was never initialized, just initialize it
+        _initializeCamera();
+      }
+    } else {
+      // iOS handling (already working correctly)
+      Future.delayed(Duration(milliseconds: 200), () {
+        if (_cameraController != null && _cameraController.value.isInitialized) {
+          try {
+            _cameraController.dispose();
+          } catch (e) {
+            debugPrint("iOS: Error disposing camera: $e");
+          }
         }
+        
+        _initializeCamera();
       });
-    });
+    }
   }
 
   // Use timezone service for formatting time
