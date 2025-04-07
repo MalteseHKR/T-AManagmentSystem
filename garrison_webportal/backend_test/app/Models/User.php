@@ -2,60 +2,88 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class User extends Authenticatable
 {
+    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
+
+    protected $table = 'login';
+    protected $primaryKey = 'user_login_id'; 
+    public $timestamps = false;
 
     /**
      * The attributes that are mass assignable.
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $fillable = [
+        'user_id',
         'name',
         'email',
-        'password',
-        'role',
+        'user_login_pass',
     ];
 
     /**
      * The attributes that should be hidden for serialization.
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $hidden = [
-        'password',
+        'user_login_pass',
         'remember_token',
     ];
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    protected $appends = ['last_login_at'];
+
+    public function getLastLoginAtAttribute()
+    {
+        return $this->currentLoginAt ?? now();
+    }
 
     /**
-     * Get the user information associated with the user.
+     * Get the password for the user.
+     * 
+     * @return string
+     */
+    public function getAuthPassword()
+    {
+        return $this->user_login_pass;
+    }
+
+    /**
+     * Get the user information associated with this login.
      */
     public function userInformation()
     {
-        return $this->hasOne(UserInformation::class);
+        return $this->belongsTo(UserInformation::class, 'user_id', 'user_id');
     }
 
     /**
-     * Get the login records associated with the user.
+     * Define the relationship with the Employee model
      */
-    public function logins()
+    public function employee()
     {
-        return $this->hasMany(Login::class);
+        return $this->hasOne(Employee::class, 'user_id', 'user_id');
     }
+
 }
