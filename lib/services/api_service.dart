@@ -1,6 +1,7 @@
 // lib/services/api_service.dart
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as Math;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'timezone_service.dart';
@@ -12,6 +13,23 @@ class ApiService {
 
   static const String baseUrl = 'http://195.158.75.66:3000/api';
   String? _token;
+
+  String? get token => _token;
+
+  // New method to properly set token
+  void setToken(String? newToken) {
+    if (newToken != null) {
+      // Trim whitespace and ensure clean token format
+      _token = newToken.trim();
+      print('Token set: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+      // Add a clear debug message showing the token
+      print('COMPLETE TOKEN: $_token');
+    } else {
+      _token = null;
+      print('Token cleared');
+    }
+  }
+
   
   // Add timezone service
   final TimezoneService _timezoneService = TimezoneService();
@@ -39,10 +57,12 @@ class ApiService {
         print('Decoded data: $data');
         
         if (data.containsKey('token')) {
-          _token = data['token'];
-          print('Token extracted: $_token');
+          setToken(data['token']);
+          // Verify token immediately
+          print('Auth header value: Bearer $_token');
         } else {
           print('No token found in response data');
+          setToken(null);
         }
 
         return data;
@@ -75,10 +95,31 @@ class ApiService {
   }
 
   // Get auth headers
-  Map<String, String> get _headers => {
-        'Authorization': 'Bearer $_token',
-        'Content-Type': 'application/json',
-      };
+  Map<String, String> get _headers {
+    if (_token == null || _token!.isEmpty) {
+      print('WARNING: Trying to generate headers with null or empty token');
+      return {'Content-Type': 'application/json'};
+    }
+    
+    print('Generating headers with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+    return {
+      'Authorization': 'Bearer $_token',
+      'Content-Type': 'application/json',
+    };
+  }
+
+  // For multipart requests, add this helper method
+  Map<String, String> get _authHeaders {
+    if (_token == null) {
+      print('WARNING: Trying to generate auth headers with null token');
+      return {};
+    }
+    
+    print('Generating auth headers with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+    return {
+      'Authorization': 'Bearer $_token',
+    };
+  }
 
   // Record Attendance with photo
   Future<Map<String, dynamic>> recordAttendance({
@@ -192,6 +233,13 @@ class ApiService {
   // Get Attendance Status
   Future<Map<String, dynamic>> getAttendanceStatus(int userId) async {
     try {
+      // Add token validation
+      if (_token == null || _token!.isEmpty) {
+        throw Exception('No token provided');
+      }
+      
+      print('Calling getAttendanceStatus with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+      
       final response = await http.get(
         Uri.parse('$baseUrl/attendance/status/$userId'),
         headers: _headers,
@@ -223,10 +271,22 @@ class ApiService {
   // Get User Profile
   Future<Map<String, dynamic>> getUserProfile(int userId) async {
     try {
+      // Add token validation
+      if (_token == null || _token!.isEmpty) {
+        throw Exception('No token provided');
+      }
+      
+      print('Calling getUserProfile with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+      
+      // Use the correct endpoint path
       final response = await http.get(
         Uri.parse('$baseUrl/user/$userId'),
         headers: _headers,
       );
+
+      // Print response for debugging
+      print('getUserProfile response status: ${response.statusCode}');
+      print('getUserProfile response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -252,16 +312,22 @@ class ApiService {
 
   // Get Leave Balance
   Future<Map<String, dynamic>> getLeaveBalance(String userId) async {
-    if (_token == null) {
-      throw Exception('Not authenticated');
+    // Add token validation
+    if (_token == null || _token!.isEmpty) {
+      throw Exception('No token provided');
     }
-
+    
+    print('Calling getLeaveBalance with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+    
+    // Use the correct endpoint path
     final response = await http.get(
       Uri.parse('$baseUrl/leave-balance/$userId'),
-      headers: {
-        'Authorization': 'Bearer $_token',
-      },
+      headers: _headers,
     );
+
+    // Print response for debugging
+    print('getLeaveBalance response status: ${response.statusCode}');
+    print('getLeaveBalance response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return json.decode(response.body);
@@ -320,16 +386,22 @@ class ApiService {
 
   // Get Leave Requests
   Future<List<Map<String, dynamic>>> getLeaveRequests(String userId) async {
-    if (_token == null) {
-      throw Exception('Not authenticated');
+    // Add token validation
+    if (_token == null || _token!.isEmpty) {
+      throw Exception('No token provided');
     }
-
+    
+    print('Calling getLeaveRequests with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+    
+    // Use the correct endpoint path
     final response = await http.get(
       Uri.parse('$baseUrl/leave-requests/$userId'),
-      headers: {
-        'Authorization': 'Bearer $_token',
-      },
+      headers: _headers,
     );
+
+    // Print response for debugging
+    print('getLeaveRequests response status: ${response.statusCode}');
+    print('getLeaveRequests response body: ${response.body}');
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
@@ -341,15 +413,16 @@ class ApiService {
   
   // Get Attendance History
   Future<List<Map<String, dynamic>>> getAttendanceHistory(String userId) async {
-    if (_token == null) {
-      throw Exception('Not authenticated');
+    // Add token validation
+    if (_token == null || _token!.isEmpty) {
+      throw Exception('No token provided');
     }
-
+    
+    print('Calling getAttendanceHistory with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+    
     final response = await http.get(
-      Uri.parse('$baseUrl/attendance-history/$userId'),
-      headers: {
-        'Authorization': 'Bearer $_token',
-      },
+      Uri.parse('$baseUrl/attendance-history/$userId'), // FIXED: Changed from attendance/status to attendance-history endpoint
+      headers: _headers,
     );
 
     if (response.statusCode == 200) {

@@ -1,4 +1,6 @@
 // lib/screens/profile_screen.dart
+import 'dart:math' as Math;
+
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'package:intl/intl.dart';
@@ -34,14 +36,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
+      // Add token validation and logging
+      if (_apiService.token == null) {
+        print('No token available in profile screen');
+        throw Exception('Token not available');
+      }
+      
+      print('Profile screen using token: ${_apiService.token?.substring(0, Math.min(20, _apiService.token?.length ?? 0))}...');
+      
+      // Make sure we're passing the correct ID type (int)
       final profile = await _apiService.getUserProfile(widget.userDetails['id']);
+      
       setState(() {
         _profileData = profile;
       });
     } catch (e) {
+      print('Complete profile loading error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading profile: $e')),
+          SnackBar(
+            content: Text('Error loading profile: $e'),
+          ),
         );
       }
     } finally {

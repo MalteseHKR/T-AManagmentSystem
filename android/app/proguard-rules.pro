@@ -14,3 +14,5 @@
 -keepclassmembers class com.dexterous.flutterlocalnotifications.** { *; }
 -keep class androidx.core.app.** { *; }
 -dontwarn androidx.core.app.**
+
+-dontwarn org.tensorflow.lite.gpu.GpuDelegateFactory$Options
