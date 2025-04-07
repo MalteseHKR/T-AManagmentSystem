@@ -58,11 +58,18 @@ class ApiService {
         
         if (data.containsKey('token')) {
           setToken(data['token']);
-          // Verify token immediately
           print('Auth header value: Bearer $_token');
         } else {
           print('No token found in response data');
           setToken(null);
+        }
+        
+        // Check if MFA is enabled for the user
+        final bool mfaEnabled = data['user']?['mfa_enabled'] ?? false;
+        if (mfaEnabled) {
+          // In a real implementation, you would handle the MFA flow here
+          // For now, we'll just pass this information to the caller
+          data['mfa_required'] = true;
         }
 
         return data;
@@ -271,33 +278,43 @@ class ApiService {
   // Get User Profile
   Future<Map<String, dynamic>> getUserProfile(int userId) async {
     try {
-      // Add token validation
       if (_token == null || _token!.isEmpty) {
         throw Exception('No token provided');
       }
       
       print('Calling getUserProfile with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
       
-      // Use the correct endpoint path
       final response = await http.get(
         Uri.parse('$baseUrl/user/$userId'),
         headers: _headers,
       );
 
-      // Print response for debugging
       print('getUserProfile response status: ${response.statusCode}');
       print('getUserProfile response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        
+        // Process the profile photo path - the path may need adjusting based on server configuration
+        String? profilePhotoPath = data['profile_photo'];
+        if (profilePhotoPath != null && profilePhotoPath.isNotEmpty) {
+          // If the path is a full server path, make it relative
+          if (profilePhotoPath.startsWith('/home/softwaredev/profile_pictures/')) {
+            profilePhotoPath = '/profile_pictures/${profilePhotoPath.split('/').last}';
+          }
+        }
+        
         return {
           'full_name': '${data['name']} ${data['surname']}',
           'email': data['email'],
           'department': data['department'],
+          'department_id': data['department_id'],
+          'role': data['role'],
+          'role_id': data['role_id'],
           'phone': data['phone'],
-          'position': data['title'],
+          'position': data['role'],
           'join_date': data['user_job_start'],
-          'profile_photo': data['profile_photo']
+          'profile_photo': profilePhotoPath
         };
       } else {
         final errorBody = jsonDecode(response.body);

@@ -117,22 +117,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (_profileData!['profile_photo'] != null)
               CircleAvatar(
                 radius: 50,
-                backgroundImage: NetworkImage(
-                  'http://195.158.75.66:3000${_profileData!['profile_photo']}',
+                backgroundColor: Colors.grey[200],
+                child: ClipOval(
+                  child: SizedBox(
+                    width: 100,
+                    height: 100,
+                    child: Image.network(
+                      // The full path may need to be constructed differently based on how your server serves the files
+                      'http://195.158.75.66:3000${_profileData!['profile_photo'] ?? ''}',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        print('Error loading profile image: $error');
+                        // Fallback to initials avatar if image fails to load
+                        return Container(
+                          color: Colors.blue.shade100,
+                          child: Center(
+                            child: Text(
+                              _getInitials(_profileData!['full_name']),
+                              style: const TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded / 
+                                  loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
-                onBackgroundImageError: (exception, stackTrace) {
-                  // Fallback to initials if image fails to load
-                },
-                child: _profileData!['profile_photo'] == null
-                    ? Text(
-                        _getInitials(_profileData!['full_name']),
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      )
-                    : null,
               )
             else
               CircleAvatar(
@@ -161,6 +185,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Display department and role below the name
+            Text(
+              '${_profileData!['department']} • ${_profileData!['role']}',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -207,47 +241,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildWorkInfo() {
-    if (_profileData == null) return const SizedBox.shrink();
+  if (_profileData == null) return const SizedBox.shrink();
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Work Information',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+  return Card(
+    elevation: 4,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'Work Information',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.business),
-            title: const Text('Department'),
-            subtitle: Text(_profileData!['department']),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.work),
-            title: const Text('Position'),
-            subtitle: Text(_profileData!['position'] ?? 'N/A'),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.calendar_today),
-            title: const Text('Join Date'),
-            subtitle: Text(_formatDate(_profileData!['join_date'])),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+        ListTile(
+          leading: const Icon(Icons.business),
+          title: const Text('Department'),
+          subtitle: Text(_profileData!['department'] ?? 'N/A'),
+        ),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.badge),
+          title: const Text('Role'),
+          subtitle: Text(_profileData!['role'] ?? 'N/A'),
+        ),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.calendar_today),
+          title: const Text('Join Date'),
+          subtitle: Text(_formatDate(_profileData!['join_date'])),
+        ),
+      ],
+    ),
+  );
+}
 
   String _getInitials(String fullName) {
     List<String> names = fullName.split(' ');
