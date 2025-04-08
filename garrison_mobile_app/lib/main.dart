@@ -5,6 +5,7 @@ import 'screens/login_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/leave_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/admin/admin_dashboard.dart';
 import 'services/notification_service.dart';
 import 'services/background_service.dart';
 import 'services/session_service.dart';
@@ -25,66 +26,81 @@ void main() async {
     // Check for pending punch-in from previous sessions
     await notificationService.checkForPendingPunchIn();
     
-    // Initialize camera
+    // Initialize cameras - both front and rear if available
     final cameras = await availableCameras();
-    CameraDescription? selectedCamera;
+    CameraDescription? selectedFrontCamera;
+    CameraDescription? selectedRearCamera;
     
     if (cameras.isNotEmpty) {
-      // Specifically look for the front camera
+      // Look for front and rear cameras
       for (var camera in cameras) {
         debugPrint('Found camera: ${camera.name}, lens direction: ${camera.lensDirection}');
         if (camera.lensDirection == CameraLensDirection.front) {
-          selectedCamera = camera;
+          selectedFrontCamera = camera;
           debugPrint('Selected front camera: ${camera.name}');
-          break;
+        } else if (camera.lensDirection == CameraLensDirection.back) {
+          selectedRearCamera = camera;
+          debugPrint('Selected rear camera: ${camera.name}');
         }
       }
       
       // If no front camera was found, fall back to the first camera
-      if (selectedCamera == null) {
+      if (selectedFrontCamera == null) {
         debugPrint('No front camera found, using first available camera');
-        selectedCamera = cameras.first;
+        selectedFrontCamera = cameras.first;
       }
     }
     
-    if (selectedCamera == null) {
+    if (selectedFrontCamera == null) {
       debugPrint("No cameras available");
       return;
     }
     
-    runApp(TimeAttendanceApp(camera: selectedCamera));
+    runApp(TimeAttendanceApp(
+      frontCamera: selectedFrontCamera,
+      rearCamera: selectedRearCamera,
+    ));
   } catch (e) {
     debugPrint('Error during app initialization: $e');
     // Fall back to basic initialization if services fail
     final cameras = await availableCameras();
-    CameraDescription? selectedCamera;
+    CameraDescription? selectedFrontCamera;
     
     if (cameras.isNotEmpty) {
       // Try to find front camera even in the fallback path
-      selectedCamera = cameras.firstWhere(
+      selectedFrontCamera = cameras.firstWhere(
         (camera) => camera.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
       );
     }
     
-    if (selectedCamera == null) {
+    if (selectedFrontCamera == null) {
       debugPrint("No cameras available");
       return;
     }
     
-    runApp(TimeAttendanceApp(camera: selectedCamera));
+    runApp(TimeAttendanceApp(
+      frontCamera: selectedFrontCamera,
+      rearCamera: null,
+    ));
   }
 }
 
 class TimeAttendanceApp extends StatelessWidget {
-  final CameraDescription camera;
+  final CameraDescription frontCamera;
+  final CameraDescription? rearCamera;
 
-  const TimeAttendanceApp({Key? key, required this.camera}) : super(key: key);
+  const TimeAttendanceApp({
+    Key? key, 
+    required this.frontCamera,
+    this.rearCamera,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Garrison Track',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
@@ -95,7 +111,10 @@ class TimeAttendanceApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: LoginScreen(camera: camera),
+      home: LoginScreen(
+        camera: frontCamera,
+        rearCamera: rearCamera,
+      ),
     );
   }
 }
@@ -196,28 +215,28 @@ class _MainScreenState extends State<MainScreen> {
   }
   
   void _performLogout() {
-  // Stop any existing timers
-  _sessionService.stopSessionTimer();
-  
-  // Ensure any existing dialogs are dismissed
-  try {
-    // Try to dismiss any open dialogs
-    Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
-  } catch (e) {
-    print('Error dismissing dialogs: $e');
+    // Stop any existing timers
+    _sessionService.stopSessionTimer();
+    
+    // Ensure any existing dialogs are dismissed
+    try {
+      // Try to dismiss any open dialogs
+      Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+    } catch (e) {
+      print('Error dismissing dialogs: $e');
+    }
+    
+    // Ensure we're on the main thread
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Clear any existing routes and push login screen
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => LoginScreen(camera: widget.camera),
+        ),
+        (Route<dynamic> route) => false,
+      );
+    });
   }
-  
-  // Ensure we're on the main thread
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    // Clear any existing routes and push login screen
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (context) => LoginScreen(camera: widget.camera),
-      ),
-      (Route<dynamic> route) => false,
-    );
-  });
-}
 
   @override
   void dispose() {

@@ -237,6 +237,294 @@ class ApiService {
     }
   }
 
+  // Get all employees
+  Future<List<Map<String, dynamic>>> getAllEmployees() async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/employees'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to load employees');
+      }
+    } catch (e) {
+      print('Error loading employees: $e');
+      rethrow;
+    }
+  }
+
+  // Get all active users (for face registration)
+  Future<List<Map<String, dynamic>>> getAllActiveUsers() async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/active-users'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to load active users');
+      }
+    } catch (e) {
+      print('Error loading active users: $e');
+      rethrow;
+    }
+  }
+
+  // Get all departments
+  Future<List<Map<String, dynamic>>> getAllDepartments() async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/departments'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to load departments');
+      }
+    } catch (e) {
+      print('Error loading departments: $e');
+      rethrow;
+    }
+  }
+
+  // Get all roles
+  Future<List<Map<String, dynamic>>> getAllRoles() async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/roles'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to load roles');
+      }
+    } catch (e) {
+      print('Error loading roles: $e');
+      rethrow;
+    }
+  }
+
+  // Get all leave requests (for HR/admin)
+  Future<List<Map<String, dynamic>>> getAllLeaveRequests() async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/leave-requests'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to load leave requests');
+      }
+    } catch (e) {
+      print('Error loading leave requests: $e');
+      rethrow;
+    }
+  }
+
+  // Create a new user
+  Future<Map<String, dynamic>> createUser(Map<String, dynamic> userData) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/admin/create-user'),
+        headers: _headers,
+        body: jsonEncode(userData),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to create user');
+      }
+    } catch (e) {
+      print('Error creating user: $e');
+      rethrow;
+    }
+  }
+
+  // Update user active status
+  Future<void> updateUserStatus({
+    required int userId,
+    required bool active,
+    required int adminId,
+  }) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/admin/update-user-status'),
+        headers: _headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'active': active,
+          'admin_id': adminId,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to update user status');
+      }
+    } catch (e) {
+      print('Error updating user status: $e');
+      rethrow;
+    }
+  }
+
+  // Reset user password
+  Future<String> resetUserPassword({
+    required int userId,
+    required int adminId,
+  }) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/admin/reset-password'),
+        headers: _headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'admin_id': adminId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['password'];
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to reset password');
+      }
+    } catch (e) {
+      print('Error resetting password: $e');
+      rethrow;
+    }
+  }
+
+  // Get all employees
+  Future<List<Map<String, dynamic>>> getAllUsers() async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/employees'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Failed to load employees');
+      }
+    } catch (e) {
+      print('Error loading employees: $e');
+      rethrow;
+    }
+  }
+
+  // Update leave request status
+  Future<void> updateLeaveRequestStatus({
+    required int requestId,
+    required String newStatus,
+    required int adminId,
+    String? reason,
+  }) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/admin/update-leave-status'),
+        headers: _headers,
+        body: jsonEncode({
+          'request_id': requestId,
+          'status': newStatus,
+          'admin_id': adminId,
+          'reason': reason,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to update leave status');
+      }
+    } catch (e) {
+      print('Error updating leave status: $e');
+      rethrow;
+    }
+  }
+
+  // Check if user has registered face
+  Future<Map<String, dynamic>> checkFaceRegistration(String userId) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/face-status/$userId'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to check face registration');
+      }
+    } catch (e) {
+      print('Error checking face registration: $e');
+      rethrow;
+    }
+  }
+
   // Get Attendance Status
   Future<Map<String, dynamic>> getAttendanceStatus(int userId) async {
     try {

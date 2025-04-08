@@ -497,7 +497,26 @@ class FaceRecognitionService {
       
       // First validate that this is a good face photo
       final validationResult = await validateFace(fileToUse);
-      if (!validationResult['isValid']) {
+      if (!validationResult['isValid'] && Platform.isIOS) {
+        // If validation fails with the enhanced image on iOS, try with the original image
+        debugPrint('Face detection failed on enhanced iOS image, trying original image');
+        final originalValidationResult = await validateFace(photoFile);
+        
+        // If the original image validates successfully, use it instead
+        if (originalValidationResult['isValid']) {
+          debugPrint('Original image validated successfully on iOS, using it instead');
+          fileToUse = photoFile;
+        } else {
+          // If both fail, return the result from the enhanced image
+          debugPrint('FaceRecognitionService: Face validation failed: ${validationResult['message']}');
+          return {
+            'isVerified': false,
+            'faceBounds': validationResult['faceBounds'],
+            'message': validationResult['message'] ?? 'Face validation failed'
+          };
+        }
+      } else if (!validationResult['isValid']) {
+        // For non-iOS platforms, or if both images fail on iOS
         debugPrint('FaceRecognitionService: Face validation failed: ${validationResult['message']}');
         return {
           'isVerified': false,
@@ -557,8 +576,12 @@ class FaceRecognitionService {
           // Get verification result
           bool isVerified = responseData['verified'] ?? false;
           double confidence = responseData['confidence'] ?? 0.0;
+
+          // Log the actual server result before any overrides
+debugPrint('FaceRecognitionService: Server verification result: isVerified=$isVerified, confidence=$confidence');
           
           // For Android, adjust the confidence threshold client-side
+          /*
           if (Platform.isAndroid && !isVerified) {
             // If it's a near match on Android, consider it verified
             if (confidence > 0.4) { // More lenient threshold for Android
@@ -566,6 +589,7 @@ class FaceRecognitionService {
               isVerified = true;
             }
           }
+          */
           
           return {
             'isVerified': isVerified,

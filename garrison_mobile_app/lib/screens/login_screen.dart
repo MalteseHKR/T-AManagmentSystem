@@ -4,14 +4,17 @@ import 'package:camera/camera.dart';
 import 'dart:async';
 import '../services/api_service.dart';
 import '../services/session_service.dart';
+import '../screens/admin/admin_dashboard.dart';
 import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
   final CameraDescription camera;
+  final CameraDescription? rearCamera;
 
   const LoginScreen({
     Key? key,
     required this.camera,
+    this.rearCamera,
   }) : super(key: key);
 
   @override
@@ -74,16 +77,61 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (!mounted) return;
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MainScreen(
-            camera: widget.camera,
-            userDetails: response['user'],
+      
+      // Check if MFA is required
+      final bool mfaRequired = response['mfa_required'] ?? false;
+      
+      if (mfaRequired) {
+        // If you want to implement MFA support, you would navigate to an MFA verification screen here
+        // For now, just show a message that MFA is required
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Multi-factor authentication is required. This feature is not yet implemented.'),
+            backgroundColor: Colors.orange,
           ),
-        ),
-      );
+        );
+        
+        setState(() {
+          _isLoading = false;
+        });
+        
+        return;
+      }
+
+      // Check if user is in admin departments or has admin roles
+      // Stricter admin access check
+      final int roleId = response['user']['role_id'] ?? 0;
+      
+      // Explicitly defined admin access roles
+      final List<int> adminRoleIds = [1, 2, 3, 6, 7, 13, 14]; // HR Manager, HR, IT Manager, CEO, General Manager, Software Developer, Cyber Security Manager
+
+      bool hasAdminAccess = 
+        adminRoleIds.contains(roleId);
+
+      if (hasAdminAccess) {
+        // Navigate to admin dashboard
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AdminDashboard(
+              userDetails: response['user'],
+              camera: widget.camera,
+              rearCamera: widget.rearCamera,
+            ),
+          ),
+        );
+      } else {
+        // Standard user login
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MainScreen(
+              camera: widget.camera,
+              userDetails: response['user'],
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       
@@ -104,10 +152,10 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Account locked. Too many failed attempts.'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       } else if (errorMessage.contains('remaining_attempts')) {
