@@ -6,7 +6,10 @@ use Illuminate\Http\Request;
 use App\Models\LogInformation;
 use App\Models\UserInformation;
 use App\Models\Device;
+use App\Models\Department;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class AttendanceController extends Controller
 {
@@ -90,32 +93,42 @@ class AttendanceController extends Controller
     }
     
     /**
-     * Get attendance data grouped by department
+     * Get attendance data grouped by department - UPDATED for normalized schema
      */
     private function getAttendanceByDepartment()
     {
-        // Get attendance counts by department
-        $departmentCounts = DB::table('user_information')
-            ->join('log_Information', 'user_information.user_id', '=', 'log_Information.user_id')
-            ->select('user_information.user_department', DB::raw('count(*) as count'))
-            ->whereNotNull('user_information.user_department')
-            ->where('user_information.user_department', '!=', '')
-            ->groupBy('user_information.user_department')
-            ->orderBy('count', 'desc')
-            ->get();
-        
-        $labels = [];
-        $values = [];
-        
-        foreach ($departmentCounts as $dept) {
-            $labels[] = $dept->user_department;
-            $values[] = $dept->count;
+        try {
+            // Get attendance counts by department using the normalized schema
+            $departmentCounts = DB::table('log_Information')
+                ->join('user_information', 'log_Information.user_id', '=', 'user_information.user_id')
+                ->join('departments', 'user_information.department_id', '=', 'departments.department_id')
+                ->select('departments.department', DB::raw('count(*) as count'))
+                ->whereNotNull('departments.department')
+                ->groupBy('departments.department')
+                ->orderBy('count', 'desc')
+                ->get();
+            
+            $labels = [];
+            $values = [];
+            
+            foreach ($departmentCounts as $dept) {
+                $labels[] = $dept->department;
+                $values[] = $dept->count;
+            }
+            
+            return [
+                'labels' => $labels,
+                'values' => $values
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error in getAttendanceByDepartment: ' . $e->getMessage());
+            
+            // Return empty data if there's an error
+            return [
+                'labels' => [],
+                'values' => []
+            ];
         }
-        
-        return [
-            'labels' => $labels,
-            'values' => $values
-        ];
     }
 
     /**
@@ -150,7 +163,7 @@ class AttendanceController extends Controller
             ];
         });
         
-        return view('attendance', [
+        return view('attendance.employee', [
             'employee' => $employee,
             'attendances' => $attendances,
             'attendancePhotos' => $formattedPhotos
@@ -191,8 +204,28 @@ class AttendanceController extends Controller
             ];
         }
         
-        return view('attendance.analytics', compact(
+        return view('attendance.dashboard', compact(
             'todayCount', 'presentToday', 'yesterdayCount', 'monthlyTrend'
         ));
+    }
+
+    /**
+     * Update any method that checks for attendance table
+     */
+    private function getAttendanceData()
+    {
+        // Instead of checking for 'attendance' table
+        if (!Schema::hasTable('log_Information') && !Schema::hasTable('log_information')) {
+            Log::warning('Log_Information table not found in database');
+            return collect();
+        }
+        
+        // Use the correct table
+        $tableName = Schema::hasTable('log_Information') ? 'log_Information' : 'log_information';
+        
+        // Continue with your query
+        return DB::table($tableName)
+            // rest of your query
+            ->get();
     }
 }

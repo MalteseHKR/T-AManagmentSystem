@@ -6,20 +6,29 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use App\Models\Department;
+use App\Models\Role;
 
 class CreateEmployeeController extends Controller
 {
     public function create()
     {
         try {
-            $departments = DB::table('departments')->orderBy('department')->get();
-            $roles = DB::table('roles')->orderBy('role')->get();
-
-            return view('create', compact('departments', 'roles'));
+            // Get departments and roles for dropdown options
+            $departments = Department::orderBy('department')->get();
+            $roles = Role::orderBy('role')->get();
+            
+            // Log what we're passing to the view
+            Log::info('Loading create employee form', [
+                'departments_count' => $departments->count(),
+                'roles_count' => $roles->count()
+            ]);
+            
+            // Change 'create' to 'employees.create' to match the file's actual location
+            return view('employees.create', compact('departments', 'roles'));
         } catch (\Exception $e) {
             Log::error('Error fetching data for create employee page: ' . $e->getMessage());
-            return view('create', ['departments' => [], 'roles' => []])
-                ->with('error', 'Could not load data from database. No departments or job roles available.');
+            return redirect()->route('employees')->with('error', 'Could not load the create employee form');
         }
     }
 

@@ -1,82 +1,233 @@
 @extends('layouts.app')
 
-@section('content')
-<div class="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-    <div class="flex flex-col items-center justify-center">
-        <!-- Hero Section -->
-        <div class="hero-section">
-            <!-- Logo Section -->
-            <div class="logo-section">
-                <img src="{{ asset('garrison.svg') }}" 
-                     alt="Garrison Logo" 
-                     class="logo">
-            </div>
+@section('title', 'Welcome to Garrison - Time and Attendance Management System')
 
-            <!-- Welcome Text Section -->
-            <div class="welcome-text">
-                <h1 class="text-4xl font-bold text-gray-800 mb-4">Welcome to Garrison</h1>
-                <p class="text-xl text-gray-600 mb-8">Time and Attendance Management System</p>
-                <div class="w-24 h-1 bg-blue-600 mb-8"></div>
-                <p class="text-gray-600 mb-8">
-                    Streamline your workforce management with our comprehensive time and attendance solution. 
-                    Track attendance, manage schedules, and optimize productivity all in one place.
-                </p>
-                <!-- Login Button -->
-                <div class="login-section">
-                    <div class="button-container">
-                        <a href="{{ route('dashboard') }}" class="dashboard-button">
-                            <span class="button-content">
-                                <span class="button-text">Go to Dashboard</span>
-                                <svg class="button-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                </svg>
-                            </span>
-                        </a>
-                    </div>
-                </div>
-            </div>
+@section('styles')
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+@endsection
+
+@section('content')
+<div class="home-container">
+    <!-- Hero Section -->
+    <div class="hero-content d-flex">
+        <!-- Logo Section -->
+        <div class="logo-section" >
+            <img src="{{ asset('garrison.svg') }}" 
+                 alt="Garrison Logo" 
+                 class="logo" style="width: 300px; height: 300px;">
         </div>
 
-        <!-- Features Grid -->
-        <div class="feature-grid">
-            <!-- Real-time Tracking Card -->
-            <div class="feature-card">
-                <div class="text-blue-600">
-                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                </div>
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Real-time Tracking</h3>
-                <p class="text-gray-600">Monitor attendance and time tracking in real-time</p>
-            </div>
-
-            <!-- Easy Reporting Card -->
-            <div class="feature-card">
-                <div class="text-blue-600">
-                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
-                </div>
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Easy Reporting</h3>
-                <p class="text-gray-600">Generate comprehensive reports with just a few clicks</p>
-            </div>
-
-            <!-- Smart Management Card -->
-            <div class="feature-card">
-                <div class="text-blue-600">
-                    <svg class="feature-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
-                    </svg>
-                </div>
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Smart Management</h3>
-                <p class="text-gray-600">Efficiently manage your workforce and schedules</p>
+        <!-- Welcome Text Section -->
+        <div class="welcome-section">
+            <h1 class="welcome-title">Welcome to Garrison</h1>
+            <p class="welcome-subtitle">Time and Attendance Management System</p>
+            <div class="welcome-divider"></div>
+            <p class="welcome-description">
+                Streamline your workforce management with our comprehensive time and attendance solution. 
+                Track attendance, manage schedules, and optimize productivity all in one place.
+            </p>
+            
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <a href="{{ route('dashboard') }}" class="primary-button dashboard-button">
+                    <span class="button-content">
+                        <span class="button-text">Go to Dashboard</span>
+                        <i class="fas fa-arrow-right button-icon"></i>
+                    </span>
+                </a>
             </div>
         </div>
     </div>
 
+    <!-- Features Section with Bootstrap -->
+    <section class="py-2 m-0 ms-5 me-5">
+        <div class="text-center mb-5">
+            <h2 class="display-4 fw-bold">Key Features</h2>
+            <p class="lead text-muted">Discover what makes Garrison the ideal solution for attendance management</p>
+        </div>
+        
+        <div class="row row-cols-1 row-cols-md-2 g-4">
+            <!-- Real-time Tracking Card -->
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0 rounded-4 hover-card" id="featureCard1">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-4">
+                            <div class="feature-icon-circle d-inline-flex align-items-center justify-content-center rounded-circle">
+                                <i class="fas fa-clock fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <h3 class="card-title fw-bold">Real-time Tracking</h3>
+                        <p class="card-text fs-5">Monitor attendance and time tracking in real-time with accurate data and instant updates.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Analytics Card -->
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0 rounded-4 hover-card" id="featureCard2">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-4">
+                            <div class="feature-icon-circle d-inline-flex align-items-center justify-content-center rounded-circle">
+                                <i class="fas fa-chart-bar fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <h3 class="card-title fw-bold">Attendance Analytics</h3>
+                        <p class="card-text fs-5">View attendance data and analyze patterns to optimize workforce management.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Facial Recognition Card -->
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0 rounded-4 hover-card" id="featureCard3">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-4">
+                            <div class="feature-icon-circle d-inline-flex align-items-center justify-content-center rounded-circle">
+                                <i class="fas fa-user-check fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <h3 class="card-title fw-bold">AI Facial Recognition</h3>
+                        <p class="card-text fs-5">Secure biometric attendance system ensures accuracy and eliminates time theft and buddy punching.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Leave Management Card -->
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0 rounded-4 hover-card" id="featureCard4">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-4">
+                            <div class="feature-icon-circle d-inline-flex align-items-center justify-content-center rounded-circle">
+                                <i class="fas fa-calendar-alt fa-2x text-primary"></i>
+                            </div>
+                        </div>
+                        <h3 class="card-title fw-bold">Leave Management</h3>
+                        <p class="card-text fs-5">Streamlined leave request and approval process with automated workflows and tracking.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Footer -->
-    <footer class="bg-gray-800 text-gray-300 py-8 mt-16 flex justify-center items-center">
-        <p class="text-center">&copy; {{ date('Y') }} Garrison. All rights reserved.</p>
+    <footer class="site-footer">
+        <div class="footer-content">
+            <p class="copyright">&copy; {{ date('Y') }} Garrison. All rights reserved.</p>
+            <div class="footer-links">
+                <a href="#" id="privacyPolicyLink">Privacy Policy</a>
+                <a href="#" id="termsLink">Terms of Service</a>
+                <a href="#" id="contactLink">Contact Us</a>
+            </div>
+        </div>
     </footer>
 </div>
+@endsection
+
+@section('scripts')
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show welcome notification if it's the user's first visit
+        // We'll use localStorage to check for the first visit
+        if (!localStorage.getItem('garrison_visited')) {
+            setTimeout(() => {
+                Swal.fire({
+                    title: 'Welcome to Garrison!',
+                    text: 'Discover how our time and attendance system can help your organization.',
+                    icon: 'info',
+                    confirmButtonColor: '#2563eb',
+                    confirmButtonText: 'Explore Now',
+                    timer: 5000,
+                    timerProgressBar: true
+                });
+                
+                // Mark as visited
+                localStorage.setItem('garrison_visited', 'true');
+            }, 1000);
+        }
+        
+        // Feature card click interactions
+        document.querySelectorAll('.hover-card').forEach((card, index) => {
+            card.addEventListener('click', function() {
+                const featureTitles = [
+                    'Real-time Tracking',
+                    'Attendance Analytics',
+                    'AI Facial Recognition',
+                    'Leave Management'
+                ];
+                
+                const featureDescriptions = [
+                    'Track employee attendance in real-time with accurate timestamp data. Get instant notifications for late arrivals, absences, and overtime. Our system updates records instantly across all devices.',
+                    'View attendance data and analyze patterns in an intuitive dashboard. Identify trends and attendance issues at a glance with visual analytics.',
+                    'Secure attendance verification using advanced facial recognition technology. Prevents buddy punching and time theft. User-friendly interface requires minimal training for employees.',
+                    'Streamline leave requests and approvals with our integrated system. Employees can request time off while managers track and approve with ease.'
+                ];
+                
+                Swal.fire({
+                    title: featureTitles[index],
+                    text: featureDescriptions[index],
+                    icon: 'info',
+                    confirmButtonColor: '#2563eb',
+                    confirmButtonText: 'Got it',
+                });
+            });
+        });
+        
+        // Privacy Policy link
+        document.getElementById('privacyPolicyLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            Swal.fire({
+                title: 'Privacy Policy',
+                html: '<div class="text-start"><p>This is a placeholder for the Garrison privacy policy. In a real implementation, this would contain the full privacy policy text.</p></div>',
+                icon: 'info',
+                confirmButtonColor: '#2563eb'
+            });
+        });
+        
+        // Terms link
+        document.getElementById('termsLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            Swal.fire({
+                title: 'Terms of Service',
+                html: '<div class="text-start"><p>This is a placeholder for the Garrison terms of service. In a real implementation, this would contain the full terms of service text.</p></div>',
+                icon: 'info',
+                confirmButtonColor: '#2563eb'
+            });
+        });
+        
+        // Contact link
+        document.getElementById('contactLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            Swal.fire({
+                title: 'Contact Us',
+                html: `
+                    <div class="text-start">
+                        <p class="mb-3">We'd love to hear from you! Please reach out using any of the following methods:</p>
+                        <ul class="list-none mb-3">
+                            <li><i class="fas fa-envelope me-2"></i> Email: info@garrison.com</li>
+                            <li><i class="fas fa-phone me-2"></i> Phone: +1 (123) 456-7890</li>
+                            <li><i class="fas fa-map-marker-alt me-2"></i> Address: 123 Time Street, Attendance City</li>
+                        </ul>
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonColor: '#2563eb'
+            });
+        });
+        
+        // Close announcement banner if it exists
+        const announcementBanner = document.getElementById('announcementBanner');
+        if (announcementBanner) {
+            document.getElementById('closeAnnouncement').addEventListener('click', function() {
+                announcementBanner.classList.add('closing');
+                setTimeout(() => {
+                    announcementBanner.style.display = 'none';
+                }, 300);
+            });
+        }
+    });
+</script>
 @endsection

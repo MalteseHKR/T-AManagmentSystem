@@ -2,20 +2,27 @@
 
 @section('title', 'Edit Announcement - Garrison Time and Attendance System')
 
+@section('styles')
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+@endsection
+
 @section('show_navbar', true)
 
 @section('content')
 <div class="container announcement-container">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="announcement-header">Edit Announcement</h1>
-        <a href="{{ route('announcements') }}" class="btn btn-secondary announcement-btn">Back to Announcements</a>
+    <div class="d-flex flex-column flex-md-row justify-content-md-between align-items-md-center gap-3 mb-4">
+        <h1 class="announcement-header mb-0">Edit Announcement</h1>
+        <a href="{{ route('announcements') }}" class="btn btn-secondary announcement-btn">
+            <i class="fas fa-arrow-left me-1"></i> Back to Announcements
+        </a>
     </div>
 
     <div class="card announcement-card shadow-sm">
         <div class="card-header">
-            <h5 class="mb-0">Edit Announcement</h5>
+            <h5 class="mb-0 text-white">Edit Announcement</h5>
         </div>
-        <div class="card-body">
+        <div class="card-body px-4 py-3">
             <form id="announcementForm" action="{{ route('announcements.update', $announcement->id) }}" method="POST">
                 @csrf
                 @method('PUT')
@@ -52,6 +59,8 @@
                     @error('category')
                     <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
+                    
+                    <div id="category-preview" class="mt-2" style="display: none;"></div>
                 </div>
                 
                 <div class="mb-4">
@@ -60,19 +69,30 @@
                     @error('content')
                     <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
+                    <div class="form-text text-end">
+                        <span id="char-count">0</span> characters
+                    </div>
                 </div>
                 
                 <!-- Author Information (Display Only - Not Editable) -->
-                <div class="card mb-4">
+                <div class="card author-info-card mb-4">
                     <div class="card-header bg-light">
-                        <h6 class="mb-0">Author Information (Not Editable)</h6>
+                        <h6 class="mb-0 text-white">Author Information (Not Editable)</h6>
                     </div>
-                    <div class="card-body bg-light">
-                        <div class="d-flex align-items-center">
-                            <div class="avatar-circle me-3 bg-primary text-white">
-                                {{ strtoupper(substr($announcement->author_name, 0, 1)) }}
+                    <div class="card-body bg-light px-4 py-3">
+                        <div class="d-flex flex-column flex-sm-row align-items-center">
+                            <div class="portrait-container me-0 me-sm-3 mb-2 mb-sm-0">
+                                @if(isset($userInfo->portrait_url) && file_exists($userInfo->portrait_url))
+                                    <img src="data:image/jpeg;base64,{{ base64_encode(file_get_contents($userInfo->portrait_url)) }}"
+                                         alt="Portrait of {{ $userInfo->user_name }}"
+                                         class="portrait-image-announcement">
+                                @else
+                                    <img src="{{ asset('images/default-portrait.png') }}" alt="Default Portrait"
+                                         class="portrait-image-announcement">
+                                @endif
                             </div>
-                            <div>
+                            
+                            <div class="text-center text-sm-start">
                                 <p class="mb-1"><strong>{{ $announcement->author_name }}</strong></p>
                                 <p class="mb-0 small text-muted">
                                     @if($announcement->author_job_title)
@@ -98,16 +118,25 @@
                     </div>
                 </div>
                 
-                <div class="d-flex justify-content-between align-items-center mt-4">
-                    <button type="button" class="btn btn-outline-danger" onclick="confirmCancel()">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-4">
+                    <!-- Cancel Button - Link -->
+                    <a href="{{ route('announcements') }}" class="btn btn-outline-danger w-100 w-md-auto order-md-1">
                         <i class="fas fa-times me-1"></i> Cancel
-                    </button>
+                    </a>
                     
-                    <div>
-                        <button type="reset" class="btn btn-outline-secondary me-2">
+                    <div class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto order-md-2">
+                        <!-- Reset Button - Reverts to initial values -->
+                        <button type="reset" class="btn btn-outline-secondary">
                             <i class="fas fa-undo me-1"></i> Reset
                         </button>
-                        <button type="button" id="submitEdit" class="btn btn-primary">
+                        
+                        <!-- Clear All Button - Empties all fields -->
+                        <button type="button" class="btn btn-outline-warning" onclick="document.getElementById('announcementForm').reset(); document.querySelectorAll('#announcementForm input, #announcementForm textarea, #announcementForm select').forEach(el => el.value = '');">
+                            <i class="fas fa-eraser me-1"></i> Clear All
+                        </button>
+                        
+                        <!-- Save Button - Submit -->
+                        <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save me-1"></i> Save Changes
                         </button>
                     </div>
@@ -118,72 +147,45 @@
 </div>
 @endsection
 
-@push('styles')
-<style>
-    .form-label {
-        font-size: 0.9rem;
-        margin-bottom: 0.25rem;
-    }
-    
-    .card {
-        border-radius: 10px;
-        border: none;
-    }
-    
-    .avatar-circle {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-        font-weight: 500;
-    }
-    
-    /* Category badge previews */
-    .category-badge {
-        padding: 0.35em 0.65em;
-        font-size: 0.85em;
-        border-radius: 0.25rem;
-    }
-    
-    .category-badge.general {
-        background-color: #6c757d;
-    }
-    
-    .category-badge.important {
-        background-color: #fd7e14;
-    }
-    
-    .category-badge.hr {
-        background-color: #d63384;
-    }
-    
-    .category-badge.it {
-        background-color: #0dcaf0;
-    }
-    
-    .category-badge.finance {
-        background-color: #20c997;
-    }
-    
-    .category-badge.operations {
-        background-color: #0d6efd;
-    }
-</style>
-@endpush
+@section('scripts')
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-@push('scripts')
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Category badge preview
-        const categorySelect = document.getElementById('category');
-        const categoryPreview = document.createElement('div');
-        categoryPreview.className = 'mt-2';
-        categoryPreview.style.display = 'none';
-        categorySelect.parentNode.appendChild(categoryPreview);
-        
+document.addEventListener('DOMContentLoaded', function() {
+    // Toast notification setup - consistent with other pages
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
+        }
+    });
+
+    // Show success/error messages
+    @if(session('success'))
+        Toast.fire({
+            icon: 'success',
+            title: "{{ session('success') }}"
+        });
+    @endif
+
+    @if(session('error'))
+        Toast.fire({
+            icon: 'error',
+            title: "{{ session('error') }}"
+        });
+    @endif
+
+    // Category badge preview
+    const categorySelect = document.getElementById('category');
+    const categoryPreview = document.getElementById('category-preview');
+
+    if (categorySelect && categoryPreview) {
         categorySelect.addEventListener('change', function() {
             const selectedCategory = this.value.toLowerCase();
             if (selectedCategory) {
@@ -196,75 +198,33 @@
                 categoryPreview.style.display = 'none';
             }
         });
-        
+
         // Trigger change if category is pre-selected
         if (categorySelect.value) {
             const event = new Event('change');
             categorySelect.dispatchEvent(event);
         }
-        
-        // Auto-resize textarea as user types
-        const textarea = document.getElementById('content');
-        textarea.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-        });
-
-        // Initial resize
-        textarea.style.height = 'auto';
-        textarea.style.height = (textarea.scrollHeight) + 'px';
-        
-        // Submit button with confirmation
-        document.getElementById('submitEdit').addEventListener('click', function() {
-            const form = document.getElementById('announcementForm');
-            
-            // Check form validity
-            if(!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-            
-            Swal.fire({
-                title: 'Save Changes?',
-                text: 'Are you sure you want to update this announcement?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#3490dc',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Yes, save changes'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // Show loading state
-                    Swal.fire({
-                        title: 'Saving changes...',
-                        allowOutsideClick: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
-                    
-                    // Submit the form
-                    form.submit();
-                }
-            });
-        });
-    });
-    
-    function confirmCancel() {
-        Swal.fire({
-            title: 'Discard changes?',
-            text: 'Any unsaved changes will be lost.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#6c757d',
-            cancelButtonColor: '#0d6efd',
-            confirmButtonText: 'Yes, discard changes',
-            cancelButtonText: 'No, keep editing'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = "{{ route('announcements') }}";
-            }
-        });
     }
+
+    // Auto-resize textarea as user types and count characters
+    const textarea = document.getElementById('content');
+    const charCount = document.getElementById('char-count');
+
+    if (textarea && charCount) {
+        function updateTextarea() {
+            // Update character count
+            charCount.textContent = textarea.value.length;
+
+            // Auto-resize
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+        }
+
+        textarea.addEventListener('input', updateTextarea);
+
+        // Initial resize and count
+        updateTextarea();
+    }
+});
 </script>
-@endpush
+@endsection

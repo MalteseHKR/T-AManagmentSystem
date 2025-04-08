@@ -78,7 +78,7 @@
                         </a></li>
                         <li>
                             <a href="{{ route('mfa.index') }}" class="dropdown-item">
-                            <i class="bi bi-shield-lock me-2"></i> Two-Factor Authentication
+                            <i class="fa-solid fa-user-shield text-black me-2"></i> Two-Factor Authentication
                         </a>
                         </li
                         <li><hr class="dropdown-divider"></li>

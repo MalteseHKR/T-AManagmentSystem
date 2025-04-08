@@ -43,12 +43,9 @@ Route::get('/', function () {
 Route::get('/home', [HomeController::class, 'index'])->name('home');
 
 // Auth routes
-Route::get('/login', function () {
-    return view('login');
-})->name('login')->middleware('guest');
-
-Route::post('/login', [App\Http\Controllers\Auth\LoginController::class, 'login']);
-Route::post('/logout', [App\Http\Controllers\Auth\LoginController::class, 'logout'])->name('logout');
+Route::get('login', [App\Http\Controllers\Auth\LoginController::class, 'showLoginForm'])->name('login');
+Route::post('login', [App\Http\Controllers\Auth\LoginController::class, 'login']);
+Route::post('logout', [App\Http\Controllers\Auth\LoginController::class, 'logout'])->name('logout');
 
 // MFA Authentication routes
 Route::get('/mfa/verify', [App\Http\Controllers\Auth\LoginController::class, 'showMfaForm'])->name('mfa.verify');
@@ -94,6 +91,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/employees/create', [App\Http\Controllers\CreateEmployeeController::class, 'create'])->name('employees.create');
     Route::post('/employees', [App\Http\Controllers\CreateEmployeeController::class, 'store'])->name('employees.store');
     Route::get('/employee/{id}', [EmployeeController::class, 'show'])->name('employee.profile');
+    Route::get('/employee/profile/{id}', [App\Http\Controllers\EmployeeController::class, 'show'])->name('employee.profile');
+    Route::get('/employees/edit/{id}', [App\Http\Controllers\EmployeeController::class, 'edit'])->name('employees.edit');
+    Route::post('/employees/update/{id}', [App\Http\Controllers\EmployeeController::class, 'update'])->name('employees.update');
 
     // Attendance
     Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance');
@@ -119,23 +119,35 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/leaves/create', [LeaveController::class, 'create'])->name('leaves.create');
     Route::post('/leaves', [LeaveController::class, 'store'])->name('leaves.store');
     Route::put('/leaves/{id}/status', [LeaveController::class, 'updateStatus'])->name('leaves.update-status');
+    Route::get('/leaves/{id}/edit', [LeaveController::class, 'edit'])->name('leaves.edit');
+    Route::put('/leaves/{id}', [LeaveController::class, 'update'])->name('leaves.update');
 
     // Session Management
     Route::post('/session/extend', [App\Http\Controllers\SessionController::class, 'extend'])->name('session.extend');
 
-    // Secure Images
-    Route::get('/secure-image/{filename}', function ($filename, Request $request) {
-        $path = "/home/softwaredev/garrison-app-server/uploads/" . $filename;
-        if (!File::exists($path)) {
-            abort(404, 'Image not found');
-        }
-        return Response::file($path, [
-            'Content-Type' => mime_content_type($path),
-            'Content-Disposition' => 'inline; filename="'.basename($path).'"'
-        ]);
-    })->name('secure-image');
 
-    Route::get('/profile-photo/{userId}', [ImageController::class, 'serveProfileImage'])->name('profile.photo');
+Route::get('/secure-image/{filename}', function ($filename) {
+    $path = "/home/softwaredev/garrison-app-server/uploads/" . basename($filename);
+
+    if (!File::exists($path)) {
+        Log::warning("? File not found: {$path}");
+        abort(404, 'File not found');
+    }
+
+    $response = Response::file($path, [
+        'Content-Type' => mime_content_type($path),
+        'Content-Disposition' => 'inline; filename="' . basename($path) . '"',
+    ]);
+
+    Log::info('? Laravel response generated', [
+        'file' => $path,
+        'headers' => $response->headers->all(),
+    ]);
+
+    return $response;
+})->name('secure-image');
+
+    Route::get('/profile-image/{userId}', [ImageController::class, 'serveProfileImage']);
 
     // Image Routes - Organized by specificity
     Route::get('/images', [ImageController::class, 'index'])->name('images.index');
@@ -160,7 +172,7 @@ Route::middleware(['auth'])->group(function () {
             'from_url' => url()->previous()
         ]);
         
-        return app()->make(App\Http\Controllers\Auth\LoginController::class)->showChangePasswordForm($request);
+        return view('auth.passwords.change');
     })->name('password.change');
 
     Route::post('/change-password', function(Request $request) {

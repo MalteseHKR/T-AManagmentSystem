@@ -27,7 +27,7 @@
                 </svg>
                 Employee Management
             </div>
-            <div class="card-body">
+            <div class="card-body p-3">
                 <p>Manage employee records, add new employees, and update existing employee information.</p>
                 <a href="{{ route('employees') }}" class="btn btn-primary">Manage Employees</a>
             </div>
@@ -41,7 +41,7 @@
                 </svg>
                 Attendance Tracking
             </div>
-            <div class="card-body">
+            <div class="card-body p-3">
                 <p>Track employee attendance, view attendance reports, and manage attendance records.</p>
                 <a href="{{ route('attendance') }}" class="btn btn-primary">View Attendance</a>
             </div>
@@ -55,7 +55,7 @@
                 </svg>
                 Announcements
             </div>
-            <div class="card-body">
+            <div class="card-body p-3">
                 <p>Post company-wide announcements and keep employees informed about important updates.</p>
                 <a href="{{ route('announcements') }}" class="btn btn-primary">View Announcements</a>
             </div>
@@ -69,7 +69,7 @@
                 </svg>
                 Payroll
             </div>
-            <div class="card-body">
+            <div class="card-body p-3">
                 <p>Calculate and manage payroll, generate payslips, and handle payroll-related functions.</p>
                 <a href="{{ route('payroll') }}" class="btn btn-primary">Manage Payroll</a>
             </div>
@@ -83,7 +83,7 @@
                 </svg>
                 Leave Management
             </div>
-            <div class="card-body">
+            <div class="card-body p-3">
                 <p>Manage employee leave requests, approve or reject leave applications, and view leave balances.</p>
                 <a href="{{ route('leaves') }}" class="btn btn-primary">Manage Leaves</a>
             </div>

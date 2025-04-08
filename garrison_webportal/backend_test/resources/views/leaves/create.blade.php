@@ -18,10 +18,10 @@
 
     <div class="card leave-card">
         <div class="card-header bg-light py-3">
-            <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Leave Request Form</h5>
+            <h5 class="mb-0 text-white"><i class="fas fa-plus me-2"></i>Leave Request Form</h5>
         </div>
-        <div class="card-body">
-            <form action="{{ route('leaves.store') }}" method="POST" id="leaveRequestForm">
+        <div class="card-body px-4">
+            <form action="{{ route('leaves.store') }}" method="POST" id="leaveRequestForm" enctype="multipart/form-data">
                 @csrf
                 
                 @if ($errors->any())
@@ -41,7 +41,7 @@
                             <option value="">Select Employee</option>
                             @foreach($employees as $employee)
                             <option value="{{ $employee->user_id }}" {{ old('user_id') == $employee->user_id || (empty(old('user_id')) && Auth::user()->id == $employee->user_id) ? 'selected' : '' }}>
-                                {{ $employee->user_name }}
+                                {{ $employee->user_name }} {{ $employee->user_surname }}
                                 @if(Auth::user()->id == $employee->user_id)
                                     (You)
                                 @endif
@@ -96,14 +96,14 @@
                     @enderror
                 </div>
 
-                <!-- In your leave request form, add a file upload field that only shows for sick leave -->
+                <!-- File upload field for sick leave (now optional) -->
                 <div class="mb-3" id="certificateUploadField" style="display: none;">
                     <label for="medical_certificate" class="form-label fw-bold">
-                        Medical Certificate <span class="text-danger">*</span>
+                        Medical Certificate <span class="text-muted">(Optional)</span>
                     </label>
                     <input type="file" class="form-control" id="medical_certificate" name="medical_certificate" accept="image/*,.pdf">
                     <div class="form-text">
-                        Please upload a clear image or PDF of your medical certificate. Required for sick leave.
+                        You may upload a medical certificate if available. This is recommended but not required for sick leave.
                     </div>
                 </div>
                 
@@ -119,77 +119,150 @@
 @endsection
 
 @push('scripts')
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Set minimum date for end_date based on start_date
+        // Calculate dates for backdating (30 days ago)
         const startDateInput = document.getElementById('start_date');
         const endDateInput = document.getElementById('end_date');
         
-        // Set default start date to today if not previously set
-        if (!startDateInput.value) {
-            const today = new Date().toISOString().split('T')[0];
-            startDateInput.value = today;
-            startDateInput.min = today; // Cannot select dates before today
-            endDateInput.min = today;
-        }
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
         
+        const todayStr = today.toISOString().split('T')[0];
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+        // Set default dates if not previously set
+        if (!startDateInput.value) {
+            startDateInput.value = todayStr;
+        }
+        if (!endDateInput.value) {
+            endDateInput.value = todayStr;
+        }
+
+        // Allow backdating up to 30 days for both start and end dates
+        startDateInput.min = thirtyDaysAgoStr;
+        endDateInput.min = thirtyDaysAgoStr; // Allow end date to also be backdated
+
+        // Update end date min value when start date changes
         startDateInput.addEventListener('change', function() {
-            endDateInput.min = startDateInput.value;
-            
-            // If end date is before start date, reset it
+            // If start date is after end date, update end date to match start date
             if (endDateInput.value && endDateInput.value < startDateInput.value) {
                 endDateInput.value = startDateInput.value;
             }
         });
-        
-        // Initialize on load too
-        if (startDateInput.value) {
-            endDateInput.min = startDateInput.value;
-            
-            // If end date is already set but before start date, adjust it
-            if (endDateInput.value && endDateInput.value < startDateInput.value) {
-                endDateInput.value = startDateInput.value;
+
+        // Add listener to end date to ensure it's not before start date
+        endDateInput.addEventListener('change', function() {
+            if (this.value < startDateInput.value) {
+                Swal.fire({
+                    title: 'Invalid Date Range',
+                    text: 'End date cannot be before start date',
+                    icon: 'warning',
+                    confirmButtonColor: '#3085d6'
+                });
+                this.value = startDateInput.value;
             }
-        }
+        });
+
+        // Show/hide certificate upload based on leave type 
+        const leaveTypeSelect = document.getElementById('leave_type_id');
+        const certificateField = document.getElementById('certificateUploadField');
         
+        leaveTypeSelect.addEventListener('change', function() {
+            const sickLeaveId = '2'; // Updated to use ID 2 for sick leave
+            
+            if (this.value === sickLeaveId) {
+                certificateField.style.display = 'block';
+                // Remove required attribute - file upload is optional
+                document.getElementById('medical_certificate').removeAttribute('required');
+            } else {
+                certificateField.style.display = 'none';
+                document.getElementById('medical_certificate').removeAttribute('required');
+            }
+        });
+        
+        // Check if sick leave is already selected on page load
+        if (leaveTypeSelect.value === '2') {
+            certificateField.style.display = 'block';
+        }
+
         // SweetAlert for form submission
         const form = document.getElementById('leaveRequestForm');
-        
+
         form.addEventListener('submit', function(e) {
             // Only prevent default if validation passes
             if (form.checkValidity()) {
                 e.preventDefault();
-                
+
                 // Show confirmation dialog
                 Swal.fire({
-                    title: 'Are you sure?',
-                    text: "You won't be able to revert this!",
-                    icon: 'warning',
+                    title: 'Submit Leave Request?',
+                    text: "Are you sure you want to submit this leave request?",
+                    icon: 'question',
                     showCancelButton: true,
                     confirmButtonColor: '#3085d6',
                     cancelButtonColor: '#d33',
-                    confirmButtonText: 'Yes, submit it!'
+                    confirmButtonText: 'Yes, submit it!',
+                    cancelButtonText: 'Cancel'
                 }).then((result) => {
                     if (result.isConfirmed) {
+                        Swal.fire({
+                            title: 'Submitting...',
+                            text: 'Please wait while we process your request.',
+                            allowOutsideClick: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
                         form.submit();
                     }
                 });
             }
         });
 
-        // Show/hide certificate upload based on leave type
-        document.getElementById('leave_type_id').addEventListener('change', function() {
-            const sickLeaveId = '1'; // Replace with your actual sick leave type ID
-            const certificateField = document.getElementById('certificateUploadField');
-            
-            if (this.value === sickLeaveId) {
-                certificateField.style.display = 'block';
-                document.getElementById('medical_certificate').setAttribute('required', 'required');
-            } else {
-                certificateField.style.display = 'none';
-                document.getElementById('medical_certificate').removeAttribute('required');
-            }
-        });
+        // Display SweetAlert notifications for session messages
+        @if(session('success'))
+            Swal.fire({
+                title: 'Success!',
+                text: "{{ session('success') }}",
+                icon: 'success',
+                confirmButtonColor: '#198754',
+                timer: 3000,
+                timerProgressBar: true
+            });
+        @endif
+
+        @if(session('error'))
+            Swal.fire({
+                title: 'Error!',
+                text: "{{ session('error') }}",
+                icon: 'error',
+                confirmButtonColor: '#dc3545'
+            });
+        @endif
+
+        // Display validation errors via SweetAlert
+        @if($errors->any())
+            Swal.fire({
+                title: 'Validation Error',
+                html: `
+                    <div class="text-start">
+                        <p>Please correct the following errors:</p>
+                        <ul class="list-unstyled text-danger">
+                            @foreach ($errors->all() as $error)
+                                <li><i class="fas fa-exclamation-circle me-2"></i> {{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                `,
+                icon: 'warning',
+                confirmButtonColor: '#ffc107'
+            });
+        @endif
     });
 </script>
 @endpush

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+
 
 class ImageController extends Controller
 {
@@ -14,60 +16,55 @@ class ImageController extends Controller
      * @param string $filename
      * @return \Illuminate\Http\Response
      */
-    public function serve($filename)
-    {
-        try {
-            $filename = basename(urldecode($filename));
+public function serve($filename)
+{
+    try {
+        $filename = basename(urldecode($filename));
 
-            if (strpos($filename, 'http://') !== false || strpos($filename, 'https://') !== false) {
-                $parsedUrl = parse_url($filename);
-                $pathParts = explode('/', trim($parsedUrl['path'] ?? '', '/'));
-                $filename = end($pathParts);
+        Log::info("??? Looking for image: {$filename}");
+
+        $paths = [
+            $filename,
+            'IMG_' . $filename,
+            str_replace('IMG_', '', $filename),
+        ];
+
+        foreach ($paths as $path) {
+            if (Storage::disk('uploads')->exists($path)) {
+                Log::info("? Found image at: uploads/{$path}");
+
+                $contents = Storage::disk('uploads')->get($path);
+
+                $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                $mimeTypes = [
+                    'jpg' => 'image/jpeg',
+                    'jpeg' => 'image/jpeg',
+                    'png' => 'image/png',
+                    'gif' => 'image/gif',
+                    'bmp' => 'image/bmp',
+                ];
+
+                $contentType = $mimeTypes[$extension] ?? 'image/jpeg';
+
+                return response($contents, 200, [
+                    'Content-Type' => $contentType,
+                    'Cache-Control' => 'public, max-age=86400',
+                ]);
             }
-
-            Log::info("Looking for local image: {$filename}");
-
-            $paths = [
-                $filename,
-                'IMG_' . $filename,
-                str_replace('IMG_', '', $filename),
-            ];
-
-            foreach ($paths as $path) {
-                if (Storage::disk('local_uploads')->exists($path)) {
-                    Log::info("Found local image at: {$path}");
-                    $contents = Storage::disk('local_uploads')->get($path);
-
-                    $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-                    $mimeTypes = [
-                        'jpg' => 'image/jpeg',
-                        'jpeg' => 'image/jpeg',
-                        'png' => 'image/png',
-                        'gif' => 'image/gif',
-                        'bmp' => 'image/bmp',
-                    ];
-
-                    $contentType = $mimeTypes[$extension] ?? 'image/jpeg';
-
-                    return response($contents, 200, [
-                        'Content-Type' => $contentType,
-                        'Cache-Control' => 'public, max-age=86400',
-                    ]);
-                }
-            }
-
-            Log::warning("Local image not found: {$filename}");
-            return $this->placeholder();
-
-        } catch (\Exception $e) {
-            Log::error('Error loading local image: ' . $e->getMessage(), [
-                'filename' => $filename,
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $this->placeholder();
         }
+
+        Log::warning("? Image not found in uploads/: {$filename}");
+        return $this->placeholder();
+
+    } catch (\Exception $e) {
+        Log::error('?? Error loading image: ' . $e->getMessage(), [
+            'filename' => $filename,
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return $this->placeholder();
     }
+}
 
     /**
      * Serve a placeholder image when the actual image is not found

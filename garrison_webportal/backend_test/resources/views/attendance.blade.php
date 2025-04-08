@@ -2,17 +2,22 @@
 
 @section('title', 'Attendance - Garrison Time and Attendance System')
 
+@section('styles')
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+@endsection
+
 @section('show_navbar', true)
 
 @section('content')
 <div class="container">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="mb-0">Attendance Records</h1>
-        <div class="d-flex justify-content-between align-items-center">
-            <a href="{{ route('dashboard') }}" class="btn btn-secondary me-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <h1 class="attendance-header mb-0">Attendance Records</h1>
+        <div class="d-flex flex-column flex-sm-row gap-2">
+            <a href="{{ route('dashboard') }}" class="btn btn-secondary attendance-btn">
                 <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
             </a>
-            <a href="{{ route('attendance.analytics') }}" class="btn-analytics">
+            <a href="{{ route('attendance.analytics') }}" class="btn btn-primary attendance-btn analytics-btn">
                 <i class="fas fa-chart-bar me-2"></i> Analytics Dashboard
             </a>
         </div>
@@ -27,36 +32,36 @@
         :columns="3"
     />
 
-    <div class="card shadow border-0">
-        <div class="card-header bg-primary text-white py-4">
+    <div class="card attendance-card shadow border-0">
+        <div class="card-header bg-primary text-white py-3">
             <h4 class="card-title mb-0 fw-bold">
-                <i class="fas fa-clock me-2 fa-lg"></i> - Attendance List
+                <i class="fas fa-clock me-2"></i> Attendance List
             </h4>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle mb-0 w-100">
+            <div class="table-responsive attendance-table-wrapper">
+                <table class="table table-hover table-striped align-middle mb-0 w-100 attendance-table">
                     <thead class="bg-light">
                         <tr>
-                            <th class="px-4 py-3" style="width: 20%">Employee</th>
-                            <th class="px-4 py-3" style="width: 15%">Date</th>
-                            <th class="px-4 py-3" style="width: 10%">Time</th>
-                            <th class="px-4 py-3" style="width: 15%">Punch Type</th>
-                            <th class="px-4 py-3" style="width: 15%">Device</th>
-                            <th class="px-4 py-3" style="width: 15%">Location</th>
-                            <th class="px-4 py-3" style="width: 10%">Photo</th>
+                            <th class="px-3 py-3">Employee</th>
+                            <th class="px-3 py-3">Date</th>
+                            <th class="px-3 py-3">Time</th>
+                            <th class="px-3 py-3">Punch Type</th>
+                            <th class="px-3 py-3">Device</th>
+                            <th class="px-3 py-3">Location</th>
+                            <th class="px-3 py-3">Photo</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($attendances as $attendance)
                             <tr>
-                                <td class="px-4 py-3 fw-semibold align-middle">
+                                <td class="px-3 py-3 fw-semibold align-middle">
                                     {{ optional($attendance->userInformation)->user_name }} 
                                     {{ optional($attendance->userInformation)->user_surname }}
                                 </td>
-                                <td class="px-4 py-3">{{ $attendance->punch_date }}</td>
-                                <td class="px-4 py-3">{{ $attendance->punch_time }}</td>
-                                <td class="px-4 py-3">
+                                <td class="px-3 py-3">{{ $attendance->punch_date }}</td>
+                                <td class="px-3 py-3">{{ $attendance->punch_time }}</td>
+                                <td class="px-3 py-3">
                                     @if($attendance->punch_type == 'IN')
                                         <span class="badge bg-success">Clock In</span>
                                     @elseif($attendance->punch_type == 'OUT')
@@ -65,16 +70,16 @@
                                         <span class="badge bg-info">{{ $attendance->punch_type }}</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3">
+                                <td class="px-3 py-3">
                                     {{ optional($attendance->device)->device_name ?? 'Device #'.$attendance->device_id }}
                                 </td>
-                                <td class="px-4 py-3">
+                                <td class="px-3 py-3">
                                     @if($attendance->latitude && $attendance->longitude)
                                         <div>
-                                            <a href="https://www.google.com/maps?q={{ $attendance->latitude }},{{ $attendance->longitude }}" 
-                                               target="_blank" class="text-primary map-link"
+                                            <a href="javascript:void(0)" class="text-primary map-link"
                                                data-lat="{{ $attendance->latitude }}" 
-                                               data-lng="{{ $attendance->longitude }}">
+                                               data-lng="{{ $attendance->longitude }}"
+                                               onclick="viewLocation('{{ $attendance->latitude }}', '{{ $attendance->longitude }}')">
                                                 <i class="fas fa-map-marker-alt me-1"></i> 
                                                 <span class="location-text">Loading location...</span>
                                                 <div class="mt-1 loading-indicator">
@@ -88,26 +93,25 @@
                                         <span class="text-muted">No location</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3">
+                                <td class="px-3 py-3">
                                     @if($attendance->photo_url)
-@php
-    // Get the filename from the database
-    $photoFilename = basename($attendance->photo_url ?? '');
-
-    // Ensure correct formatting (remove unwanted characters)
-    $photoFilename = preg_replace('/[^a-zA-Z0-9_\-.]/', '', $photoFilename);
-
-    // Secure image URL (only logged-in users can access)
-    $imageUrl = route('secure-image', ['filename' => $photoFilename]);
-@endphp
-
-<a href="{{ $imageUrl }}" target="_blank" class="text-primary">
-    <img src="{{ $imageUrl }}"
-         alt="Attendance photo"
-         class="attendance-thumbnail"
-         style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;"
-         onerror="this.onerror=null; this.src='{{ asset('/uploads/placeholder.jpg') }}';">
-</a>
+                                        @php
+                                            // Get the filename from the database
+                                            $photoFilename = basename($attendance->photo_url ?? '');
+                                        
+                                            // Ensure correct formatting (remove unwanted characters)
+                                            $photoFilename = preg_replace('/[^a-zA-Z0-9_\-.]/', '', $photoFilename);
+                                        
+                                            // Secure image URL (only logged-in users can access)
+                                            $imageUrl = route('secure-image', ['filename' => $photoFilename]);
+                                        @endphp
+                                        
+                                        <a href="javascript:void(0)" class="text-primary" onclick="viewAttendancePhoto('{{ $imageUrl }}')">
+                                            <img src="{{ $imageUrl }}"
+                                                 alt="Attendance photo"
+                                                 class="attendance-thumbnail"
+                                                 onerror="this.onerror=null; this.src='{{ asset('/uploads/placeholder.jpg') }}';">
+                                        </a>
                                     @else
                                         <span class="text-muted">No photo</span>
                                     @endif
@@ -115,9 +119,15 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">
-                                    <i class="fas fa-inbox fa-2x mb-3 d-block"></i>
-                                    No attendance records found.
+                                <td colspan="7" class="text-center py-5 empty-state">
+                                    <div class="empty-state-icon mb-3">
+                                        <i class="fas fa-calendar-times"></i>
+                                    </div>
+                                    <h5 class="text-muted mb-2">No Records Found</h5>
+                                    <p class="text-muted mb-3">There are no attendance records matching your search criteria.</p>
+                                    <a href="{{ route('attendance') }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-sync-alt me-1"></i> Reset Filters
+                                    </a>
                                 </td>
                             </tr>
                         @endforelse
@@ -125,6 +135,16 @@
                 </table>
             </div>
         </div>
+        
+        @if($attendances->isEmpty())
+            <div class="card-footer bg-white border-0 py-3">
+                <p class="text-center mb-0">
+                    <button type="button" class="btn btn-outline-primary" id="refresh-data">
+                        <i class="fas fa-sync-alt me-1"></i> Refresh Data
+                    </button>
+                </p>
+            </div>
+        @endif
     </div>
 
     @if($attendances->hasPages())
@@ -176,7 +196,141 @@
 </div>
 @endsection
 
-@push('scripts')
+@section('scripts')
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show success toast if exists
+        @if(session('success'))
+            Swal.fire({
+                icon: 'success',
+                title: 'Success',
+                text: "{{ session('success') }}",
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                timerProgressBar: true
+            });
+        @endif
+        
+        // Show error message if exists
+        @if(session('error'))
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: "{{ session('error') }}",
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4000,
+                timerProgressBar: true
+            });
+        @endif
+        
+        // Show loading toast when first loaded
+        Swal.fire({
+            title: 'Loading attendance data...',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 1500,
+            timerProgressBar: true,
+            icon: 'info',
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
+        
+        // Refresh data button
+        const refreshBtn = document.getElementById('refresh-data');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                Swal.fire({
+                    title: 'Refreshing Data',
+                    text: 'Please wait while we refresh attendance records...',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            });
+        }
+    });
+    
+    // Function to view location
+    function viewLocation(lat, lng) {
+        // Get cached location name
+        const cacheKey = `location_${lat}_${lng}`;
+        let locationName = 'Unknown Location';
+        
+        try {
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                const data = JSON.parse(cached);
+                if (data.location) {
+                    locationName = data.location;
+                }
+            }
+        } catch (e) {
+            // If error, continue with unknown location
+        }
+        
+        Swal.fire({
+            title: 'Location Details',
+            html: `
+                <div class="location-details">
+                    <p class="mb-2"><strong>${locationName}</strong></p>
+                    <p class="mb-3 text-muted small">Coordinates: ${lat}, ${lng}</p>
+                    <div class="location-map-container">
+                        <iframe 
+                            width="100%" 
+                            height="250" 
+                            frameborder="0" 
+                            scrolling="no" 
+                            marginheight="0" 
+                            marginwidth="0" 
+                            src="https://maps.google.com/maps?q=${lat},${lng}&hl=en&z=15&output=embed">
+                        </iframe>
+                    </div>
+                    <div class="mt-3">
+                        <a href="https://www.google.com/maps?q=${lat},${lng}" class="btn btn-sm btn-outline-primary" target="_blank">
+                            <i class="fas fa-external-link-alt me-1"></i> Open in Google Maps
+                        </a>
+                    </div>
+                </div>
+            `,
+            width: '500px',
+            showCloseButton: true,
+            showConfirmButton: false,
+            focusConfirm: false
+        });
+    }
+    
+    // Function to view attendance photo
+    function viewAttendancePhoto(imageUrl) {
+        Swal.fire({
+            title: 'Attendance Photo',
+            html: `
+                <div class="attendance-photo-container">
+                    <img src="${imageUrl}" alt="Attendance Photo" class="img-fluid">
+                </div>
+            `,
+            width: '500px',
+            showCloseButton: true,
+            showConfirmButton: false,
+            focusConfirm: false
+        });
+    }
+</script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Get all map links
@@ -305,144 +459,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-
-<script>
-// Use a function that executes after the session timer is running
-window.addEventListener('load', function() {
-    // We'll use requestIdleCallback or setTimeout to defer non-critical operations
-    (window.requestIdleCallback || setTimeout)(function() {
-        initializeLocationLoading();
-    }, 100); // short delay to ensure session timer runs first
-    
-    function initializeLocationLoading() {
-        // Get all map links
-        const mapLinks = document.querySelectorAll('.map-link');
-        
-        // Cache location data in local storage
-        function getLocationFromCache(lat, lng) {
-            const cacheKey = `location_${lat}_${lng}`;
-            const cached = localStorage.getItem(cacheKey);
-            if (cached) {
-                try {
-                    const data = JSON.parse(cached);
-                    // Cache expires after 30 days
-                    if (Date.now() - data.timestamp < 30 * 24 * 60 * 60 * 1000) {
-                        return data.location;
-                    } else {
-                        // Remove expired cache
-                        localStorage.removeItem(cacheKey);
-                    }
-                } catch (e) {
-                    // Handle old format or invalid data
-                    localStorage.removeItem(cacheKey);
-                }
-            }
-            return null;
-        }
-        
-        function saveLocationToCache(lat, lng, location) {
-            if (location && location !== 'Location unavailable') {
-                const cacheKey = `location_${lat}_${lng}`;
-                const cacheData = {
-                    location: location,
-                    timestamp: Date.now()
-                };
-                localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-            }
-        }
-        
-        // Process all locations automatically rather than on hover
-        // To avoid rate limiting, add a slight delay between requests
-        let delay = 100; // Start with a small initial delay
-        const DELAY_INCREMENT = 500; // Half second to avoid rate limiting
-        
-        // Process each link
-        mapLinks.forEach(function(link) {
-            const lat = link.getAttribute('data-lat');
-            const lng = link.getAttribute('data-lng');
-            const locationText = link.querySelector('.location-text');
-            const loadingIndicator = link.querySelector('.loading-indicator');
-            
-            // First check if we have this in cache
-            const cachedLocation = getLocationFromCache(lat, lng);
-            if (cachedLocation) {
-                locationText.textContent = cachedLocation;
-                hideLoadingIndicator(loadingIndicator);
-                return;
-            }
-            
-            // Add a delay to avoid rate limiting
-            setTimeout(function() {
-                // Try both Nominatim and a fallback service
-                tryNominatim(lat, lng, locationText, loadingIndicator);
-            }, delay);
-            
-            // Increase delay for next request
-            delay += DELAY_INCREMENT;
-        });
-        
-        function tryNominatim(lat, lng, locationText, loadingIndicator) {
-            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('API response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data && data.address) {
-                        // Display city or town, or county if those aren't available
-                        const location = data.address.city || data.address.town || 
-                                        data.address.village || data.address.hamlet ||
-                                        data.address.county || data.address.state;
-                        if (location) {
-                            locationText.textContent = location;
-                            // Hide loading indicator after showing location
-                            hideLoadingIndicator(loadingIndicator);
-                            saveLocationToCache(lat, lng, location);
-                        } else {
-                            tryFallbackService(lat, lng, locationText, loadingIndicator);
-                        }
-                    } else {
-                        tryFallbackService(lat, lng, locationText, loadingIndicator);
-                    }
-                })
-                .catch(error => {
-                    tryFallbackService(lat, lng, locationText, loadingIndicator);
-                });
-        }
-        
-        function tryFallbackService(lat, lng, locationText, loadingIndicator) {
-            // Try BigDataCloud as fallback (also free, different rate limits)
-            fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data && (data.locality || data.city || data.principalSubdivision)) {
-                        const location = data.locality || data.city || data.principalSubdivision;
-                        locationText.textContent = location;
-                        saveLocationToCache(lat, lng, location);
-                    } else {
-                        locationText.textContent = 'View Location';
-                    }
-                    // Hide loading indicator
-                    hideLoadingIndicator(loadingIndicator);
-                })
-                .catch(error => {
-                    locationText.textContent = 'View Location';
-                    hideLoadingIndicator(loadingIndicator);
-                });
-        }
-        
-        // Function to properly hide the loading indicator
-        function hideLoadingIndicator(indicator) {
-            if (indicator) {
-                indicator.style.display = 'none';
-            }
-        }
-    }
-});
-</script>
-@endpush
+@endsection
 
 @push('styles')
 <style>
@@ -463,81 +480,62 @@ window.addEventListener('load', function() {
     border-width: 2px;
 }
 
-/* Certificate modal styling */
-.certificate-container {
-    max-height: 70vh;
-    overflow-y: auto;
+/* Attendance photo thumbnail */
+.attendance-thumbnail {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    transition: transform 0.2s;
+    cursor: pointer;
+}
+
+.attendance-thumbnail:hover {
+    transform: scale(1.1);
+}
+
+/* Location Map in SweetAlert */
+.location-map-container {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+}
+
+/* Attendance Photo in SweetAlert */
+.attendance-photo-container {
     text-align: center;
 }
 
-.certificate-container img {
+.attendance-photo-container img {
+    max-height: 400px;
     max-width: 100%;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    border-radius: 8px;
 }
 
-/* View certificate button styling */
-.view-certificate {
-    white-space: nowrap;
-    font-size: 0.8rem;
-    padding: 0.25rem 0.5rem;
+/* Empty state styling */
+.empty-state-icon {
+    font-size: 2.5rem;
+    color: #adb5bd;
 }
 
-/* Improve modal responsiveness */
+/* Improve table on small screens */
 @media (max-width: 768px) {
-    .modal-dialog {
-        margin: 0.5rem;
-        max-width: calc(100% - 1rem);
+    .attendance-table th,
+    .attendance-table td {
+        padding: 0.5rem !important;
+        font-size: 0.85rem;
+    }
+    
+    .attendance-table .badge {
+        font-size: 0.7rem;
+        padding: 0.3rem 0.5rem;
+    }
+    
+    .attendance-thumbnail {
+        width: 30px;
+        height: 30px;
     }
 }
 </style>
 @endpush
-
-@section('head')
-    <!-- High-priority session timer initialization -->
-    <script>
-        // Session timer pre-initialization - runs before page fully loads
-        document.addEventListener('DOMContentLoaded', function() {
-            const sessionTimerElement = document.getElementById('session-timer-display');
-            if (sessionTimerElement) {
-                // Get session expiry from localStorage
-                let sessionExpiry = localStorage.getItem('sessionExpiry');
-                
-                // If no session expiry is stored or it's in the past, set a new one
-                if (!sessionExpiry || new Date(parseInt(sessionExpiry)) < new Date()) {
-                    // Default session timeout in milliseconds (typical Laravel session is 2 hours)
-                    sessionExpiry = Date.now() + {{ config('session.lifetime', 120) * 60 * 1000 }};
-                    localStorage.setItem('sessionExpiry', sessionExpiry);
-                }
-                
-                // Update timer immediately
-                updateSessionTimer();
-                
-                // Start timer interval
-                setInterval(updateSessionTimer, 1000);
-                
-                function updateSessionTimer() {
-                    const now = Date.now();
-                    const expiry = parseInt(localStorage.getItem('sessionExpiry'));
-                    let timeLeft = expiry - now;
-                    
-                    if (timeLeft <= 0) {
-                        // Session has expired
-                        sessionTimerElement.textContent = "00:00";
-                        return;
-                    }
-                    
-                    // Format remaining time
-                    const minutes = Math.floor(timeLeft / 60000);
-                    const seconds = Math.floor((timeLeft % 60000) / 1000);
-                    
-                    const formattedTime = 
-                        (minutes < 10 ? '0' : '') + minutes + ':' + 
-                        (seconds < 10 ? '0' : '') + seconds;
-                        
-                    sessionTimerElement.textContent = formattedTime;
-                }
-            }
-        });
-    </script>
-@endsection
 

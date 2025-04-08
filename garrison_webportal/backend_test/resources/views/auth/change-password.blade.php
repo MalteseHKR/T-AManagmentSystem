@@ -1,60 +1,95 @@
 @extends('layouts.app')
 
+@section('styles')
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+@endsection
+
 @section('content')
 <div class="container">
     <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">{{ __('Change Your Password') }}</div>
+        <div class="col-lg-8 col-md-10 col-sm-12">
+            <div class="card password-change-card">
+                <div class="card-header d-flex align-items-center">
+                    <i class="bi bi-shield-lock me-2"></i>
+                    <span>{{ __('Change Your Password') }}</span>
+                </div>
 
                 <div class="card-body">
-                    <form method="POST" action="{{ route('password.change.submit') }}">
+                    <form method="POST" action="{{ route('password.change.submit') }}" id="password-change-form">
                         @csrf
 
-                        <div class="form-group row">
-                            <label for="new_password" class="col-md-4 col-form-label text-md-right">{{ __('New Password') }}</label>
-
-                            <div class="col-md-6">
-                                <input id="new_password" type="password" class="form-control @error('new_password') is-invalid @enderror" name="new_password" required autocomplete="new-password">
-
-                                @error('new_password')
-                                    <span class="invalid-feedback" role="alert">
-                                        <strong>{{ $message }}</strong>
-                                    </span>
-                                @enderror
+                        <div class="mb-4">
+                            <label for="new_password" class="form-label fw-semibold">{{ __('New Password') }}</label>
+                            <div class="password-input-container">
+                                <input id="new_password" type="password" 
+                                       class="form-control @error('new_password') is-invalid @enderror" 
+                                       name="new_password" required autocomplete="new-password">
+                                <button type="button" class="btn-toggle-password" tabindex="-1">
+                                    <i class="bi bi-eye-slash"></i>
+                                </button>
                             </div>
+                            @error('new_password')
+                                <div class="invalid-feedback">
+                                    {{ $message }}
+                                </div>
+                            @enderror
                         </div>
 
-                        <div class="form-group row">
-                            <label for="new_password_confirmation" class="col-md-4 col-form-label text-md-right">{{ __('Confirm New Password') }}</label>
-
-                            <div class="col-md-6">
-                                <input id="new_password_confirmation" type="password" class="form-control" name="new_password_confirmation" required autocomplete="new-password">
-                            </div>
-                        </div>
-
-                        <div class="form-group row">
-                            <div class="col-md-6 offset-md-4">
-                                <button type="submit" class="btn btn-primary">
-                                    {{ __('Change Password') }}
+                        <div class="mb-4">
+                            <label for="new_password_confirmation" class="form-label fw-semibold">{{ __('Confirm New Password') }}</label>
+                            <div class="password-input-container">
+                                <input id="new_password_confirmation" type="password" 
+                                       class="form-control" 
+                                       name="new_password_confirmation" required autocomplete="new-password">
+                                <button type="button" class="btn-toggle-password" tabindex="-1">
+                                    <i class="bi bi-eye-slash"></i>
                                 </button>
                             </div>
                         </div>
                         
+                        <!-- Password Strength Meter -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Password Strength</label>
+                            <div class="password-strength-container">
+                                <div class="password-strength-meter">
+                                    <div class="password-strength-bar" id="password-strength-bar"></div>
+                                </div>
+                                <div class="password-strength-text" id="password-strength-text">No password entered</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <button type="submit" class="btn btn-primary btn-change-password">
+                                <i class="bi bi-check-circle me-1"></i> {{ __('Change Password') }}
+                            </button>
+                        </div>
+                        
                         <!-- Password requirements -->
-                        <div class="form-group row">
-                            <div class="col-md-8 offset-md-2 mt-3">
-                                <div class="card">
-                                    <div class="card-header bg-light">Password Requirements</div>
-                                    <div class="card-body">
-                                        <ul class="mb-0">
-                                            <li>Password must be at least 8 characters in length.</li>
-                                            <li>Password must be at maximum 50 characters in length.</li>
-                                            <li>Password must include at least one upper case letter.</li>
-                                            <li>Password must include at least one number.</li>
-                                            <li>Password must include at least one special character.</li>
-                                        </ul>
-                                    </div>
+                        <div class="password-requirements mt-4">
+                            <h5 class="requirements-title">
+                                <i class="bi bi-info-circle me-1"></i> Password Requirements
+                            </h5>
+                            <div class="requirements-list">
+                                <div class="requirement-item" id="req-length">
+                                    <i class="bi bi-x-circle requirement-icon"></i>
+                                    <span>8-50 characters in length</span>
+                                </div>
+                                <div class="requirement-item" id="req-uppercase">
+                                    <i class="bi bi-x-circle requirement-icon"></i>
+                                    <span>At least one uppercase letter</span>
+                                </div>
+                                <div class="requirement-item" id="req-number">
+                                    <i class="bi bi-x-circle requirement-icon"></i>
+                                    <span>At least one number</span>
+                                </div>
+                                <div class="requirement-item" id="req-special">
+                                    <i class="bi bi-x-circle requirement-icon"></i>
+                                    <span>At least one special character</span>
+                                </div>
+                                <div class="requirement-item" id="req-match">
+                                    <i class="bi bi-x-circle requirement-icon"></i>
+                                    <span>Passwords match</span>
                                 </div>
                             </div>
                         </div>
@@ -67,52 +102,155 @@
 @endsection
 
 @section('scripts')
-<!-- Include SweetAlert from CDN -->
+<!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Show password change required message with SweetAlert
-        Swal.fire({
-            title: 'Password Change Required',
-            text: 'Your account requires a password change before continuing.',
-            icon: 'warning',
-            confirmButtonText: 'Understood',
-            allowOutsideClick: false
-        });
-        
-        // Show error message if exists
+        // Display SweetAlert notifications for flash messages
         @if(session('error'))
             Swal.fire({
                 title: 'Error',
                 text: "{{ session('error') }}",
                 icon: 'error',
-                confirmButtonText: 'OK'
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#dc3545'
             });
         @endif
-        
-        // Show success message if exists
+
         @if(session('success'))
             Swal.fire({
                 title: 'Success',
                 text: "{{ session('success') }}",
                 icon: 'success',
-                confirmButtonText: 'OK'
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#198754'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = "{{ route('dashboard') }}";
+                }
             });
         @endif
 
+        // Password toggle buttons
+        document.querySelectorAll('.btn-toggle-password').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const input = this.parentElement.querySelector('input');
+                const icon = this.querySelector('i');
+
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.classList.remove('bi-eye-slash');
+                    icon.classList.add('bi-eye');
+                } else {
+                    input.type = 'password';
+                    icon.classList.remove('bi-eye');
+                    icon.classList.add('bi-eye-slash');
+                }
+            });
+        });
+
+        // Password strength and requirements checker
+        const passwordInput = document.getElementById('new_password');
+        const confirmInput = document.getElementById('new_password_confirmation');
+        const strengthBar = document.getElementById('password-strength-bar');
+        const strengthText = document.getElementById('password-strength-text');
+
+        // Requirement elements
+        const reqLength = document.getElementById('req-length');
+        const reqUppercase = document.getElementById('req-uppercase');
+        const reqNumber = document.getElementById('req-number');
+        const reqSpecial = document.getElementById('req-special');
+        const reqMatch = document.getElementById('req-match');
+
+        function updatePasswordStrength() {
+            const password = passwordInput.value;
+            const confirm = confirmInput.value;
+            let strength = 0;
+
+            // Reset requirements
+            reqLength.querySelector('i').className = 'bi bi-x-circle requirement-icon';
+            reqUppercase.querySelector('i').className = 'bi bi-x-circle requirement-icon';
+            reqNumber.querySelector('i').className = 'bi bi-x-circle requirement-icon';
+            reqSpecial.querySelector('i').className = 'bi bi-x-circle requirement-icon';
+            reqMatch.querySelector('i').className = 'bi bi-x-circle requirement-icon';
+
+            // Check length (8-50 characters)
+            if (password.length >= 8 && password.length <= 50) {
+                strength += 25;
+                reqLength.querySelector('i').className = 'bi bi-check-circle requirement-icon text-success';
+            }
+
+            // Check for uppercase letter
+            if (/[A-Z]/.test(password)) {
+                strength += 25;
+                reqUppercase.querySelector('i').className = 'bi bi-check-circle requirement-icon text-success';
+            }
+
+            // Check for number
+            if (/[0-9]/.test(password)) {
+                strength += 25;
+                reqNumber.querySelector('i').className = 'bi bi-check-circle requirement-icon text-success';
+            }
+
+            // Check for special character
+            if (/[^A-Za-z0-9]/.test(password)) {
+                strength += 25;
+                reqSpecial.querySelector('i').className = 'bi bi-check-circle requirement-icon text-success';
+            }
+
+            // Check if passwords match
+            if (password && confirm && password === confirm) {
+                reqMatch.querySelector('i').className = 'bi bi-check-circle requirement-icon text-success';
+            }
+
+            // Update strength bar
+            strengthBar.style.width = strength + '%';
+
+            // Style based on strength
+            if (strength === 0) {
+                strengthBar.className = 'password-strength-bar';
+                strengthText.textContent = 'No password entered';
+            } else if (strength <= 25) {
+                strengthBar.className = 'password-strength-bar strength-weak';
+                strengthText.textContent = 'Weak';
+            } else if (strength <= 50) {
+                strengthBar.className = 'password-strength-bar strength-fair';
+                strengthText.textContent = 'Fair';
+            } else if (strength <= 75) {
+                strengthBar.className = 'password-strength-bar strength-good';
+                strengthText.textContent = 'Good';
+            } else {
+                strengthBar.className = 'password-strength-bar strength-strong';
+                strengthText.textContent = 'Strong';
+            }
+        }
+
+        passwordInput.addEventListener('input', updatePasswordStrength);
+        confirmInput.addEventListener('input', updatePasswordStrength);
+
         // Client-side validation for password matching
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const password = document.getElementById('new_password').value;
-            const confirmation = document.getElementById('new_password_confirmation').value;
-            
-            if (password !== confirmation) {
+        document.getElementById('password-change-form').addEventListener('submit', function(e) {
+            const password = passwordInput.value;
+            const confirmation = confirmInput.value;
+
+            // Check if all requirements are met
+            const allRequirementsMet =
+                password.length >= 8 &&
+                password.length <= 50 &&
+                /[A-Z]/.test(password) &&
+                /[0-9]/.test(password) &&
+                /[^A-Za-z0-9]/.test(password) &&
+                password === confirmation;
+
+            if (!allRequirementsMet) {
                 e.preventDefault();
                 Swal.fire({
-                    title: 'Error',
-                    text: 'Password confirmation does not match!',
+                    title: 'Password Requirements Not Met',
+                    text: 'Please ensure your password meets all the requirements listed below.',
                     icon: 'error',
-                    confirmButtonText: 'OK'
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc3545'
                 });
             }
         });
