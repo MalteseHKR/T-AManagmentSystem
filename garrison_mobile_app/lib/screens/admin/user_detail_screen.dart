@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../services/session_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class UserDetailScreen extends StatefulWidget {
   final int userId;
@@ -212,15 +213,22 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   // Profile Photo or Avatar
-                                  if (_userData!['profile_photo'] != null)
+                                  if (_userData!['profile_photo'] != null && _userData!['profile_photo'].toString().isNotEmpty)
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(50),
-                                      child: Image.network(
-                                        'http://195.158.75.66:3000${_userData!['profile_photo'] ?? ''}',
+                                      child: CachedNetworkImage(
+                                        imageUrl: _buildProfilePhotoUrl(_userData!['profile_photo']),
                                         width: 100,
                                         height: 100,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
+                                        httpHeaders: {
+                                          'Authorization': 'Bearer ${_apiService.token}',
+                                        },
+                                        placeholder: (context, url) => const Center(
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                        errorWidget: (context, url, error) {
+                                          print('Error loading profile photo: $error, URL: $url');
                                           // Fallback to avatar with initials
                                           return CircleAvatar(
                                             radius: 50,
@@ -501,6 +509,33 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
         ),
       ],
     );
+  }
+
+  // Add this helper method to the class:
+  String _buildProfilePhotoUrl(String photoPath) {
+    if (photoPath == null || photoPath.isEmpty) {
+      return '';
+    }
+    
+    // If it's already a full URL, return it
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+      return photoPath;
+    }
+    
+    // If it's just a filename without path
+    if (!photoPath.contains('/')) {
+      return 'http://195.158.75.66:3000/profile-pictures/$photoPath';
+    }
+    
+    // If it has a path but doesn't start with /profile-pictures
+    if (!photoPath.startsWith('/profile-pictures')) {
+      // Extract the filename from the path
+      final filename = photoPath.split('/').last;
+      return 'http://195.158.75.66:3000/profile-pictures/$filename';
+    }
+    
+    // If it starts with /profile-pictures, just add the base URL
+    return 'http://195.158.75.66:3000$photoPath';
   }
   
   String _getInitials(String fullName) {

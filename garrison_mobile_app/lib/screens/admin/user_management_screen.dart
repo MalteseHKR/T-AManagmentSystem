@@ -5,6 +5,7 @@ import '../../services/api_service.dart';
 import '../../services/session_service.dart';
 import 'user_detail_screen.dart';
 import 'create_user_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 // Extension to capitalize strings
 extension StringExtension on String {
@@ -36,6 +37,76 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       }
     }
     return initials.toUpperCase();
+  }
+
+  Widget _buildUserAvatar(Map<String, dynamic> user, bool isActive) {
+    final String fullName = '${user['name']} ${user['surname']}';
+    final String initials = _getInitials(fullName);
+    final String? profilePhoto = user['profile_photo'];
+    String? imageUrl;
+
+    // Build correct profile photo URL
+    if (profilePhoto != null && profilePhoto.isNotEmpty) {
+      if (profilePhoto.startsWith('http://') || profilePhoto.startsWith('https://')) {
+        imageUrl = profilePhoto;
+      } else if (!profilePhoto.contains('/')) {
+        imageUrl = 'http://195.158.75.66:3000/profile-pictures/$profilePhoto';
+      } else if (!profilePhoto.startsWith('/profile-pictures')) {
+        final filename = profilePhoto.split('/').last;
+        imageUrl = 'http://195.158.75.66:3000/profile-pictures/$filename';
+      } else {
+        imageUrl = 'http://195.158.75.66:3000$profilePhoto';
+      }
+    }
+
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: isActive ? Colors.blue.shade100 : Colors.grey.shade300,
+      child: ClipOval(
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: imageUrl != null
+              ? CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  httpHeaders: {
+                    'Authorization': 'Bearer ${_apiService.token}',
+                  },
+                  placeholder: (context, url) => Center(
+                    child: Text(
+                      initials,
+                      style: TextStyle(
+                        color: isActive ? Colors.blue : Colors.grey.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) {
+                    print('Error loading user avatar: $error, URL: $imageUrl');
+                    return Center(
+                      child: Text(
+                        initials,
+                        style: TextStyle(
+                          color: isActive ? Colors.blue : Colors.grey.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  },
+                )
+              : Center(
+                  child: Text(
+                    initials,
+                    style: TextStyle(
+                      color: isActive ? Colors.blue : Colors.grey.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
   }
 
   final ApiService _apiService = ApiService();
@@ -354,20 +425,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       itemBuilder: (context, index) {
                         final user = filteredUsers[index];
                         final bool isActive = user['active'] == 1;
+                        final int userId = user['user_id'];
+                        final String fullName = '${user['name']} ${user['surname']}';
                         
+                        // This approach prioritizes displaying the initials and treats the image as optional
                         return Card(
                           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: isActive ? Colors.blue.shade100 : Colors.grey.shade300,
-                              child: Text(
-                                _getInitials('${user['name']} ${user['surname']}'),
-                                style: TextStyle(
-                                  color: isActive ? Colors.blue : Colors.grey.shade700,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
+                            leading: _buildUserAvatar(user, isActive),
                             title: Text(
                               '${user['name']} ${user['surname']}',
                               style: TextStyle(

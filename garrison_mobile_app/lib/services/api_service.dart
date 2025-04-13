@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as Math;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:path_provider/path_provider.dart';
 import 'timezone_service.dart';
 
 class ApiService {
@@ -357,7 +358,50 @@ class ApiService {
     }
   }
 
-  // Create a new user
+  // Upload face photo for registration
+  Future<Map<String, dynamic>> uploadFacePhoto(File photoFile, String userId) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      print('Uploading face photo for user $userId');
+      
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/register-face'),
+      );
+
+      request.headers.addAll(_authHeaders);
+      
+      request.fields.addAll({
+        'user_id': userId,
+      });
+
+      request.files.add(await http.MultipartFile.fromPath(
+        'face_photo', // Make sure this matches the field name expected by your server
+        photoFile.path,
+        contentType: MediaType('image', 'jpeg'),
+      ));
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      print('Face photo upload response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to upload face photo');
+      }
+    } catch (e) {
+      print('Error uploading face photo: $e');
+      throw Exception('Error uploading face photo: $e');
+    }
+  }
+
+  // Create a new user with password
   Future<Map<String, dynamic>> createUser(Map<String, dynamic> userData) async {
     if (_token == null) {
       throw Exception('Not authenticated');
@@ -379,6 +423,51 @@ class ApiService {
     } catch (e) {
       print('Error creating user: $e');
       rethrow;
+    }
+  }
+
+  // Upload Profile Photo 
+  Future<Map<String, dynamic>> uploadProfilePhoto(File photoFile, String userId) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      print('Uploading profile photo for user $userId');
+      
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/upload-profile-photo'),
+      );
+
+      request.headers.addAll(_authHeaders);
+      
+      // Add user_id to the request
+      request.fields.addAll({
+        'user_id': userId,
+      });
+
+      // Add the file with the field name the server expects
+      request.files.add(await http.MultipartFile.fromPath(
+        'profile_photo', // Changed from 'photo' to 'profile_photo'
+        photoFile.path,
+        contentType: MediaType('image', 'jpeg'),
+      ));
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      print('Profile photo upload response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to upload profile photo');
+      }
+    } catch (e) {
+      print('Error uploading profile photo: $e');
+      throw Exception('Error uploading profile photo: $e');
     }
   }
 
@@ -502,17 +591,140 @@ class ApiService {
     }
   }
 
-  // Check if user has registered face
-  Future<Map<String, dynamic>> checkFaceRegistration(String userId) async {
-    if (_token == null) {
+  // Helper method to get photo URL
+  String getFacePhotoUrl(String photoPath) {
+    if (photoPath.startsWith('/api/face-photo/')) {
+      // Already in the correct format
+      return 'http://195.158.75.66:3000$photoPath';
+    } else if (photoPath.contains('_')) {
+      // It's probably a filename like "UserName_UserSurname_PhotoNum_UserID.jpg"
+      // Extract the user ID from the filename
+      final parts = photoPath.split('_');
+      if (parts.length >= 2) {
+        final lastPart = parts.last;
+        final userId = lastPart.split('.')[0]; // Remove extension
+        return 'http://195.158.75.66:3000/api/face-photo/$userId/${photoPath.split('/').last}';
+      }
+    }
+  
+  // Default fallback - just append to base URL
+  return 'http://195.158.75.66:3000$photoPath';
+}
+
+  // Get user face photos for model training
+  Future<List<String>> getUserFacePhotos(String userId) async {
+    if (token == null) {
       throw Exception('Not authenticated');
     }
 
     try {
+      print('Fetching face photos for user $userId');
+      final response = await http.get(
+        Uri.parse('$baseUrl/user-face-photos/$userId'),
+        headers: _headers,
+      );
+
+      print('Face photos response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> photoUrls = data['photos'] ?? [];
+        return photoUrls.cast<String>();
+      } else {
+        throw Exception('Failed to load user face photos');
+      }
+    } catch (e) {
+      print('Error loading face photos: $e');
+      rethrow;
+    }
+  }
+
+  // Download a face photo by URL
+  Future<File?> downloadFacePhoto(String photoUrl) async {
+    if (token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      // Remove leading "/api" if already present to avoid duplication
+      String correctedUrl = photoUrl.startsWith('/api')
+          ? photoUrl.replaceFirst('/api', '')
+          : photoUrl;
+
+      final fullUrl = '$baseUrl$correctedUrl';
+
+      print('Attempting to download face photo from URL: $fullUrl');
+      print('Using authorization token: ${token?.substring(0, 10)}...');
+
+      final response = await http.get(
+        Uri.parse(fullUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Face photo download response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final tempDir = await getTemporaryDirectory();
+        final filename = correctedUrl.split('/').last;
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsBytes(response.bodyBytes);
+        print('Successfully saved photo to: ${file.path}');
+        return file;
+      } else {
+        print('Download failed with status ${response.statusCode}: ${response.body}');
+        throw Exception('Failed to download face photo');
+      }
+    } catch (e) {
+      print('Complete error details for face photo download: $e');
+      return null;
+    }
+  }
+
+
+  // Download all face photos for a user and return the files
+  Future<List<File>> downloadAllUserFacePhotos(String userId) async {
+    try {
+      // Get photo URLs
+      final photoUrls = await getUserFacePhotos(userId);
+      
+      if (photoUrls.isEmpty) {
+        print('No face photos found for user $userId');
+        return [];
+      }
+      
+      // Download each photo
+      final List<File> files = [];
+      for (final url in photoUrls) {
+        final file = await downloadFacePhoto(url);
+        if (file != null) {
+          files.add(file);
+        }
+      }
+      
+      print('Downloaded ${files.length} face photos for user $userId');
+      return files;
+    } catch (e) {
+      print('Error downloading user face photos: $e');
+      return [];
+    }
+  }
+
+  // Check if user has registered face
+  Future<Map<String, dynamic>> checkFaceRegistration(String userId) async {
+    if (token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      print('Checking face registration for user $userId');
       final response = await http.get(
         Uri.parse('$baseUrl/face-status/$userId'),
         headers: _headers,
       );
+
+      print('Face registration check response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -560,6 +772,31 @@ class ApiService {
       throw Exception('Network error: Unable to connect to the server');
     } catch (e) {
       throw Exception('Error getting attendance status: $e');
+    }
+  }
+  
+  Future<Map<String, String>> getUserProfilePhotos() async {
+    if (token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      // This would be a new endpoint you'd need to add to your server
+      final response = await http.get(
+        Uri.parse('$baseUrl/user-profile-photos'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final Map<String, dynamic> photosMap = data['photos'] ?? {};
+        return photosMap.map((key, value) => MapEntry(key, value.toString()));
+      } else {
+        throw Exception('Failed to load profile photos mapping');
+      }
+    } catch (e) {
+      print('Error loading profile photos mapping: $e');
+      return {}; // Return empty map on error
     }
   }
 

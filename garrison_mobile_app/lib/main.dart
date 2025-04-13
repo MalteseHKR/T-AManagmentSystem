@@ -9,6 +9,11 @@ import 'screens/admin/admin_dashboard.dart';
 import 'services/notification_service.dart';
 import 'services/background_service.dart';
 import 'services/session_service.dart';
+import 'widgets/app_lifecycle_wrapper.dart';
+import 'screens/admin/photo_upload_screen.dart';
+
+// Add this global navigator key
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   // Ensure Flutter is initialized
@@ -86,7 +91,8 @@ void main() async {
   }
 }
 
-class TimeAttendanceApp extends StatelessWidget {
+// Convert to StatefulWidget
+class TimeAttendanceApp extends StatefulWidget {
   final CameraDescription frontCamera;
   final CameraDescription? rearCamera;
 
@@ -97,25 +103,58 @@ class TimeAttendanceApp extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<TimeAttendanceApp> createState() => _TimeAttendanceAppState();
+}
+
+class _TimeAttendanceAppState extends State<TimeAttendanceApp> {
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Garrison Track',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.grey[100],
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
-          elevation: 0,
+    return AppLifecycleWrapper(
+      camera: widget.frontCamera,
+      rearCamera: widget.rearCamera,
+      minBackgroundTimeForAuth: 1, // Require auth after 1 second in background
+      child: MaterialApp(
+        navigatorKey: navigatorKey, // Use the global navigator key
+        title: 'Garrison Track',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          useMaterial3: true,
+          scaffoldBackgroundColor: Colors.grey[100],
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            elevation: 0,
+          ),
+        ),
+        // Define named routes
+        initialRoute: '/login',
+        routes: {
+          '/login': (context) => LoginScreen(
+            camera: widget.frontCamera,
+            rearCamera: widget.rearCamera,
+          ),
+        },
+        // Set navigatorObservers to track navigation events
+        navigatorObservers: [
+          // This helps with tracking navigation events
+          _NavigationObserver(),
+        ],
+        home: LoginScreen(
+          camera: widget.frontCamera,
+          rearCamera: widget.rearCamera,
         ),
       ),
-      home: LoginScreen(
-        camera: frontCamera,
-        rearCamera: rearCamera,
-      ),
     );
+  }
+}
+
+// Add this class to monitor navigation events
+class _NavigationObserver extends NavigatorObserver {
+  @override
+  void didPop(Route route, Route? previousRoute) {
+    super.didPop(route, previousRoute);
+    // You can add logging or additional logic here if needed
   }
 }
 

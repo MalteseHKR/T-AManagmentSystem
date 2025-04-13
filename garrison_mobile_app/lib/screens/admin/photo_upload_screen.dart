@@ -1,41 +1,29 @@
 // lib/screens/admin/photo_upload_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
-import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
+import 'package:image_picker/image_picker.dart';
 import '../../services/api_service.dart';
 import '../../services/session_service.dart';
-import '../../services/face_recognition_service.dart';
 
 class PhotoUploadScreen extends StatefulWidget {
   final Map<String, dynamic> userDetails;
-  final CameraDescription camera;
 
   const PhotoUploadScreen({
     Key? key,
     required this.userDetails,
-    required this.camera,
   }) : super(key: key);
 
   @override
   State<PhotoUploadScreen> createState() => _PhotoUploadScreenState();
 }
 
-class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindingObserver {
+class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
   final ApiService _apiService = ApiService();
   final SessionService _sessionService = SessionService();
-  final FaceRecognitionService _faceRecognitionService = FaceRecognitionService();
+  final _imagePicker = ImagePicker();
   
-  late CameraController _cameraController;
-  late Future<void> _initializeCameraFuture;
-  bool _isLoading = true;
-  bool _isCameraInitialized = false;
-  File? _capturedImage;
-  String? _faceValidationMessage;
-  bool _isFaceValid = false;
-  Rect? _faceBounds;
+  bool _isLoading = false;
+  File? _facePhoto;
   
   // Selected user data
   int? _selectedUserId;
@@ -49,104 +37,30 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _initializeCamera();
     _loadUsers();
   }
   
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!mounted) return;
-    
-    // Handle app lifecycle changes
-    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      // Release camera resources when app goes to background
-      if (_isCameraInitialized && _cameraController.value.isInitialized) {
-        _cameraController.dispose();
-        _isCameraInitialized = false;
-      }
-    } else if (state == AppLifecycleState.resumed) {
-      // Reinitialize camera when app is resumed
-      if (!_isCameraInitialized) {
-        _initializeCamera();
-      }
-    }
-  }
-  
-  Future<void> _initializeCamera() async {
-    // Reset session timer on user interaction
-    _sessionService.userActivity();
-    
+  Future<void> _loadUsers() async {
     setState(() {
       _isLoading = true;
     });
     
-    // Platform-specific settings - using rear camera for better quality photos
-    final ResolutionPreset resolution = ResolutionPreset.high;
-    
     try {
-      // First dispose any existing camera controller
-      if (_cameraController != null && _cameraController.value.isInitialized) {
-        await _cameraController.dispose();
-        debugPrint("Disposed existing camera controller");
-      }
-    } catch (e) {
-      // Ignore errors during disposal
-      debugPrint('Camera disposal error (can be ignored): $e');
-    }
-    
-    // Create a new controller
-    _cameraController = CameraController(
-      widget.camera,
-      resolution,
-      enableAudio: false,
-    );
-      
-    try {
-      debugPrint("Starting camera initialization");
-      _initializeCameraFuture = _cameraController.initialize();
-      await _initializeCameraFuture;
-      _isCameraInitialized = true;
-      
-      if (Platform.isAndroid) {
-        // For Android, set flash mode and exposure to improve camera stability
-        await _cameraController.setFlashMode(FlashMode.off);
-        await _cameraController.setExposureMode(ExposureMode.auto);
-      }
-      
-      debugPrint("Camera initialized successfully");
-      
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Camera initialization error: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error initializing camera: $e')),
-        );
-      }
-    }
-  }
-  
-  Future<void> _loadUsers() async {
-    try {
-      // Use a new endpoint to get all active users for face registration
+      // Use endpoint to get all active users for face registration
       final users = await _apiService.getAllActiveUsers();
       
       if (mounted) {
         setState(() {
           _allUsers = users;
+          _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading users: $e')),
         );
@@ -154,16 +68,8 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
     }
   }
   
-  Future<void> _takePhoto() async {
-    // Reset session timer on user interaction
+  Future<void> _takePhotoWithCamera() async {
     _sessionService.userActivity();
-    
-    if (!_isCameraInitialized || !_cameraController.value.isInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Camera is not ready. Please wait or restart the app.')),
-      );
-      return;
-    }
     
     if (_selectedUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -171,80 +77,62 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
       );
       return;
     }
-
-    setState(() {
-      _faceValidationMessage = null;
-      _isFaceValid = false;
-      _faceBounds = null;
-      _isLoading = true;
-    });
-
+    
     try {
-      final XFile photo = await _cameraController.takePicture();
-      final File photoFile = File(photo.path);
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1200,
+        maxHeight: 1600,
+        imageQuality: 90,
+        preferredCameraDevice: CameraDevice.front, // Prefer front camera for face photos
+      );
       
-      // First validate basic face requirements
-      final validationResult = await _faceRecognitionService.validateFace(photoFile);
-      final bool isBasicValid = validationResult['isValid'];
-      
-      if (!isBasicValid) {
+      if (pickedFile != null) {
         setState(() {
-          _isLoading = false;
-          _capturedImage = photoFile;
-          _faceBounds = validationResult['faceBounds'];
-          _faceValidationMessage = validationResult['message'];
-          _isFaceValid = false;
+          _facePhoto = File(pickedFile.path);
         });
-        
-        // If basic validation fails, auto-reset after 3 seconds
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted && _capturedImage != null) {
-            _retakePhoto();
-          }
-        });
-        return;
       }
-      
-      // If validation passes, set the captured image and validate
-      setState(() {
-        _isLoading = false;
-        _capturedImage = photoFile;
-        _faceBounds = validationResult['faceBounds'];
-        _faceValidationMessage = 'Face validated successfully. Ready to register.';
-        _isFaceValid = true;
-      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to take photo: $e')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error taking photo: $e')),
+      );
     }
   }
   
-  void _retakePhoto() {
-    // Reset session timer on user interaction
+  Future<void> _pickPhotoFromGallery() async {
     _sessionService.userActivity();
     
-    setState(() {
-      _capturedImage = null;
-      _faceValidationMessage = null;
-      _isFaceValid = false;
-      _faceBounds = null;
-    });
+    if (_selectedUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a user first')),
+      );
+      return;
+    }
+    
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1600,
+        imageQuality: 90,
+      );
+      
+      if (pickedFile != null) {
+        setState(() {
+          _facePhoto = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking photo: $e')),
+      );
+    }
   }
   
-  Future<void> _registerFace() async {
-    // Reset session timer on user interaction
-    _sessionService.userActivity();
-    
-    if (_capturedImage == null || !_isFaceValid || _selectedUserId == null) {
+  Future<void> _uploadFacePhoto() async {
+    if (_facePhoto == null || _selectedUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please take a valid photo and select a user')),
+        const SnackBar(content: Text('Please select a user and take/upload a photo')),
       );
       return;
     }
@@ -254,47 +142,30 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
     });
     
     try {
-      // Register the face photo
-      final result = await _faceRecognitionService.registerFacePhoto(
-        _capturedImage!,
+      // Upload face photo to server
+      await _apiService.uploadFacePhoto(
+        _facePhoto!,
         _selectedUserId.toString(),
-        _apiService.token!,
       );
       
-      if (result['success']) {
-        // Success!
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Face registered successfully for ${_selectedUserData!['name']} ${_selectedUserData!['surname']}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          
-          // Reset the form for next photo
-          setState(() {
-            _capturedImage = null;
-            _faceValidationMessage = null;
-            _isFaceValid = false;
-            _faceBounds = null;
-          });
-        }
-      } else {
-        // Registration failed
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Face registration failed: ${result['message']}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Face photo uploaded successfully for ${_selectedUserData!['name']} ${_selectedUserData!['surname']}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Reset the photo for next upload
+        setState(() {
+          _facePhoto = null;
+        });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error registering face: $e'),
+            content: Text('Error uploading face photo: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -309,12 +180,12 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
   }
   
   void _selectUser(Map<String, dynamic> user) {
-    // Reset session timer on user interaction
     _sessionService.userActivity();
     
     setState(() {
       _selectedUserId = user['user_id'];
       _selectedUserData = user;
+      _facePhoto = null; // Reset photo when changing user
     });
     
     // Close the bottom sheet
@@ -322,7 +193,6 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
   }
   
   void _showUserSelectionSheet() {
-    // Reset session timer on user interaction
     _sessionService.userActivity();
     
     final filteredUsers = _allUsers.where((user) {
@@ -446,11 +316,11 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
       appBar: AppBar(
         title: const Text('Upload Face Photo'),
         actions: [
-          if (_capturedImage != null && _isFaceValid)
+          if (_facePhoto != null)
             IconButton(
               icon: const Icon(Icons.check),
-              onPressed: _registerFace,
-              tooltip: 'Register Face',
+              onPressed: _uploadFacePhoto,
+              tooltip: 'Upload Photo',
             ),
         ],
       ),
@@ -537,138 +407,93 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
                     ),
                   ),
                   
-                  // Camera preview or captured image
-                  if (_capturedImage == null) ...[
-                    const Text(
-                      'Take Photo',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Position face in the center of the frame and ensure good lighting',
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      height: 350,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CameraPreview(_cameraController),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _selectedUserId == null ? null : _takePhoto,
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Take Photo'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(50),
-                      ),
-                    ),
-                  ] else ...[
-                    // Captured image display with face validation
-                    const Text(
-                      'Review Photo',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_faceValidationMessage != null)
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _isFaceValid ? Colors.green.shade50 : Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: _isFaceValid ? Colors.green : Colors.red,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _isFaceValid ? Icons.check_circle : Icons.error,
-                              color: _isFaceValid ? Colors.green : Colors.red,
+                  // Face Photo Upload Section
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Face Photo',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _faceValidationMessage!,
-                                style: TextStyle(
-                                  color: _isFaceValid ? Colors.green : Colors.red,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Take or select a clear photo of the user\'s face for face recognition',
+                          ),
+                          const SizedBox(height: 16),
+                          
+                          // Photo preview or placeholder
+                          Center(
+                            child: Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey),
+                              ),
+                              child: _facePhoto != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.file(
+                                        _facePhoto!,
+                                        width: 200,
+                                        height: 200,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.face,
+                                      size: 80,
+                                      color: Colors.grey,
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          
+                          // Photo actions
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _selectedUserId == null ? null : _takePhotoWithCamera,
+                                  icon: const Icon(Icons.camera_alt),
+                                  label: const Text('Take Photo'),
                                 ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _selectedUserId == null ? null : _pickPhotoFromGallery,
+                                  icon: const Icon(Icons.photo_library),
+                                  label: const Text('Gallery'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_facePhoto != null) ...[
+                            const SizedBox(height: 16),
+                            FilledButton.icon(
+                              onPressed: _uploadFacePhoto,
+                              icon: const Icon(Icons.upload),
+                              label: const Text('Upload Photo'),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Container(
-                      height: 350,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              _capturedImage!,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          if (_faceBounds != null && _isFaceValid)
-                            Positioned.fill(
-                              child: CustomPaint(
-                                painter: FaceHighlightOverlay(
-                                  faceBounds: _faceBounds!,
-                                  isValid: _isFaceValid,
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _retakePhoto,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retake'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _isFaceValid ? _registerFace : null,
-                            icon: const Icon(Icons.save),
-                            label: const Text('Save'),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                              backgroundColor: Colors.green,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                   
-                  // Instructions Card
-                  const SizedBox(height: 24),
+                  // Guidelines
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -707,74 +532,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> with WidgetsBindi
   
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    if (_isCameraInitialized) {
-      _cameraController.dispose();
-    }
     _searchController.dispose();
     super.dispose();
   }
-}
-
-// Face highlighting painter
-class FaceHighlightOverlay extends CustomPainter {
-  final Rect faceBounds;
-  final bool isValid;
-  
-  FaceHighlightOverlay({
-    required this.faceBounds,
-    required this.isValid,
-  });
-  
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double scaleX = size.width / 100;
-    final double scaleY = size.height / 100;
-    
-    // Scale the face bounds to the canvas size
-    final Rect scaledFaceBounds = Rect.fromLTRB(
-      faceBounds.left * scaleX,
-      faceBounds.top * scaleY,
-      faceBounds.right * scaleX,
-      faceBounds.bottom * scaleY,
-    );
-    
-    // Create a rounded rectangle with padding
-    final double padding = 10;
-    final RRect faceRect = RRect.fromRectAndRadius(
-      Rect.fromLTRB(
-        scaledFaceBounds.left - padding,
-        scaledFaceBounds.top - padding,
-        scaledFaceBounds.right + padding,
-        scaledFaceBounds.bottom + padding,
-      ),
-      const Radius.circular(16),
-    );
-    
-    // Draw a semi-transparent overlay over the whole image
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = Colors.black.withOpacity(0.3),
-    );
-    
-    // Cut out a hole for the face using BlendMode.dstOut
-    canvas.drawRRect(
-      faceRect,
-      Paint()
-        ..color = Colors.white
-        ..blendMode = BlendMode.dstOut,
-    );
-    
-    // Draw a border around the face
-    canvas.drawRRect(
-      faceRect,
-      Paint()
-        ..color = isValid ? Colors.green : Colors.red
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
-    );
-  }
-  
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

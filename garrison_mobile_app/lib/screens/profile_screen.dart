@@ -123,9 +123,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 100,
                     height: 100,
                     child: Image.network(
-                      // The full path may need to be constructed differently based on how your server serves the files
-                      'http://195.158.75.66:3000${_profileData!['profile_photo'] ?? ''}',
+                      'http://195.158.75.66:3000/profile-pictures/${_profileData!['profile_photo']?.split('/').last ?? ''}',
                       fit: BoxFit.cover,
+                      headers: {
+                        'Authorization': 'Bearer ${_apiService.token}'
+                      },
                       errorBuilder: (context, error, stackTrace) {
                         print('Error loading profile image: $error');
                         // Fallback to initials avatar if image fails to load

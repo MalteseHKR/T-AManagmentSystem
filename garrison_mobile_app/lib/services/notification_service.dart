@@ -101,7 +101,8 @@ class NotificationService {
       channelDescription: 'Reminds you to punch out after work',
       importance: Importance.high,
       priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
+      largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      icon: '@mipmap/ic_lancher',
     );
 
     // Configure notification details for iOS
