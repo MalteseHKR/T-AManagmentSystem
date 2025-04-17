@@ -39,24 +39,43 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return initials.toUpperCase();
   }
 
+  // Add helper method from UserDetailScreen
+  String _buildProfilePhotoUrl(String photoPath) {
+    if (photoPath.isEmpty) {
+      return '';
+    }
+    
+    // If it's already a full URL, return it
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+      return photoPath;
+    }
+    
+    // If it's just a filename without path
+    if (!photoPath.contains('/')) {
+      return 'http://195.158.75.66:3000/profile-pictures/$photoPath';
+    }
+    
+    // If it has a path but doesn't start with /profile-pictures
+    if (!photoPath.startsWith('/profile-pictures')) {
+      // Extract the filename from the path
+      final filename = photoPath.split('/').last;
+      return 'http://195.158.75.66:3000/profile-pictures/$filename';
+    }
+    
+    // If it starts with /profile-pictures, just add the base URL
+    return 'http://195.158.75.66:3000$photoPath';
+  }
+
   Widget _buildUserAvatar(Map<String, dynamic> user, bool isActive) {
     final String fullName = '${user['name']} ${user['surname']}';
     final String initials = _getInitials(fullName);
     final String? profilePhoto = user['profile_photo'];
     String? imageUrl;
 
-    // Build correct profile photo URL
+    // Use the same method that works in UserDetailScreen
     if (profilePhoto != null && profilePhoto.isNotEmpty) {
-      if (profilePhoto.startsWith('http://') || profilePhoto.startsWith('https://')) {
-        imageUrl = profilePhoto;
-      } else if (!profilePhoto.contains('/')) {
-        imageUrl = 'http://195.158.75.66:3000/profile-pictures/$profilePhoto';
-      } else if (!profilePhoto.startsWith('/profile-pictures')) {
-        final filename = profilePhoto.split('/').last;
-        imageUrl = 'http://195.158.75.66:3000/profile-pictures/$filename';
-      } else {
-        imageUrl = 'http://195.158.75.66:3000$profilePhoto';
-      }
+      imageUrl = _buildProfilePhotoUrl(profilePhoto);
+      print('Avatar image URL for ${user['name']}: $imageUrl'); // Debug log
     }
 
     return CircleAvatar(
@@ -66,13 +85,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         child: SizedBox(
           width: 40,
           height: 40,
-          child: imageUrl != null
+          child: imageUrl != null && imageUrl.isNotEmpty
               ? CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.cover,
-                  httpHeaders: {
-                    'Authorization': 'Bearer ${_apiService.token}',
-                  },
+                  // No auth headers needed for profile photos
                   placeholder: (context, url) => Center(
                     child: Text(
                       initials,
@@ -83,7 +100,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                   ),
                   errorWidget: (context, url, error) {
-                    print('Error loading user avatar: $error, URL: $imageUrl');
+                    print('Error loading avatar: $error, URL: $imageUrl');
                     return Center(
                       child: Text(
                         initials,
@@ -171,6 +188,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       setState(() {
         _allUsers = response;
       });
+      
+      // Debug: Check if profile photos are present
+      int photosFound = 0;
+      for (var user in _allUsers) {
+        if (user['profile_photo'] != null && user['profile_photo'].toString().isNotEmpty) {
+          photosFound++;
+          print('User ${user['name']} has profile photo: ${user['profile_photo']}');
+        }
+      }
+      print('Found $photosFound users with profile photos out of ${_allUsers.length} total users');
     } catch (e) {
       print('Error loading users: $e');
       rethrow;

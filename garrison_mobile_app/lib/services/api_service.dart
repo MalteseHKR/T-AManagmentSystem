@@ -548,7 +548,33 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.cast<Map<String, dynamic>>();
+        
+        // Process each user and fetch individual profile photos if needed
+        List<Map<String, dynamic>> processedUsers = [];
+        
+        for (var user in data) {
+          final userId = user['user_id'];
+          Map<String, dynamic> userWithPhoto = {...user};
+          
+          // Check if profile photo is already included
+          if (user['profile_photo'] == null || user['profile_photo'].toString().isEmpty) {
+            try {
+              // Get additional user info including profile photo
+              final userProfile = await getUserProfile(userId);
+              if (userProfile['profile_photo'] != null && userProfile['profile_photo'].toString().isNotEmpty) {
+                userWithPhoto['profile_photo'] = userProfile['profile_photo'];
+                print('Added profile photo for user ${user['name']}: ${userProfile['profile_photo']}');
+              }
+            } catch (e) {
+              print('Error fetching user profile for ID $userId: $e');
+              // Continue without profile photo
+            }
+          }
+          
+          processedUsers.add(userWithPhoto);
+        }
+        
+        return processedUsers;
       } else {
         throw Exception('Failed to load employees');
       }
@@ -709,6 +735,26 @@ class ApiService {
       print('Error downloading user face photos: $e');
       return [];
     }
+  }
+
+  // Helper method to properly format profile photo URLs
+  String getProfilePhotoUrl(String? photoPath) {
+    if (photoPath == null || photoPath.isEmpty) {
+      return '';
+    }
+    
+    // Full URL already
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+      return photoPath;
+    }
+    
+    // Relative path starting with /profile-pictures
+    if (photoPath.startsWith('/profile-pictures/')) {
+      return 'http://195.158.75.66:3000$photoPath';
+    }
+    
+    // Just the filename
+    return 'http://195.158.75.66:3000/profile-pictures/$photoPath';
   }
 
   // Check if user has registered face

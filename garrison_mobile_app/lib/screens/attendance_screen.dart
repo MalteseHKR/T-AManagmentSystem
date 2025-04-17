@@ -455,7 +455,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         return;
       }
       
-      // Navigate to liveness detection screen (same flow for both platforms)
+      // Navigate to liveness detection screen - pass the original photo to use for verification
+      final File originalVerificationPhoto = fileToUse;
+      
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -487,8 +489,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                 return;
               }
               
-              // Liveness check passed, now process verification
-              _processVerificationAfterLiveness(capturedImage ?? fileToUse, userId);
+              // Always use the original photo for verification, ignoring liveness captured image
+              debugPrint('Liveness check passed, using original photo for verification');
+              _processVerificationAfterLiveness(originalVerificationPhoto, userId);
             },
           ),
         ),
