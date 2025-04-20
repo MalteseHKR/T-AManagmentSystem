@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as Math;
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
@@ -584,6 +585,215 @@ class ApiService {
     }
   }
 
+  // Submit preliminary sick leave request
+  Future<Map<String, dynamic>> submitPreliminarySickLeave({
+    required String reason,
+  }) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      print('Submitting preliminary sick leave with reason: $reason');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/leave/preliminary-sick'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_token',
+        },
+        body: jsonEncode({
+          'reason': reason,
+          'status': 'Pending Certificate',
+        }),
+      );
+
+      print('Preliminary sick leave response status: ${response.statusCode}');
+      print('Preliminary sick leave response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        // Parse error details when available
+        final errorBody = jsonDecode(response.body);
+        final errorMessage = errorBody['message'] ?? errorBody['error'] ?? 'Failed to submit preliminary sick leave request';
+        final errorDetails = errorBody['details'];
+        
+        // Log detailed error information
+        print('Error details: $errorDetails');
+        
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print('Error submitting preliminary sick leave: $e');
+      rethrow;
+    }
+  }
+
+  // Complete sick leave request with dates and certificate
+  Future<Map<String, dynamic>> completeSickLeaveRequest({
+    required int requestId,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String? certificateUrl,
+    required bool isFullDay,
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
+  }) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    // Create dates with time set to midnight
+    final cleanStartDate = DateTime(startDate.year, startDate.month, startDate.day);
+    final cleanEndDate = DateTime(endDate.year, endDate.month, endDate.day);
+
+    // Format start and end times if provided
+    String? formattedStartTime;
+    String? formattedEndTime;
+    
+    if (!isFullDay && startTime != null && endTime != null) {
+      formattedStartTime = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
+      formattedEndTime = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
+    }
+
+    print('Completing sick leave request:');
+    print('Request ID: $requestId');
+    print('Start Date: ${cleanStartDate.toString()}');
+    print('End Date: ${cleanEndDate.toString()}');
+    print('Certificate URL: $certificateUrl');
+    print('Is Full Day: $isFullDay');
+    print('Start Time: $formattedStartTime');
+    print('End Time: $formattedEndTime');
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/leave/complete-sick/$requestId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_token',
+        },
+        body: jsonEncode({
+          'start_date': '${cleanStartDate.year}-${cleanStartDate.month.toString().padLeft(2, '0')}-${cleanStartDate.day.toString().padLeft(2, '0')}',
+          'end_date': '${cleanEndDate.year}-${cleanEndDate.month.toString().padLeft(2, '0')}-${cleanEndDate.day.toString().padLeft(2, '0')}',
+          'medical_certificate': certificateUrl,  // Use existing field name
+          'status': 'Pending',
+          'is_full_day': isFullDay,
+          'start_time': formattedStartTime,
+          'end_time': formattedEndTime,
+        }),
+      );
+
+      print('Complete sick leave response status: ${response.statusCode}');
+      print('Complete sick leave response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to complete sick leave request');
+      }
+    } catch (e) {
+      print('Error completing sick leave request: $e');
+      rethrow;
+    }
+  }
+
+  // Get pending certificate requests
+  Future<List<Map<String, dynamic>>> getPendingCertificateRequests(String userId) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      print('Fetching pending certificate requests for user $userId');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/leave/pending-certificates/$userId'),
+        headers: {
+          'Authorization': 'Bearer $_token',
+        },
+      );
+
+      print('Pending certificates response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Pending certificate requests: ${data['pendingRequests']}');
+        return (data['pendingRequests'] as List<dynamic>).cast<Map<String, dynamic>>();
+      } else {
+        // Parse error details when available
+        final errorBody = jsonDecode(response.body);
+        final errorMessage = errorBody['message'] ?? errorBody['error'] ?? 'Failed to fetch pending certificate requests';
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print('Error fetching pending certificate requests: $e');
+      rethrow;
+    }
+  }
+
+  // Update an existing leave request
+  Future<Map<String, dynamic>> updateLeaveRequest({
+    required int requestId,
+    required String leaveType,
+    required DateTime startDate,
+    required DateTime endDate,
+    required String reason,
+    required bool isFullDay,
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
+  }) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    // Create dates with time set to midnight
+    final cleanStartDate = DateTime(startDate.year, startDate.month, startDate.day);
+    final cleanEndDate = DateTime(endDate.year, endDate.month, endDate.day);
+    
+    // Format start and end times if provided
+    String? formattedStartTime;
+    String? formattedEndTime;
+    
+    if (!isFullDay && startTime != null && endTime != null) {
+      formattedStartTime = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
+      formattedEndTime = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/leave/$requestId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_token',
+        },
+        body: jsonEncode({
+          'leave_type': leaveType,
+          'start_date': '${cleanStartDate.year}-${cleanStartDate.month.toString().padLeft(2, '0')}-${cleanStartDate.day.toString().padLeft(2, '0')}',
+          'end_date': '${cleanEndDate.year}-${cleanEndDate.month.toString().padLeft(2, '0')}-${cleanEndDate.day.toString().padLeft(2, '0')}',
+          'reason': reason,
+          'is_full_day': isFullDay,
+          'start_time': formattedStartTime,
+          'end_time': formattedEndTime,
+        }),
+      );
+
+      print('Update leave request response status: ${response.statusCode}');
+      print('Update leave request response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to update leave request');
+      }
+    } catch (e) {
+      print('Error updating leave request: $e');
+      rethrow;
+    }
+  }
+
   // Update leave request status
   Future<void> updateLeaveRequestStatus({
     required int requestId,
@@ -931,6 +1141,9 @@ class ApiService {
     required DateTime endDate,
     required String reason,
     String? certificateUrl,
+    bool isFullDay = true,
+    TimeOfDay? startTime,
+    TimeOfDay? endTime,
   }) async {
     if (_token == null) {
       throw Exception('Not authenticated');
@@ -939,11 +1152,23 @@ class ApiService {
     // Create dates with time set to midnight
     final cleanStartDate = DateTime(startDate.year, startDate.month, startDate.day);
     final cleanEndDate = DateTime(endDate.year, endDate.month, endDate.day);
+    
+    // Format start and end times if provided
+    String? formattedStartTime;
+    String? formattedEndTime;
+    
+    if (!isFullDay && startTime != null && endTime != null) {
+      formattedStartTime = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
+      formattedEndTime = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
+    }
 
     print('API Submit Leave Request:');
     print('Leave Type: $leaveType');
-    print('Start Date (with timezone offset): $cleanStartDate');
-    print('End Date (with timezone offset): $cleanEndDate');
+    print('Start Date: $cleanStartDate');
+    print('End Date: $cleanEndDate');
+    print('Is Full Day: $isFullDay');
+    print('Start Time: $formattedStartTime');
+    print('End Time: $formattedEndTime');
     print('Reason: $reason');
     print('Certificate URL: $certificateUrl');
 
@@ -955,11 +1180,13 @@ class ApiService {
       },
       body: jsonEncode({
         'leave_type': leaveType,
-        // Use formatted date string to remove time
         'start_date': '${cleanStartDate.year}-${cleanStartDate.month.toString().padLeft(2, '0')}-${cleanStartDate.day.toString().padLeft(2, '0')}',
         'end_date': '${cleanEndDate.year}-${cleanEndDate.month.toString().padLeft(2, '0')}-${cleanEndDate.day.toString().padLeft(2, '0')}',
         'reason': reason,
-        'medical_certificate_url': certificateUrl,
+        'medical_certificate': certificateUrl,  // Use existing field name
+        'is_full_day': isFullDay,
+        'start_time': formattedStartTime,
+        'end_time': formattedEndTime,
       }),
     );
 

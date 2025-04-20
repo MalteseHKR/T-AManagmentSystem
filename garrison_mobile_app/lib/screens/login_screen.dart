@@ -1,4 +1,4 @@
-// lib/screens/login_screen.dart
+// Modified login_screen.dart with "Signing in" loading animation instead of face sync message
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'dart:async';
@@ -158,26 +158,17 @@ class _LoginScreenState extends State<LoginScreen> {
         return false;
       }
 
-      // Face Recognition Sync - Add this section
+      // Face Recognition Sync - Run in background but don't show message to user
       try {
         final userId = response['user']['id'].toString();
         
-        // Show a loading indicator for face sync
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Synchronizing face data...'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
-        
-        // Initialize face manager and sync face data
-        final faceManager = FaceRecognitionManager();
-        await faceManager.initialize();
-        await faceManager.syncUserFaceData(userId);
-        
-        print('Face data sync completed for user: $userId');
+        // Background face sync without notification
+        Future.microtask(() async {
+          final faceManager = FaceRecognitionManager();
+          await faceManager.initialize();
+          await faceManager.syncUserFaceData(userId);
+          print('Face data sync completed for user: $userId');
+        });
       } catch (faceError) {
         print('Face sync error (non-fatal): $faceError');
         // Continue with login even if face sync fails
@@ -257,26 +248,17 @@ class _LoginScreenState extends State<LoginScreen> {
         await _secureStorageService.enableBiometricLogin();
       }
 
-      // Face Recognition Sync - Add this section
+      // Face Recognition Sync - Run in background without notification
       try {
         final userId = response['user']['id'].toString();
         
-        // Show a loading indicator for face sync
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Synchronizing face data...'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        
-        // Initialize face manager and sync face data
-        final faceManager = FaceRecognitionManager();
-        await faceManager.initialize();
-        final syncSuccess = await faceManager.syncUserFaceData(userId);
-        
-        print('Face data sync completed for user: $userId with result: $syncSuccess');
+        // Run face sync in background
+        Future.microtask(() async {
+          final faceManager = FaceRecognitionManager();
+          await faceManager.initialize();
+          final syncSuccess = await faceManager.syncUserFaceData(userId);
+          print('Face data sync completed for user: $userId with result: $syncSuccess');
+        });
       } catch (faceError) {
         print('Face sync error (non-fatal): $faceError');
         // Continue with login even if face sync fails
@@ -429,199 +411,234 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Form(
-                key: _formKey,
-                child: Card(
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Image.asset(
-                          'assets/icon/icon.png',
-                          height: 80,
-                          width: 80,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Garrison App',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        
-                        // Lockout indicator
-                        if (_isLockedOut) 
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.red[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.red[300]!),
+          child: Stack(
+            children: [
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Card(
+                      elevation: 8,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.asset(
+                              'assets/icon/icon.png',
+                              height: 80,
+                              width: 80,
                             ),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  'Account temporarily locked',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Please try again in ${_formatTime(_lockoutRemainingSeconds)}',
-                                  style: const TextStyle(color: Colors.red),
-                                ),
-                              ],
-                            ),
-                          ),
-                        
-                        if (!_isLockedOut) ...[
-                          TextFormField(
-                            controller: _emailController,
-                            decoration: InputDecoration(
-                              labelText: 'Email',
-                              prefixIcon: const Icon(Icons.email),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                            ),
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            validator: _validateEmail,
-                            enabled: !_isLoading,
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _passwordController,
-                            decoration: InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey[50],
-                            ),
-                            obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) => _isLockedOut ? null : _login(),
-                            validator: _validatePassword,
-                            enabled: !_isLoading && !_isLockedOut,
-                          ),
-                          const SizedBox(height: 16),
-                          
-                          // Remember me checkbox
-                          Row(
-                            children: [
-                              Checkbox(
-                                value: _rememberMe,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _rememberMe = value ?? false;
-                                  });
-                                },
-                              ),
-                              const Text('Remember me'),
-                            ],
-                          ),
-                          
-                          // Show remaining attempts if not locked out and attempts remaining
-                          if (_remainingAttempts < 4)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'Attempts remaining: $_remainingAttempts',
-                                style: TextStyle(
-                                  color: _remainingAttempts > 2 ? Colors.orange : Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Garrison App',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
                               ),
                             ),
-                          
-                          const SizedBox(height: 24),
-                          
-                          // Regular login button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: FilledButton(
-                              onPressed: (_isLoading || _isLockedOut) ? null : _login,
-                              style: FilledButton.styleFrom(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                            const SizedBox(height: 24),
+                            
+                            // Lockout indicator
+                            if (_isLockedOut) 
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.red[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.red[300]!),
                                 ),
-                                backgroundColor: _isLockedOut ? Colors.grey : null,
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : Text(
-                                      _isLockedOut ? 'Locked' : 'Login',
-                                      style: const TextStyle(
-                                        fontSize: 18,
+                                child: Column(
+                                  children: [
+                                    const Text(
+                                      'Account temporarily locked',
+                                      style: TextStyle(
                                         fontWeight: FontWeight.bold,
+                                        color: Colors.red,
                                       ),
                                     ),
-                            ),
-                          ),
-                          
-                          // Add biometric login button
-                          if (_isBiometricsAvailable && _isBiometricsEnabled) ...[
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: OutlinedButton.icon(
-                                onPressed: _isLoading ? null : _handleBiometricLogin,
-                                icon: const Icon(Icons.fingerprint),
-                                label: const Text('Login with Biometrics'),
-                                style: OutlinedButton.styleFrom(
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Please try again in ${_formatTime(_lockoutRemainingSeconds)}',
+                                      style: const TextStyle(color: Colors.red),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
+                            
+                            if (!_isLockedOut) ...[
+                              TextFormField(
+                                controller: _emailController,
+                                decoration: InputDecoration(
+                                  labelText: 'Email',
+                                  prefixIcon: const Icon(Icons.email),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.grey[50],
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                validator: _validateEmail,
+                                enabled: !_isLoading,
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _passwordController,
+                                decoration: InputDecoration(
+                                  labelText: 'Password',
+                                  prefixIcon: const Icon(Icons.lock),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off
+                                          : Icons.visibility,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.grey[50],
+                                ),
+                                obscureText: _obscurePassword,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => _isLockedOut ? null : _login(),
+                                validator: _validatePassword,
+                                enabled: !_isLoading && !_isLockedOut,
+                              ),
+                              const SizedBox(height: 16),
+                              
+                              // Remember me checkbox
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: _rememberMe,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _rememberMe = value ?? false;
+                                      });
+                                    },
+                                  ),
+                                  const Text('Remember me'),
+                                ],
+                              ),
+                              
+                              // Show remaining attempts if not locked out and attempts remaining
+                              if (_remainingAttempts < 4)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    'Attempts remaining: $_remainingAttempts',
+                                    style: TextStyle(
+                                      color: _remainingAttempts > 2 ? Colors.orange : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              
+                              const SizedBox(height: 24),
+                              
+                              // Regular login button
+                              SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: FilledButton(
+                                  onPressed: (_isLoading || _isLockedOut) ? null : _login,
+                                  style: FilledButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    backgroundColor: _isLockedOut ? Colors.grey : null,
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Text(
+                                          _isLockedOut ? 'Locked' : 'Login',
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              
+                              // Add biometric login button
+                              if (_isBiometricsAvailable && _isBiometricsEnabled) ...[
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _isLoading ? null : _handleBiometricLogin,
+                                    icon: const Icon(Icons.fingerprint),
+                                    label: const Text('Login with Biometrics'),
+                                    style: OutlinedButton.styleFrom(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ],
-                        ],
-                      ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+              
+              // Overlay loading indicator with "Signing in" message
+              if (_isLoading)
+                Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Card(
+                      elevation: 8,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 30),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 16),
+                            const Text(
+                              "Signing in...",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

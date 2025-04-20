@@ -195,16 +195,6 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
   void _showUserSelectionSheet() {
     _sessionService.userActivity();
     
-    final filteredUsers = _allUsers.where((user) {
-      final String fullName = '${user['name']} ${user['surname']}'.toLowerCase();
-      final String email = (user['email'] ?? '').toLowerCase();
-      final String searchLower = _searchQuery.toLowerCase();
-      
-      return _searchQuery.isEmpty || 
-             fullName.contains(searchLower) || 
-             email.contains(searchLower);
-    }).toList();
-    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -214,6 +204,16 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setState) {
+            final filteredUsers = _allUsers.where((user) {
+              final String fullName = '${user['name']} ${user['surname']}'.toLowerCase();
+              final String email = (user['email'] ?? '').toLowerCase();
+              final String searchLower = _searchQuery.toLowerCase();
+              
+              return _searchQuery.isEmpty || 
+                    fullName.contains(searchLower) || 
+                    email.contains(searchLower);
+            }).toList();
+            
             return Container(
               padding: const EdgeInsets.all(16),
               height: MediaQuery.of(context).size.height * 0.8,
@@ -239,6 +239,7 @@ class _PhotoUploadScreenState extends State<PhotoUploadScreen> {
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onChanged: (value) {
+                      // Update _searchQuery AND re-render with StateSetter
                       setState(() {
                         _searchQuery = value;
                       });

@@ -151,9 +151,8 @@ class EnhancedLivenessDetectionService {
     _autoCompleteTimer = Timer(const Duration(seconds: AUTO_COMPLETE_TIME_IOS), () {
       if (_currentState != LivenessCheckState.completed && 
           _currentState != LivenessCheckState.failed) {
-        debugPrint('$TAG: iOS safety timer triggered - but NOT auto-completing');
-        // Remove the forceCompletion() call
-        // Instead, set to failed state if needed
+        debugPrint('$TAG: iOS safety timer triggered - setting to failed state');
+        // Never auto-complete, always set to failed state on timeout
         _currentState = LivenessCheckState.failed;
       }
     });
@@ -301,15 +300,11 @@ class EnhancedLivenessDetectionService {
         _faceImageSequence.removeAt(0); // Keep only last 5 images
       }
       
-      // Check if any face is detected
+      // Check if any face is detected - apply consistent logic for both platforms
       if (faces.isEmpty) {
         _failedAttempts++;
         
-        // For iOS, be more lenient with failures
-        if (Platform.isIOS && _failedAttempts >= MAX_ATTEMPTS_BEFORE_FALLBACK) {
-          return _createIosFallbackResponse();
-        }
-        
+        // Don't use lenient failure handling for iOS
         return {
           'state': LivenessCheckState.actionRequired.toString(),
           'progress': _calculateProgress(),
@@ -349,11 +344,7 @@ class EnhancedLivenessDetectionService {
       
       _failedAttempts++;
       
-      // For iOS, be more lenient with errors
-      if (Platform.isIOS && _failedAttempts >= MAX_ATTEMPTS_BEFORE_FALLBACK) {
-        return _createIosFallbackResponse();
-      }
-      
+      // Return a failure response for all platforms
       return {
         'state': LivenessCheckState.actionRequired.toString(),
         'progress': _calculateProgress(),
@@ -367,16 +358,15 @@ class EnhancedLivenessDetectionService {
   
   // Special handling for iOS - create a fallback response
   Map<String, dynamic> _createIosFallbackResponse() {
-    debugPrint('$TAG: Creating iOS response - NOT using fallback success');
+    debugPrint('$TAG: Creating iOS response with stricter fallback policy');
     
-    // Don't automatically mark as completed
-    // Instead, mark as failed
+    // Never automatically mark as completed
     _currentState = LivenessCheckState.failed;
     
     return {
       'state': LivenessCheckState.failed.toString(),
       'progress': 0.0,
-      'message': 'Verification failed. Please try again.',
+      'message': 'Verification failed. Please try again in better lighting conditions.',
       'blinkDetected': _blinkDetected,
       'headMovementDetected': _headMovementDetected,
       'smileDetected': _smileDetected,

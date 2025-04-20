@@ -1017,9 +1017,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   // Build preview card with face highlighting
   Widget _buildPreviewCard() {
     // Debug the image being used for preview
-  debugPrint('Building preview card with image: ${_capturedImage?.path}');
-  debugPrint('Image exists: ${_capturedImage?.existsSync()}');
-  debugPrint('Image size: ${_capturedImage?.lengthSync()} bytes');
+    debugPrint('Building preview card with image: ${_capturedImage?.path}');
+    debugPrint('Image exists: ${_capturedImage?.existsSync()}');
+    debugPrint('Image size: ${_capturedImage?.lengthSync()} bytes');
+      
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -1096,25 +1097,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
               ),
             ),
           
-          // Enhanced face preview with highlight
+          // Enhanced face preview with highlight - MODIFIED to avoid excessive cropping
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             width: double.infinity,
             height: 300,
             child: Stack(
               children: [
-                // Base image
+                // Base image - MODIFIED to use "contain" fit rather than "cover"
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.file(
                     _capturedImage!,
                     height: 280,
                     width: double.infinity,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain, // Changed from "cover" to "contain" to avoid excessive cropping
                   ),
                 ),
                 
-                // Face highlight overlay if a face is detected
+                // Face highlight overlay if a face is detected - MODIFIED to adjust with contain fitting
                 if (_faceBounds != null && _isFaceValid)
                   Positioned.fill(
                     child: CustomPaint(
@@ -1124,6 +1125,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                           _cameraController.value.previewSize?.height ?? 300,
                           _cameraController.value.previewSize?.width ?? 400,
                         ),
+                        useFillFit: false, // New parameter to indicate we're using "contain" instead of "cover"
                       ),
                     ),
                   ),
@@ -1421,24 +1423,46 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 class FaceHighlightOverlay extends CustomPainter {
   final Rect faceBounds;
   final Size imageSize;
+  final bool useFillFit;
   
   FaceHighlightOverlay({
     required this.faceBounds,
     required this.imageSize,
+    this.useFillFit = true, // Default to the original behavior (cover)
   });
   
   @override
   void paint(Canvas canvas, Size size) {
-    // Create scaling factors
-    final double scaleX = size.width / imageSize.width;
-    final double scaleY = size.height / imageSize.height;
+    // Create scaling factors - modified to handle contain vs cover fitting
+    double scaleX, scaleY;
+    double offsetX = 0, offsetY = 0;
     
-    // Calculate the face rectangle in the scaled image
+    if (useFillFit) {
+      // Original "cover" behavior - fill the entire area
+      scaleX = size.width / imageSize.width;
+      scaleY = size.height / imageSize.height;
+    } else {
+      // "Contain" behavior - maintain aspect ratio, calculate centering offsets
+      final double imageAspectRatio = imageSize.width / imageSize.height;
+      final double containerAspectRatio = size.width / size.height;
+      
+      if (imageAspectRatio > containerAspectRatio) {
+        // Image is wider than container - fit to width, center vertically
+        scaleX = scaleY = size.width / imageSize.width;
+        offsetY = (size.height - (imageSize.height * scaleY)) / 2;
+      } else {
+        // Image is taller than container - fit to height, center horizontally
+        scaleX = scaleY = size.height / imageSize.height;
+        offsetX = (size.width - (imageSize.width * scaleX)) / 2;
+      }
+    }
+    
+    // Calculate the face rectangle in the scaled image, accounting for offsets
     final Rect scaledFaceRect = Rect.fromLTRB(
-      faceBounds.left * scaleX,
-      faceBounds.top * scaleY,
-      faceBounds.right * scaleX,
-      faceBounds.bottom * scaleY,
+      faceBounds.left * scaleX + offsetX,
+      faceBounds.top * scaleY + offsetY,
+      faceBounds.right * scaleX + offsetX,
+      faceBounds.bottom * scaleY + offsetY,
     );
     
     // Calculate enlarged face rectangle that covers more of the head
@@ -1455,9 +1479,9 @@ class FaceHighlightOverlay extends CustomPainter {
     // Create an enlarged rectangle that better encompasses the whole head
     Rect enlargedFaceRect = Rect.fromLTRB(
       scaledFaceRect.left - (extraWidth / 2), // Add width on both sides
-      scaledFaceRect.top - (extraHeight * 0.6), // Add more space for forehead
+      scaledFaceRect.top - (extraHeight * 0.4), // Add more space for forehead
       scaledFaceRect.right + (extraWidth / 2),
-      scaledFaceRect.bottom + (extraHeight * 0.4) // Add some space for chin
+      scaledFaceRect.bottom + (extraHeight * 0.2) // Add some space for chin
     );
     
     // Ensure the rectangle stays within the preview bounds

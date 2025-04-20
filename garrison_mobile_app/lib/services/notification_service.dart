@@ -18,6 +18,8 @@ class NotificationService {
   final TimezoneService _timezoneService = TimezoneService();
 
   static const int punchOutReminderId = 1;
+  // Start leave reminder IDs at 1000 to avoid conflicts
+  static const int leaveReminderBaseId = 1000;
   
   // Initialize notification service
   Future<void> initialize() async {
@@ -171,5 +173,142 @@ class NotificationService {
         await prefs.remove('last_punch_in_time');
       }
     }
+  }
+  
+  // Schedule a notification at a specific date and time for leave reminders
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    String? payload,
+  }) async {
+    // Configure notification details for Android
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'leave_reminder_channel',
+      'Leave Reminders',
+      channelDescription: 'Reminders for leave requests and medical certificates',
+      importance: Importance.high,
+      priority: Priority.high,
+      enableVibration: true,
+    );
+
+    // Configure notification details for iOS
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    // Combine platform-specific details
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+    
+    final reminderTime = tz.TZDateTime.from(scheduledDate, tz.local);
+
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      id,
+      title,
+      body,
+      reminderTime,
+      notificationDetails,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: payload,
+    );
+    
+    debugPrint('Scheduled leave reminder notification for $scheduledDate');
+  }
+  
+  // Show an immediate notification
+  Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    // Configure notification details for Android
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'leave_reminder_channel',
+      'Leave Reminders',
+      channelDescription: 'Reminders for leave requests and medical certificates',
+      importance: Importance.high,
+      priority: Priority.high,
+      enableVibration: true,
+    );
+
+    // Configure notification details for iOS
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    // Combine platform-specific details
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+    
+    await flutterLocalNotificationsPlugin.show(
+      id,
+      title,
+      body,
+      notificationDetails,
+      payload: payload,
+    );
+    
+    debugPrint('Showed immediate notification: $title');
+  }
+  
+  // Cancel a specific notification
+  Future<void> cancelNotification(int id) async {
+    await flutterLocalNotificationsPlugin.cancel(id);
+    debugPrint('Cancelled notification with id: $id');
+  }
+  
+  // Cancel all notifications
+  Future<void> cancelAllNotifications() async {
+    await flutterLocalNotificationsPlugin.cancelAll();
+    debugPrint('Cancelled all notifications');
+  }
+  
+  // Schedule daily reminders for medical certificate upload
+  Future<void> scheduleMedicalCertificateReminders(int requestId) async {
+    final now = DateTime.now();
+    
+    // Schedule reminders for the next 10 days
+    for (int i = 1; i <= 10; i++) {
+      final reminderDate = now.add(Duration(days: i));
+      // Set reminder for 9:00 AM
+      final scheduledTime = DateTime(
+        reminderDate.year, 
+        reminderDate.month, 
+        reminderDate.day, 
+        9, 0, 0
+      );
+      
+      await scheduleNotification(
+        id: leaveReminderBaseId + requestId + i, // Unique ID using request ID and day
+        title: 'Medical Certificate Required',
+        body: 'Please upload your medical certificate and complete your sick leave request.',
+        scheduledDate: scheduledTime,
+        payload: 'medical_certificate_reminder_$requestId',
+      );
+    }
+    
+    debugPrint('Scheduled 10 daily reminders for medical certificate upload');
+  }
+  
+  // Cancel all medical certificate reminders for a request
+  Future<void> cancelMedicalCertificateReminders(int requestId) async {
+    for (int i = 1; i <= 10; i++) {
+      await cancelNotification(leaveReminderBaseId + requestId + i);
+    }
+    
+    debugPrint('Cancelled all medical certificate reminders for request $requestId');
   }
 }
