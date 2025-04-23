@@ -22,6 +22,8 @@ class FaceRecognitionManager {
   static const String TAG = "FaceRecognitionManager";
   static const String PREF_FACE_REGISTERED = "face_registered_";
   static const String PREF_LAST_SYNC_TIME = "face_last_sync_";
+  List<String> _downloadedFaceImagePaths = [];
+  List<String> get downloadedFaceImagePaths => List.from(_downloadedFaceImagePaths);
   
   // Services
   final FaceRecognitionMLService _mlService = FaceRecognitionMLService();
@@ -160,6 +162,9 @@ class FaceRecognitionManager {
     try {
       debugPrint('$TAG: Starting face data sync for user $userId');
       _registrationStatusCache[userId] = FaceRegistrationStatus.registrationInProgress;
+      
+      // Clear previous downloaded images list
+      _downloadedFaceImagePaths.clear();
 
       // First ensure ML service is ready
       if (!await _mlService.initializeService()) {
@@ -175,7 +180,7 @@ class FaceRecognitionManager {
         return false;
       }
       
-      // Download and process each photo
+      // Download each photo and process it
       debugPrint('$TAG: Downloading ${response.length} face photos');
       
       final List<File> photoFiles = [];
@@ -197,6 +202,10 @@ class FaceRecognitionManager {
             final file = File('${tempDir.path}/$filename');
             await file.writeAsBytes(response.bodyBytes);
             debugPrint('$TAG: Downloaded to: ${file.path}');
+            
+            // Save the path to the downloaded image 
+            _downloadedFaceImagePaths.add(file.path);
+            
             photoFiles.add(file);
           } else {
             debugPrint('$TAG: Download failed with status ${response.statusCode}');
@@ -212,6 +221,23 @@ class FaceRecognitionManager {
         return false;
       }
 
+      // Make additional copies of the images with debug info
+      for (final photoFile in photoFiles) {
+        try {
+          // Create a copy that shows the original, unprocessed image
+          final originalDir = await getTemporaryDirectory();
+          final originalName = "original_${photoFile.path.split('/').last}";
+          final originalPath = '${originalDir.path}/$originalName';
+          await photoFile.copy(originalPath);
+          
+          // Also add this path to the list
+          _downloadedFaceImagePaths.add(originalPath);
+        } catch (e) {
+          debugPrint('$TAG: Error creating original face image: $e');
+        }
+      }
+
+      // Process and register each face photo
       bool anySuccess = false;
       for (final photo in photoFiles) {
         try {
@@ -223,6 +249,9 @@ class FaceRecognitionManager {
             final processed = await _mlService.preprocessImageForIOS(photo);
             if (processed != null) {
               photoToUse = processed;
+              
+              // Add the processed photo to the list
+              _downloadedFaceImagePaths.add(processed.path);
             }
           }
           
@@ -274,46 +303,28 @@ class FaceRecognitionManager {
     }
     
     try {
-      // Special handling for iOS
-      if (Platform.isIOS) {
-        debugPrint('$TAG: Using iOS-specific verification path');
-        
-        // If liveness has been completed, consider verification successful on iOS
-        // This is because face recognition on iOS is unreliable, but liveness checks are secure
-        if (!requireLiveness || _livenessService.isCompleted) {
-          debugPrint('$TAG: iOS liveness verification completed, bypassing face matching');
-          return {
-            'isVerified': true,
-            'livenessVerified': true,
-            'confidence': 0.8, // Fixed confidence for iOS
-            'message': 'Face verified through iOS liveness check'
-          };
-        } else {
-          return {
-            'isVerified': false,
-            'requiresLiveness': true,
-            'message': 'Please complete liveness verification'
-          };
-        }
-      }
+      // UNIFIED VERIFICATION PATH - Remove platform-specific branching
+      debugPrint('$TAG: Using unified verification path for ${Platform.isIOS ? "iOS" : "Android"}');
       
-      // Standard verification path for Android
-      final registrationStatus = await checkFaceRegistrationStatus(userId);
-      
-      if (registrationStatus == FaceRegistrationStatus.notRegistered) {
+      // Check if liveness has been completed if required
+      if (requireLiveness && !_livenessService.isCompleted) {
         return {
           'isVerified': false,
-          'message': 'No registered face found for this user'
+          'requiresLiveness': true,
+          'message': 'Please complete liveness verification'
         };
       }
       
-      if (registrationStatus == FaceRegistrationStatus.registrationInProgress) {
-        // Try to sync face data
+      // Get registration status
+      final registrationStatus = await checkFaceRegistrationStatus(userId);
+      
+      if (registrationStatus != FaceRegistrationStatus.registered) {
+        // Try to sync face data if not registered
         final synced = await syncUserFaceData(userId);
         if (!synced) {
           return {
             'isVerified': false,
-            'message': 'Face registration is incomplete'
+            'message': 'No registered face found or sync failed'
           };
         }
       }
@@ -324,17 +335,11 @@ class FaceRecognitionManager {
         isForFaceDetection: true
       );
       
-      // First check liveness if required
-      if (requireLiveness && !_livenessService.isCompleted) {
-        return {
-          'isVerified': false,
-          'requiresLiveness': true,
-          'message': 'Liveness check required'
-        };
-      }
-      
-      // Verify against registered face
+      // Verify against registered face - uses platform-specific logic in ML service
       final result = await _mlService.verifyFace(processedImage ?? photoFile, userId);
+      
+      // Add detailed logging for debugging confidence scores
+      debugPrint('$TAG: Verification result: isVerified=${result['isVerified']}, confidence=${result['confidence']}');
       
       // Include liveness status
       result['livenessVerified'] = _livenessService.isCompleted;
@@ -342,16 +347,6 @@ class FaceRecognitionManager {
       return result;
     } catch (e) {
       debugPrint('$TAG: Error verifying face: $e');
-      
-      // Special handling for iOS errors
-      if (Platform.isIOS) {
-        return {
-          'isVerified': !requireLiveness || _livenessService.isCompleted,
-          'livenessVerified': _livenessService.isCompleted,
-          'message': _livenessService.isCompleted ? 
-            'Face verified through liveness despite error' : 'Error in verification'
-        };
-      }
       
       return {
         'isVerified': false,

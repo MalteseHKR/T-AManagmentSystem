@@ -13,6 +13,8 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 class ImageUtils {
   static const String TAG = "ImageUtils";
 
+  
+
   // Crop face from image using the bounding box from face detection
   static Future<File?> cropFaceFromImage(File imageFile, Rect faceBounds) async {
     try {
@@ -443,6 +445,172 @@ class ImageUtils {
     } catch (e) {
       debugPrint('$TAG: Error creating face detection variants: $e');
       return [imageFile]; // Return only original on error
+    }
+  }
+
+  // Enhanced iOS-specific preprocessing for face detection
+  static Future<File?> iOSOptimizedPreprocessing(File imageFile) async {
+    try {
+      debugPrint('$TAG: Applying iOS-optimized preprocessing to: ${imageFile.path}');
+      
+      // Read the image
+      final bytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(bytes);
+      
+      if (image == null) {
+        debugPrint('$TAG: Failed to decode image for iOS preprocessing');
+        return null;
+      }
+      
+      // Create output file path
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final outputPath = '${tempDir.path}/ios_optimized_$timestamp.jpg';
+      
+      // Step 1: Check if we need to rotate the image for proper orientation
+      // Most phone cameras capture in landscape but UI expects portrait
+      img.Image processedImage = image;
+      if (image.width > image.height) {
+        debugPrint('$TAG: Rotating image to portrait orientation');
+        processedImage = img.copyRotate(image, angle: 90);
+      }
+      
+      // Step 2: Resize to an optimal size for face detection
+      // ML Kit works better with images around 800-1000px on the longer side
+      const int targetMaxDimension = 800;
+      if (processedImage.width > targetMaxDimension || processedImage.height > targetMaxDimension) {
+        final int targetWidth, targetHeight;
+        if (processedImage.width > processedImage.height) {
+          targetWidth = targetMaxDimension;
+          targetHeight = (targetMaxDimension * processedImage.height / processedImage.width).round();
+        } else {
+          targetHeight = targetMaxDimension;
+          targetWidth = (targetMaxDimension * processedImage.width / processedImage.height).round();
+        }
+        
+        processedImage = img.copyResize(
+          processedImage,
+          width: targetWidth,
+          height: targetHeight,
+          interpolation: img.Interpolation.cubic
+        );
+        
+        debugPrint('$TAG: Resized image to ${targetWidth}x${targetHeight}');
+      }
+      
+      // Step 3: Apply multiple enhancement approaches and save each version
+      List<File> variants = [];
+      
+      // Base variant - save resized image without enhancements
+      final baseImageFile = File(outputPath);
+      await baseImageFile.writeAsBytes(img.encodeJpg(processedImage, quality: 95));
+      variants.add(baseImageFile);
+      
+      // Variant 1: Brightness and contrast boost
+      try {
+        final brightImage = img.adjustColor(
+          processedImage,
+          brightness: 0.15,
+          contrast: 1.2,
+          saturation: 1.1,
+          exposure: 0.1
+        );
+        
+        final brightPath = '${tempDir.path}/ios_bright_$timestamp.jpg';
+        final brightFile = File(brightPath);
+        await brightFile.writeAsBytes(img.encodeJpg(brightImage, quality: 90));
+        variants.add(brightFile);
+      } catch (e) {
+        debugPrint('$TAG: Error creating brightness variant: $e');
+      }
+      
+      // Variant 2: High contrast
+      try {
+        final contrastImage = img.adjustColor(
+          processedImage,
+          brightness: 0.05,
+          contrast: 1.4,
+          saturation: 1.0
+        );
+        
+        final contrastPath = '${tempDir.path}/ios_contrast_$timestamp.jpg';
+        final contrastFile = File(contrastPath);
+        await contrastFile.writeAsBytes(img.encodeJpg(contrastImage, quality: 90));
+        variants.add(contrastFile);
+      } catch (e) {
+        debugPrint('$TAG: Error creating contrast variant: $e');
+      }
+      
+      // Variant 3: Higher contrast image (instead of sharpening)
+      try {
+        // Use a high contrast adjustment instead
+        final contrastImage2 = img.adjustColor(
+          processedImage,
+          brightness: 0,
+          contrast: 1.8,  // Very high contrast
+          saturation: 1.2
+        );
+        
+        final contrastPath2 = '${tempDir.path}/ios_highcontrast_$timestamp.jpg';
+        final contrastFile2 = File(contrastPath2);
+        await contrastFile2.writeAsBytes(img.encodeJpg(contrastImage2, quality: 90));
+        variants.add(contrastFile2);
+      } catch (e) {
+        debugPrint('$TAG: Error creating high contrast variant: $e');
+      }
+      
+      // Step 4: Test each variant with face detection to find the best one
+      FaceDetector detector = FaceDetector(
+        options: FaceDetectorOptions(
+          enableLandmarks: true,
+          enableClassification: true,
+          enableTracking: true,
+          minFaceSize: 0.05,
+          performanceMode: FaceDetectorMode.accurate,
+        ),
+      );
+      
+      File bestVariant = variants.first;
+      int maxFaceCount = 0;
+      
+      for (final variant in variants) {
+        try {
+          final inputImage = InputImage.fromFilePath(variant.path);
+          final faces = await detector.processImage(inputImage);
+          
+          debugPrint('$TAG: Variant ${variant.path} detected ${faces.length} faces');
+          
+          if (faces.length > maxFaceCount) {
+            maxFaceCount = faces.length;
+            bestVariant = variant;
+            
+            // If we found a face, we can stop testing
+            if (maxFaceCount > 0) break;
+          }
+        } catch (e) {
+          debugPrint('$TAG: Error testing variant ${variant.path}: $e');
+        }
+      }
+      
+      // Clean up unused variants
+      for (final variant in variants) {
+        if (variant.path != bestVariant.path) {
+          try {
+            await variant.delete();
+          } catch (e) {
+            // Ignore deletion errors
+          }
+        }
+      }
+      
+      // Close the detector
+      detector.close();
+      
+      debugPrint('$TAG: Best variant: ${bestVariant.path} with $maxFaceCount faces');
+      return bestVariant;
+    } catch (e) {
+      debugPrint('$TAG: Error in iOS optimized preprocessing: $e');
+      return null;
     }
   }
   

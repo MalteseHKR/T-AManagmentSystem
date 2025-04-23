@@ -16,6 +16,7 @@ import '../services/notification_service.dart';
 import '../services/timezone_service.dart';
 import '../services/session_service.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import '../widgets/server_images_viewer.dart';
 
 final NotificationService _notificationService = NotificationService();
 
@@ -61,6 +62,95 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   
   // For screen refresh
   int _screenRefreshCounter = 0;
+
+  // Log verification details method:
+  void _logVerificationDetails(Map<String, dynamic> result) {
+    debugPrint('---------- VERIFICATION DETAILS ----------');
+    debugPrint('Platform: ${Platform.isIOS ? "iOS" : "Android"}');
+    debugPrint('Result: ${result['isVerified'] ? "VERIFIED" : "REJECTED"}');
+    debugPrint('Confidence: ${result['confidence']}');
+    debugPrint('Message: ${result['message']}');
+    debugPrint('-----------------------------------------');
+  }
+
+  // Debug to show Server imported images
+  void _showServerImagesViewer() {
+    // Get the downloaded images from the face manager
+    final imagePaths = _faceManager.downloadedFaceImagePaths;
+
+    if (imagePaths.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No server images available yet. Try syncing face data first.'))
+      );
+      return;
+    }
+    
+    // Validate paths
+    List<String> validPaths = [];
+    for (String path in imagePaths) {
+      final file = File(path);
+      if (file.existsSync()) {
+        validPaths.add(path);
+      } else {
+        debugPrint('Invalid image path: $path');
+      }
+    }
+    
+    if (validPaths.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No valid server images found'))
+      );
+      return;
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => Dialog.fullscreen(
+        child: ServerImagesViewer(
+          imagePaths: validPaths,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
+  }
+
+  // Add a method to trigger face data syncing for testing
+  void _syncFaceData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      // Get the user ID from user details
+      final userId = widget.userDetails['id'].toString();
+      
+      // Sync face data
+      final success = await _faceManager.syncUserFaceData(userId);
+      
+      // Show result
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success 
+            ? 'Face data synced successfully' 
+            : 'Failed to sync face data'),
+          backgroundColor: success ? Colors.green : Colors.red,
+        )
+      );
+      
+      // If successful, show server images
+      if (success) {
+        _showServerImagesViewer();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error syncing face data: $e'))
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -320,7 +410,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       );
       
       // Use the processed or original file
-      final fileToUse = processedPhotoFile ?? originalPhotoFile;
+      var fileToUse = processedPhotoFile ?? originalPhotoFile;
       debugPrint("Using processed photo: ${fileToUse.path}");
       
       // Initialize the face recognition manager
@@ -330,66 +420,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       // Get the user ID string from user details
       final String userId = widget.userDetails['id'].toString();
       
-      // For iOS, do a direct face detection check before proceeding
-      if (Platform.isIOS) {
-        FaceDetector? iosFaceDetector;
-        try {
-          debugPrint('iOS: Performing manual face detection check');
-          
-          // Create dedicated face detector for iOS with optimized settings
-          iosFaceDetector = FaceDetector(
-            options: FaceDetectorOptions(
-              enableLandmarks: true,
-              enableClassification: true,
-              enableTracking: true,
-              minFaceSize: 0.1, // Use a slightly higher value for more reliable detection
-              performanceMode: FaceDetectorMode.accurate,
-            ),
-          );
-          
-          // Process the image directly with MLKit
-          final inputImage = InputImage.fromFilePath(fileToUse.path);
-          final List<Face> faces = await iosFaceDetector.processImage(inputImage);
-          
-          // Immediately handle the case where no faces are detected
-          if (faces.isEmpty) {
-            debugPrint('iOS: No faces detected in direct check');
-            setState(() {
-              _isLoading = false;
-              _capturedImage = fileToUse;
-              _faceValidationMessage = 'No face detected. Please center your face in the frame.';
-              _isFaceValid = false;
-            });
-            
-            // Auto-reset after 3 seconds
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted && _capturedImage != null) {
-                _retakePhoto();
-              }
-            });
-            
-            // Don't forget to clean up
-            iosFaceDetector.close();
-            return;
-          }
-          
-          debugPrint('iOS: Face detected in manual check: ${faces.length} faces');
-          // If we reach here, at least one face was found, so we can proceed
-        } catch (e) {
-          debugPrint('iOS manual face detection error: $e');
-          // On error, we'll still try the regular validation as fallback
-        } finally {
-          // Clean up resources
-          iosFaceDetector?.close();
-        }
-      }
-      
-      // Now perform the regular face validation for both platforms
+      // UNIFIED APPROACH: Use the same validation flow for both platforms
       debugPrint('Validating face in image: ${fileToUse.path}');
       final validationResult = await faceManager.mlService.validateFace(fileToUse);
       
       final bool isBasicValid = validationResult['isValid'];
-      debugPrint('Face validation result: $isBasicValid (${validationResult['message']})');
+      debugPrint('Face validation result: $isBasicValid (${validationResult["message"]})');
       
       if (!isBasicValid) {
         setState(() {
@@ -407,6 +443,47 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
           }
         });
         return;
+      }
+      
+      // ADDED: Explicit check for multiple faces on iOS
+      if (Platform.isIOS) {
+        try {
+          // Create a detector specifically to check for multiple faces on iOS
+          final multipleFaceDetector = FaceDetector(
+            options: FaceDetectorOptions(
+              enableLandmarks: false, // No need for landmarks
+              enableClassification: false, // No need for classification
+              enableTracking: false,
+              minFaceSize: 0.05, // Low threshold for iOS
+              performanceMode: FaceDetectorMode.fast, // Fast mode for this check
+            ),
+          );
+          
+          final inputImage = InputImage.fromFilePath(fileToUse.path);
+          final faces = await multipleFaceDetector.processImage(inputImage);
+          multipleFaceDetector.close();
+          
+          if (faces.length > 1) {
+            debugPrint('iOS: Multiple faces detected: ${faces.length}');
+            setState(() {
+              _isLoading = false;
+              _capturedImage = fileToUse;
+              _faceValidationMessage = 'Multiple faces detected. Please ensure only your face is in the frame.';
+              _isFaceValid = false;
+            });
+            
+            // Auto-reset after 3 seconds
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && _capturedImage != null) {
+                _retakePhoto();
+              }
+            });
+            return;
+          }
+        } catch (e) {
+          debugPrint('Error checking for multiple faces on iOS: $e');
+          // Continue even if this check fails
+        }
       }
       
       setState(() {
@@ -661,6 +738,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         userId,
         requireLiveness: false // Already passed liveness check
       );
+
+      // Add the logging call right after getting the result
+      _logVerificationDetails(verificationResult);
       
       setState(() {
         _isLoading = false;
@@ -1326,6 +1406,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         appBar: AppBar(
           title: const Text('Attendance'),
           actions: [
+            // Server images button
+            IconButton(
+              icon: const Icon(Icons.face),
+              tooltip: 'Server Face Images',
+              onPressed: _showServerImagesViewer,
+            ),
+            // Sync face data button
+            IconButton(
+              icon: const Icon(Icons.sync),
+              tooltip: 'Sync Face Data',
+              onPressed: _syncFaceData,
+            ),
+            // Your existing refresh button
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: () async {

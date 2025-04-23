@@ -1,4 +1,5 @@
 platform :ios, '15.0'
+pod 'TensorFlowLiteSwift'
 
 $iOSVersion = '15.0'
 
