@@ -1,6 +1,8 @@
 // lib/screens/attendance_screen.dart
 import 'dart:io';
 import 'dart:async';
+import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
@@ -54,6 +56,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   final MapController _mapController = MapController();
   bool _isCameraInitialized = false;
   Rect? _faceBounds;
+  String? _faceSizeFeedback;
 
   // New properties for clock
   late Timer _clockTimer;
@@ -112,6 +115,61 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         ),
       ),
     );
+  }
+
+  // Improved face size validation method to add to the _AttendanceScreenState class
+  bool _isValidFaceSize(Rect? faceBounds, {required Size imageSize}) {
+    if (faceBounds == null) return false;
+    
+    // Get image dimensions
+    final double imageWidth = imageSize.width;
+    final double imageHeight = imageSize.height;
+    
+    // Calculate face dimensions relative to image size
+    final double faceWidth = faceBounds.width;
+    final double faceHeight = faceBounds.height;
+    
+    // Calculate face size as percentage of image dimensions
+    final double faceWidthPercent = faceWidth / imageWidth;
+    final double faceHeightPercent = faceHeight / imageHeight;
+    
+    // Define more tolerant acceptable size ranges
+    // These values are deliberately more permissive
+    const double minAcceptablePercent = 0.12; // Face should take up at least 12% of width/height
+    const double maxAcceptablePercent = 0.80; // Face should not take up more than 80% of width/height
+    
+    final bool isWidthValid = faceWidthPercent >= minAcceptablePercent && faceWidthPercent <= maxAcceptablePercent;
+    final bool isHeightValid = faceHeightPercent >= minAcceptablePercent && faceHeightPercent <= maxAcceptablePercent;
+    
+    debugPrint('Face width: ${(faceWidthPercent * 100).toStringAsFixed(1)}% of frame (${isWidthValid ? 'VALID' : 'INVALID'})');
+    debugPrint('Face height: ${(faceHeightPercent * 100).toStringAsFixed(1)}% of frame (${isHeightValid ? 'VALID' : 'INVALID'})');
+    
+    return isWidthValid && isHeightValid;
+  }
+
+  // Helper method to generate face size feedback message
+  String _getFaceSizeFeedback(Rect? faceBounds, {required Size imageSize}) {
+    if (faceBounds == null) return 'No face detected';
+    
+    // Get image dimensions
+    final double imageWidth = imageSize.width;
+    final double imageHeight = imageSize.height;
+    
+    // Calculate face dimensions relative to image size
+    final double faceWidthPercent = faceBounds.width / imageWidth;
+    final double faceHeightPercent = faceBounds.height / imageHeight;
+    
+    // Define thresholds
+    const double minAcceptablePercent = 0.20;
+    const double maxAcceptablePercent = 0.70;
+    
+    if (faceWidthPercent < minAcceptablePercent || faceHeightPercent < minAcceptablePercent) {
+      return 'Please move closer to the camera';
+    } else if (faceWidthPercent > maxAcceptablePercent || faceHeightPercent > maxAcceptablePercent) {
+      return 'Please move further from the camera';
+    } else {
+      return 'Face size is good';
+    }
   }
 
   // Add a method to trigger face data syncing for testing
@@ -357,7 +415,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       
       if (Platform.isAndroid) {
         // For Android, set flash mode and exposure to improve camera stability
-        await _cameraController.setFlashMode(FlashMode.off);
+        await _cameraController.setFlashMode(FlashMode.auto);
         await _cameraController.setExposureMode(ExposureMode.auto);
       }
       
@@ -426,7 +484,49 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       
       final bool isBasicValid = validationResult['isValid'];
       debugPrint('Face validation result: $isBasicValid (${validationResult["message"]})');
+
+      // Add face size validation
+      if (isBasicValid) {
+        // Get photo dimensions
+        final bytes = await fileToUse.readAsBytes();
+        final image = await decodeImageFromList(bytes);
+        final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
+        
+        // Check face bounds
+        final Rect? faceBounds = validationResult['faceBounds'];
+        final bool isFaceSizeValid = _isValidFaceSize(faceBounds, imageSize: imageSize);
+        
+        debugPrint('Face size validation: $isFaceSizeValid');
+        
+        if (!isFaceSizeValid) {
+          // Face was detected but size is invalid
+          setState(() {
+            _isLoading = false;
+            _capturedImage = fileToUse;
+            _faceBounds = faceBounds;
+            
+            // Create size-specific feedback
+            final String feedback = faceBounds != null 
+                ? (faceBounds.width / imageSize.width < 0.15)
+                    ? 'Please move closer to the camera'
+                    : 'Please move further from the camera' 
+                : 'Face size is not valid';
+            
+            _faceValidationMessage = feedback;
+            _isFaceValid = false;
+          });
+          
+          // Auto-reset after 3 seconds
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted && _capturedImage != null) {
+              _retakePhoto();
+            }
+          });
+          return;
+        }
+      }
       
+      // If basic validation fails, return early
       if (!isBasicValid) {
         setState(() {
           _isLoading = false;
@@ -1035,10 +1135,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
             
             // Camera Preview Container
             Container(
-              height: 250,
+              height: 350,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade300),
+                color: Colors.black, // Background color for areas not covered by the preview
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -1049,9 +1150,31 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                     if (snapshot.connectionState == ConnectionState.done && 
                         _isCameraInitialized && 
                         _cameraController.value.isInitialized) {
-                      return CameraPreview(_cameraController);
+                      return Stack(
+                        children: [
+                          // Center the camera preview
+                          Center(
+                            child: CameraPreview(_cameraController),
+                          ),
+                          
+                          // Simple face guide overlay - centered in the view
+                          Center(
+                            child: Container(
+                              width: 150,  // Fixed width for the guide
+                              height: 180, // Fixed height for the guide
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                  color: Colors.green.withOpacity(0.7),
+                                  width: 3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
                     } else {
-                      // Loading indicator while camera is initializing
+                      // Loading indicator - unchanged
                       return const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1572,9 +1695,9 @@ class FaceHighlightOverlay extends CustomPainter {
     // Create an enlarged rectangle that better encompasses the whole head
     Rect enlargedFaceRect = Rect.fromLTRB(
       scaledFaceRect.left - (extraWidth / 2), // Add width on both sides
-      scaledFaceRect.top - (extraHeight * 0.4), // Add more space for forehead
+      scaledFaceRect.top - (extraHeight * 0.1), // Add more space for forehead
       scaledFaceRect.right + (extraWidth / 2),
-      scaledFaceRect.bottom + (extraHeight * 0.2) // Add some space for chin
+      scaledFaceRect.bottom + (extraHeight * 0.1) // Add some space for chin
     );
     
     // Ensure the rectangle stays within the preview bounds
@@ -1638,4 +1761,44 @@ class FaceHighlightOverlay extends CustomPainter {
   
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// Add this simpler face guide overlay class
+class SimpleFaceGuideOverlay extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double width = size.width;
+    final double height = size.height;
+    
+    // Calculate a more appropriate face guide rectangle
+    // Make it wider and more rectangular (less oval)
+    final double guideWidth = width * 0.1; // 10% of width
+    final double guideHeight = height * 0.3; // 30% of height
+    
+    // Position the guide in the center
+    final double left = (width - guideWidth) / 2;
+    final double top = (height - guideHeight) / 2;
+    final double right = left + guideWidth;
+    final double bottom = top + guideHeight;
+    
+    final Rect guideRect = Rect.fromLTRB(left, top, right, bottom);
+    
+    // Create a rounded rectangle with less rounding
+    final RRect roundedRect = RRect.fromRectAndRadius(
+      guideRect,
+      Radius.circular(20), // Less rounded corners
+    );
+    
+    // Just draw a border for the guide - no transparency overlay
+    final Paint borderPaint = Paint()
+      ..color = Colors.green.withOpacity(0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    
+    // Draw the border
+    canvas.drawRRect(roundedRect, borderPaint);
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

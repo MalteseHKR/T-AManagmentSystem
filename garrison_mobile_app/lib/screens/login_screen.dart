@@ -1,4 +1,4 @@
-// Modified login_screen.dart with "Signing in" loading animation instead of face sync message
+// Modified login_screen.dart with improved loading animation for face sync
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'dart:async';
@@ -24,7 +24,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -37,6 +37,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  
+  // Improved loading animation controls
+  bool _isSyncingFace = false;
+  late AnimationController _loadingAnimationController;
   
   // Biometrics
   bool _isBiometricsAvailable = false;
@@ -53,6 +57,12 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     // Stop any existing session timer
     _sessionService.stopSessionTimer();
+    
+    // Initialize loading animation controller
+    _loadingAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
     
     // Check biometrics availability
     _checkBiometricStatus();
@@ -125,6 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
+  
   // Login with stored credentials
   Future<bool> _performBiometricLogin() async {
     try {
@@ -158,20 +169,31 @@ class _LoginScreenState extends State<LoginScreen> {
         return false;
       }
 
-      // Face Recognition Sync - Run in background but don't show message to user
+      // Show face synchronization in progress
+      setState(() {
+        _isSyncingFace = true;
+      });
+      
+      // Face Recognition Sync - Run and show status to user
       try {
         final userId = response['user']['id'].toString();
         
-        // Background face sync without notification
-        Future.microtask(() async {
-          final faceManager = FaceRecognitionManager();
-          await faceManager.initialize();
-          await faceManager.syncUserFaceData(userId);
-          print('Face data sync completed for user: $userId');
-        });
+        // Initialize the face manager
+        final faceManager = FaceRecognitionManager();
+        await faceManager.initialize();
+        
+        // Perform face sync
+        await faceManager.syncUserFaceData(userId);
+        print('Face data sync completed for user: $userId');
       } catch (faceError) {
         print('Face sync error (non-fatal): $faceError');
         // Continue with login even if face sync fails
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSyncingFace = false;
+          });
+        }
       }
 
       // Navigate based on user role
@@ -248,20 +270,31 @@ class _LoginScreenState extends State<LoginScreen> {
         await _secureStorageService.enableBiometricLogin();
       }
 
-      // Face Recognition Sync - Run in background without notification
+      // Show face synchronization in progress
+      setState(() {
+        _isSyncingFace = true;
+      });
+      
+      // Face Recognition Sync - Run visibly with progress indicator
       try {
         final userId = response['user']['id'].toString();
         
-        // Run face sync in background
-        Future.microtask(() async {
-          final faceManager = FaceRecognitionManager();
-          await faceManager.initialize();
-          final syncSuccess = await faceManager.syncUserFaceData(userId);
-          print('Face data sync completed for user: $userId with result: $syncSuccess');
-        });
+        // Initialize the face manager
+        final faceManager = FaceRecognitionManager();
+        await faceManager.initialize();
+        
+        // Perform face sync
+        final syncSuccess = await faceManager.syncUserFaceData(userId);
+        print('Face data sync completed for user: $userId with result: $syncSuccess');
       } catch (faceError) {
         print('Face sync error (non-fatal): $faceError');
         // Continue with login even if face sync fails
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSyncingFace = false;
+          });
+        }
       }
 
       // Determine user access
@@ -608,7 +641,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               
-              // Overlay loading indicator with "Signing in" message
+              // Enhanced loading overlay with animation and face sync status
               if (_isLoading)
                 Container(
                   color: Colors.black54,
@@ -623,15 +656,56 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const CircularProgressIndicator(),
+                            // Animated loading indicator
+                            AnimatedBuilder(
+                              animation: _loadingAnimationController,
+                              builder: (context, child) {
+                                return SizedBox(
+                                  width: 50,
+                                  height: 50,
+                                  child: CircularProgressIndicator(
+                                    value: _isSyncingFace ? null : _loadingAnimationController.value,
+                                    strokeWidth: 3,
+                                    color: Colors.blue,
+                                  ),
+                                );
+                              },
+                            ),
                             const SizedBox(height: 16),
-                            const Text(
-                              "Signing in...",
-                              style: TextStyle(
+                            
+                            // Dynamic loading message based on current operation
+                            Text(
+                              _isSyncingFace ? "Syncing face data..." : "Signing in...",
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            
+                            // Show progress indicator for face sync
+                            if (_isSyncingFace) ...[
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: 200,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    minHeight: 6,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[400]!),
+                                    backgroundColor: Colors.blue[100],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                "This helps improve facial recognition",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -650,6 +724,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _lockoutTimer?.cancel();
+    _loadingAnimationController.dispose();
     super.dispose();
   }
 }

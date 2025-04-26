@@ -123,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 100,
                     height: 100,
                     child: Image.network(
-                      'http://195.158.75.66:3000/profile-pictures/${_profileData!['profile_photo']?.split('/').last ?? ''}',
+                      'https://api.garrisonta.org/profile-pictures/${_profileData!['profile_photo']?.split('/').last ?? ''}',
                       fit: BoxFit.cover,
                       headers: {
                         'Authorization': 'Bearer ${_apiService.token}'

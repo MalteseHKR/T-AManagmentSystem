@@ -1337,96 +1337,86 @@ class FaceRecognitionMLService {
   
   // Helper function to crop and process a face from an image
   Future<img.Image?> _getProcessedFace(File imageFile, Face face) async {
-    try {
-      // Read the image
-      final bytes = await imageFile.readAsBytes();
-      final image = img.decodeImage(bytes);
-      
-      if (image == null) {
-        debugPrint('$TAG: Failed to decode image');
-        return null;
-      }
-      
-      // Get face bounding box
-      final rect = face.boundingBox;
-      
-      // Ensure coordinates are within image bounds
-      final left = max(0, rect.left.toInt());
-      final top = max(0, rect.top.toInt());
-      final right = min(image.width, rect.right.toInt());
-      final bottom = min(image.height, rect.bottom.toInt());
-      
-      // Check if we have a valid crop region
-      if (right <= left || bottom <= top) {
-        debugPrint('$TAG: Invalid face crop region');
-        
-        // On iOS, use the whole image as fallback
-        if (Platform.isIOS) {
-          debugPrint('$TAG: Using full image on iOS due to invalid crop region');
-          return img.copyResize(image, width: FACE_WIDTH, height: FACE_HEIGHT);
-        }
-        
-        return null;
-      }
-      
-      // Add a margin around the face (20% on each side)
-      final width = right - left;
-      final height = bottom - top;
-      
-      final marginX = (width * 0.2).toInt();
-      final marginY = (height * 0.2).toInt();
-      
-      final croppedLeft = max(0, left - marginX);
-      final croppedTop = max(0, top - marginY);
-      final croppedRight = min(image.width, right + marginX);
-      final croppedBottom = min(image.height, bottom + marginY);
-      
-      // Crop the face
-      final faceImage = img.copyCrop(
-        image, 
-        x: croppedLeft, 
-        y: croppedTop, 
-        width: croppedRight - croppedLeft, 
-        height: croppedBottom - croppedTop
-      );
-      
-      // Resize to model input size
-      final processedFace = img.copyResize(
-        faceImage, 
-        width: FACE_WIDTH, 
-        height: FACE_HEIGHT
-      );
-      
-      // For iOS, apply additional enhancement
-      if (Platform.isIOS) {
-        return img.adjustColor(
-          processedFace,
-          brightness: 0.1,
-          contrast: 1.2,
-          saturation: 1.1
-        );
-      }
-      
-      return processedFace;
-    } catch (e) {
-      debugPrint('$TAG: Error processing face image: $e');
-      
-      // For iOS, try to return the full image
-      if (Platform.isIOS) {
-        try {
-          final bytes = await imageFile.readAsBytes();
-          final image = img.decodeImage(bytes);
-          if (image != null) {
-            return img.copyResize(image, width: FACE_WIDTH, height: FACE_HEIGHT);
-          }
-        } catch (e) {
-          debugPrint('$TAG: iOS fallback image processing also failed: $e');
-        }
-      }
-      
+  try {
+    final bytes = await imageFile.readAsBytes();
+    final image = img.decodeImage(bytes);
+
+    if (image == null) {
+      debugPrint('$TAG: Failed to decode image');
       return null;
     }
+
+    // Base bounding box from ML Kit
+    final rect = face.boundingBox;
+
+    // Add 20% padding to width and height
+    final int marginX = (rect.width * 0.2).toInt();
+    final int marginY = (rect.height * 0.2).toInt();
+
+    final int left = max(0, rect.left.toInt() - marginX);
+    final int top = max(0, rect.top.toInt() - marginY);
+    final int right = min(image.width, rect.right.toInt() + marginX);
+    final int bottom = min(image.height, rect.bottom.toInt() + marginY);
+
+    final int width = right - left;
+    final int height = bottom - top;
+
+    // Validate region size
+    if (width < 50 || height < 50) {
+      debugPrint('$TAG: Skipping small face region: ${width}x$height');
+
+      // Fallback for iOS
+      if (Platform.isIOS) {
+        return img.copyResize(image, width: FACE_WIDTH, height: FACE_HEIGHT);
+      }
+
+      return null;
+    }
+
+    debugPrint('$TAG: Cropping face with margin: left=$left, top=$top, w=$width, h=$height');
+
+    final faceImage = img.copyCrop(
+      image,
+      x: left,
+      y: top,
+      width: width,
+      height: height,
+    );
+
+    final resizedFace = img.copyResize(
+      faceImage,
+      width: FACE_WIDTH,
+      height: FACE_HEIGHT,
+    );
+
+    if (Platform.isIOS) {
+      return img.adjustColor(
+        resizedFace,
+        brightness: 0.1,
+        contrast: 1.2,
+        saturation: 1.1,
+      );
+    }
+
+    return resizedFace;
+  } catch (e) {
+    debugPrint('$TAG: Error processing face image: $e');
+
+    if (Platform.isIOS) {
+      try {
+        final fallbackBytes = await imageFile.readAsBytes();
+        final fallbackImage = img.decodeImage(fallbackBytes);
+        if (fallbackImage != null) {
+          return img.copyResize(fallbackImage, width: FACE_WIDTH, height: FACE_HEIGHT);
+        }
+      } catch (e) {
+        debugPrint('$TAG: Fallback iOS image processing failed: $e');
+      }
+    }
+
+    return null;
   }
+}
 
   Future<Map<String, dynamic>> validateFace(File imageFile) async {
     try {

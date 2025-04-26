@@ -13,7 +13,7 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  static const String baseUrl = 'http://195.158.75.66:3000/api';
+  static const String baseUrl = 'https://api.garrisonta.org/api';
   String? _token;
 
   String? get token => _token;
@@ -831,7 +831,7 @@ class ApiService {
   String getFacePhotoUrl(String photoPath) {
     if (photoPath.startsWith('/api/face-photo/')) {
       // Already in the correct format
-      return 'http://195.158.75.66:3000$photoPath';
+      return 'https://api.garrisonta.org$photoPath';
     } else if (photoPath.contains('_')) {
       // It's probably a filename like "UserName_UserSurname_PhotoNum_UserID.jpg"
       // Extract the user ID from the filename
@@ -839,12 +839,12 @@ class ApiService {
       if (parts.length >= 2) {
         final lastPart = parts.last;
         final userId = lastPart.split('.')[0]; // Remove extension
-        return 'http://195.158.75.66:3000/api/face-photo/$userId/${photoPath.split('/').last}';
+        return 'https://api.garrisonta.org/api/face-photo/$userId/${photoPath.split('/').last}';
       }
     }
   
   // Default fallback - just append to base URL
-  return 'http://195.158.75.66:3000$photoPath';
+  return 'https://api.garrisonta.org$photoPath';
 }
 
   // Get user face photos for model training
@@ -960,11 +960,11 @@ class ApiService {
     
     // Relative path starting with /profile-pictures
     if (photoPath.startsWith('/profile-pictures/')) {
-      return 'http://195.158.75.66:3000$photoPath';
+      return 'https://api.garrisonta.org$photoPath';
     }
     
     // Just the filename
-    return 'http://195.158.75.66:3000/profile-pictures/$photoPath';
+    return 'https://api.garrisonta.org/profile-pictures/$photoPath';
   }
 
   // Check if user has registered face

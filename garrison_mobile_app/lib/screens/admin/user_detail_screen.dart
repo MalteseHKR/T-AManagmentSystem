@@ -399,7 +399,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                                         ],
                                                       ),
                                                       Image.network(
-                                                        'http://195.158.75.66:3000${record['photo_url']}',
+                                                        'https://api.garrisonta.org${record['photo_url']}',
                                                         fit: BoxFit.contain,
                                                         height: 300,
                                                         loadingBuilder: (context, child, loadingProgress) {
@@ -524,18 +524,18 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     
     // If it's just a filename without path
     if (!photoPath.contains('/')) {
-      return 'http://195.158.75.66:3000/profile-pictures/$photoPath';
+      return 'https://api.garrisonta.org/profile-pictures/$photoPath';
     }
     
     // If it has a path but doesn't start with /profile-pictures
     if (!photoPath.startsWith('/profile-pictures')) {
       // Extract the filename from the path
       final filename = photoPath.split('/').last;
-      return 'http://195.158.75.66:3000/profile-pictures/$filename';
+      return 'https://api.garrisonta.org/profile-pictures/$filename';
     }
     
     // If it starts with /profile-pictures, just add the base URL
-    return 'http://195.158.75.66:3000$photoPath';
+    return 'https://api.garrisonta.org$photoPath';
   }
   
   String _getInitials(String fullName) {
