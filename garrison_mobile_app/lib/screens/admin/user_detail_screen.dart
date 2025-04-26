@@ -176,11 +176,12 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   
   Future<void> _checkFaceRegistration() async {
     try {
-      final result = await _apiService.checkFaceRegistration(widget.userId.toString());
+      // Use the new method that directly checks for face photos
+      final hasRegisteredFace = await _apiService.userHasRegisteredFacePhotos(widget.userId.toString());
       
       if (mounted) {
         setState(() {
-          _isFaceRegistered = result['has_registered_face'] ?? false;
+          _isFaceRegistered = hasRegisteredFace;
         });
       }
     } catch (e) {

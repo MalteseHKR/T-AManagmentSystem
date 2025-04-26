@@ -875,6 +875,39 @@ class ApiService {
     }
   }
 
+  // Check if user has face registered for face recognition
+  Future<bool> userHasRegisteredFacePhotos(String userId) async {
+    if (token == null) {
+      print('No authentication token available for checking face photos');
+      return false;
+    }
+
+    try {
+      print('Checking if user $userId has registered face photos');
+      
+      // Use the direct face-status endpoint instead of getUserFacePhotos
+      final response = await http.get(
+        Uri.parse('$baseUrl/face-status/$userId'),
+        headers: _headers,
+      );
+      
+      print('Face status response: ${response.statusCode} - ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final hasRegisteredFace = data['has_registered_face'] ?? false;
+        
+        print('User $userId has registered face: $hasRegisteredFace (photo count: ${data['photo_count'] ?? 0})');
+        return hasRegisteredFace;
+      } else {
+        throw Exception('Failed to check face registration status');
+      }
+    } catch (e) {
+      print('Error checking face photos: $e');
+      return false; // Assume no registration on error
+    }
+  }
+
   // Download a face photo by URL
   Future<File?> downloadFacePhoto(String photoUrl) async {
     if (token == null) {

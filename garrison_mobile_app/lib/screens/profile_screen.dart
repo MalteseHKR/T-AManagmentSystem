@@ -25,11 +25,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _cacheService = CacheService();
   Map<String, dynamic>? _profileData;
   bool _isLoading = false;
+  bool _hasFaceRegistered = false;
+
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _checkFaceRegistration();
+  }
+
+  // Add this method
+  Future<void> _checkFaceRegistration() async {
+    try {
+      // Check if the user has registered face photos on the server
+      final userId = widget.userDetails['id'].toString();
+      
+      // Get face photos from server
+      final photoUrls = await _apiService.getUserFacePhotos(userId);
+      
+      // User has registered face if they have at least one photo
+      final hasFaceRegistered = photoUrls.isNotEmpty;
+      
+      if (mounted) {
+        setState(() {
+          _hasFaceRegistered = hasFaceRegistered;
+        });
+      }
+      
+      print('User $userId has registered face: $_hasFaceRegistered (${photoUrls.length} photos)');
+    } catch (e) {
+      print('Error checking face registration: $e');
+      // Continue without face registration status
+    }
   }
 
   Future<void> _loadProfile({bool forceRefresh = false}) async {
@@ -315,6 +343,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             leading: const Icon(Icons.calendar_today),
             title: const Text('Join Date'),
             subtitle: Text(_formatDate(_profileData!['join_date'])),
+          ),
+          const Divider(),
+          // Add this new ListTile for Face Registration Status
+          ListTile(
+            leading: Icon(
+              _hasFaceRegistered ? Icons.face : Icons.face_outlined,
+              color: _hasFaceRegistered ? Colors.green : Colors.red,
+            ),
+            title: const Text('Face Recognition'),
+            subtitle: Text(
+              _hasFaceRegistered ? 'Face Registered' : 'No Face Registered',
+              style: TextStyle(
+                color: _hasFaceRegistered ? Colors.green : Colors.red,
+              ),
+            ),
           ),
         ],
       ),
