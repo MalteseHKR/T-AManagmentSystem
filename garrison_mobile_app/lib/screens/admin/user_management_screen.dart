@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../services/session_service.dart';
+import '../../services/cache_service.dart';
 import 'user_detail_screen.dart';
 import 'create_user_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -39,42 +40,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return initials.toUpperCase();
   }
 
-  // Add helper method from UserDetailScreen
-  String _buildProfilePhotoUrl(String photoPath) {
-    if (photoPath.isEmpty) {
-      return '';
-    }
-    
-    // If it's already a full URL, return it
-    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
-      return photoPath;
-    }
-    
-    // If it's just a filename without path
-    if (!photoPath.contains('/')) {
-      return 'https://api.garrisonta.org/profile-pictures/$photoPath';
-    }
-    
-    // If it has a path but doesn't start with /profile-pictures
-    if (!photoPath.startsWith('/profile-pictures')) {
-      // Extract the filename from the path
-      final filename = photoPath.split('/').last;
-      return 'https://api.garrisonta.org/profile-pictures/$filename';
-    }
-    
-    // If it starts with /profile-pictures, just add the base URL
-    return 'https://api.garrisonta.org$photoPath';
-  }
-
   Widget _buildUserAvatar(Map<String, dynamic> user, bool isActive) {
     final String fullName = '${user['name']} ${user['surname']}';
     final String initials = _getInitials(fullName);
     final String? profilePhoto = user['profile_photo'];
     String? imageUrl;
 
-    // Use the same method that works in UserDetailScreen
+    // Use the API service helper method for profile photo URL
     if (profilePhoto != null && profilePhoto.isNotEmpty) {
-      imageUrl = _buildProfilePhotoUrl(profilePhoto);
+      // Handle different profile photo URL formats
+      if (profilePhoto.startsWith('http://') || profilePhoto.startsWith('https://')) {
+        imageUrl = profilePhoto;
+      } else if (profilePhoto.startsWith('/profile-pictures/')) {
+        imageUrl = 'https://api.garrisonta.org$profilePhoto';
+      } else {
+        imageUrl = 'https://api.garrisonta.org/profile-pictures/$profilePhoto';
+      }
       print('Avatar image URL for ${user['name']}: $imageUrl'); // Debug log
     }
 
@@ -89,7 +70,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ? CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.cover,
-                  // No auth headers needed for profile photos
+                  httpHeaders: {
+                    'Authorization': 'Bearer ${_apiService.token}',
+                  },
                   placeholder: (context, url) => Center(
                     child: Text(
                       initials,
@@ -128,6 +111,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   final ApiService _apiService = ApiService();
   final SessionService _sessionService = SessionService();
+  final CacheService _cacheService = CacheService();
   
   List<Map<String, dynamic>> _allUsers = [];
   List<Map<String, dynamic>> _departments = [];
@@ -153,7 +137,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     super.dispose();
   }
   
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
     });
@@ -161,9 +145,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     try {
       // Load all lookup data in parallel
       await Future.wait([
-        _loadUsers(),
-        _loadDepartments(),
-        _loadRoles(),
+        _loadUsers(forceRefresh),
+        _loadDepartments(forceRefresh),
+        _loadRoles(forceRefresh),
       ]);
     } catch (e) {
       if (mounted) {
@@ -180,10 +164,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
   
-  Future<void> _loadUsers() async {
+  Future<void> _loadUsers(bool forceRefresh) async {
     try {
-      // This would need a new API endpoint to get all users with their department and role info
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cachedUsers = await _cacheService.getCachedAllUsers();
+        if (cachedUsers != null && cachedUsers.isNotEmpty) {
+          print('Loading ${cachedUsers.length} users from cache');
+          setState(() {
+            _allUsers = cachedUsers;
+          });
+          return;
+        }
+      }
+      
+      // If not in cache or forcing refresh, load from API
+      print('Loading users from API');
       final response = await _apiService.getAllUsers();
+      
+      // Cache the response
+      await _cacheService.cacheAllUsers(response);
       
       setState(() {
         _allUsers = response;
@@ -204,10 +204,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
   
-  Future<void> _loadDepartments() async {
+  Future<void> _loadDepartments(bool forceRefresh) async {
     try {
-      // This would need a new API endpoint to get all departments
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cachedDepartments = await _cacheService.getCachedDepartments();
+        if (cachedDepartments != null && cachedDepartments.isNotEmpty) {
+          print('Loading ${cachedDepartments.length} departments from cache');
+          setState(() {
+            _departments = cachedDepartments;
+          });
+          return;
+        }
+      }
+      
+      // If not in cache or forcing refresh, load from API
+      print('Loading departments from API');
       final response = await _apiService.getAllDepartments();
+      
+      // Cache the response
+      await _cacheService.cacheDepartments(response);
       
       setState(() {
         _departments = response;
@@ -218,10 +234,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     }
   }
   
-  Future<void> _loadRoles() async {
+  Future<void> _loadRoles(bool forceRefresh) async {
     try {
-      // This would need a new API endpoint to get all roles
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cachedRoles = await _cacheService.getCachedRoles();
+        if (cachedRoles != null && cachedRoles.isNotEmpty) {
+          print('Loading ${cachedRoles.length} roles from cache');
+          setState(() {
+            _roles = cachedRoles;
+          });
+          return;
+        }
+      }
+      
+      // If not in cache or forcing refresh, load from API
+      print('Loading roles from API');
       final response = await _apiService.getAllRoles();
+      
+      // Cache the response
+      await _cacheService.cacheRoles(response);
       
       setState(() {
         _roles = response;
@@ -277,11 +309,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       setState(() {
         for (var user in _allUsers) {
           if (user['user_id'] == userId) {
-            user['active'] = newStatus;
+            user['active'] = newStatus ? 1 : 0;
             break;
           }
         }
       });
+      
+      // Update the cache with the updated data
+      await _cacheService.cacheAllUsers(_allUsers);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -342,7 +377,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
+            onPressed: () => _loadData(forceRefresh: true),
             tooltip: 'Refresh',
           ),
         ],
@@ -656,7 +691,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
             ),
           );
-          _loadData(); // Refresh after creating a new user
+          _loadData(forceRefresh: true); // Force refresh after creating a new user
         },
         tooltip: 'Add User',
         child: const Icon(Icons.person_add),

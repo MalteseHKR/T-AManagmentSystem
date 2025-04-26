@@ -3,6 +3,7 @@ import 'dart:math' as Math;
 
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/cache_service.dart';
 import 'package:intl/intl.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _apiService = ApiService();
+  final _cacheService = CacheService();
   Map<String, dynamic>? _profileData;
   bool _isLoading = false;
 
@@ -30,7 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadProfile();
   }
 
-  Future<void> _loadProfile() async {
+  Future<void> _loadProfile({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
     });
@@ -44,8 +46,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       
       print('Profile screen using token: ${_apiService.token?.substring(0, Math.min(20, _apiService.token?.length ?? 0))}...');
       
-      // Make sure we're passing the correct ID type (int)
+      // Check if user profile is already in cache
+      if (!forceRefresh) {
+        final cachedProfile = await _cacheService.getCachedUserProfile(widget.userDetails['id']);
+        if (cachedProfile != null) {
+          print('Loading profile from cache for user ID: ${widget.userDetails['id']}');
+          setState(() {
+            _profileData = cachedProfile;
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+      
+      // If not in cache or forcing refresh, load from API
+      print('Loading profile from API for user ID: ${widget.userDetails['id']}');
       final profile = await _apiService.getUserProfile(widget.userDetails['id']);
+      
+      // Cache the result
+      await _cacheService.cacheUserProfile(widget.userDetails['id'], profile);
       
       setState(() {
         _profileData = profile;
@@ -90,6 +109,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
+              // Clear cache when logging out
+              _cacheService.clearAllCache();
               widget.onLogout();
             },
             style: FilledButton.styleFrom(
@@ -105,6 +126,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileHeader() {
     if (_profileData == null) return const SizedBox.shrink();
 
+    // Get the correct URL for the profile photo
+    String? profilePhotoUrl;
+    if (_profileData!['profile_photo'] != null && _profileData!['profile_photo'].toString().isNotEmpty) {
+      final String photoPath = _profileData!['profile_photo']!;
+      
+      // Handle different profile photo URL formats
+      if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+        profilePhotoUrl = photoPath;
+      } else if (photoPath.startsWith('/profile-pictures/')) {
+        profilePhotoUrl = 'https://api.garrisonta.org$photoPath';
+      } else {
+        profilePhotoUrl = 'https://api.garrisonta.org/profile-pictures/$photoPath';
+      }
+    }
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -114,7 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            if (_profileData!['profile_photo'] != null)
+            if (profilePhotoUrl != null && profilePhotoUrl.isNotEmpty)
               CircleAvatar(
                 radius: 50,
                 backgroundColor: Colors.grey[200],
@@ -123,7 +159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 100,
                     height: 100,
                     child: Image.network(
-                      'https://api.garrisonta.org/profile-pictures/${_profileData!['profile_photo']?.split('/').last ?? ''}',
+                      profilePhotoUrl,
                       fit: BoxFit.cover,
                       headers: {
                         'Authorization': 'Bearer ${_apiService.token}'
@@ -243,47 +279,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildWorkInfo() {
-  if (_profileData == null) return const SizedBox.shrink();
+    if (_profileData == null) return const SizedBox.shrink();
 
-  return Card(
-    elevation: 4,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text(
-            'Work Information',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Work Information',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-        ),
-        ListTile(
-          leading: const Icon(Icons.business),
-          title: const Text('Department'),
-          subtitle: Text(_profileData!['department'] ?? 'N/A'),
-        ),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.badge),
-          title: const Text('Role'),
-          subtitle: Text(_profileData!['role'] ?? 'N/A'),
-        ),
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.calendar_today),
-          title: const Text('Join Date'),
-          subtitle: Text(_formatDate(_profileData!['join_date'])),
-        ),
-      ],
-    ),
-  );
-}
+          ListTile(
+            leading: const Icon(Icons.business),
+            title: const Text('Department'),
+            subtitle: Text(_profileData!['department'] ?? 'N/A'),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.badge),
+            title: const Text('Role'),
+            subtitle: Text(_profileData!['role'] ?? 'N/A'),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.calendar_today),
+            title: const Text('Join Date'),
+            subtitle: Text(_formatDate(_profileData!['join_date'])),
+          ),
+        ],
+      ),
+    );
+  }
 
   String _getInitials(String fullName) {
     List<String> names = fullName.split(' ');
@@ -303,6 +339,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Profile'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _loadProfile(forceRefresh: true),
+            tooltip: 'Refresh',
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _confirmLogout,
           ),
@@ -318,14 +359,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const Text('Error loading profile'),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: _loadProfile,
+                        onPressed: () => _loadProfile(forceRefresh: true),
                         child: const Text('Retry'),
                       ),
                     ],
                   ),
                 )
               : RefreshIndicator(
-                  onRefresh: _loadProfile,
+                  onRefresh: () => _loadProfile(forceRefresh: true),
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../services/session_service.dart';
+import '../../services/cache_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class UserDetailScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class UserDetailScreen extends StatefulWidget {
 class _UserDetailScreenState extends State<UserDetailScreen> {
   final ApiService _apiService = ApiService();
   final SessionService _sessionService = SessionService();
+  final CacheService _cacheService = CacheService();
   
   Map<String, dynamic>? _userData;
   List<Map<String, dynamic>> _leaveHistory = [];
@@ -35,7 +37,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     _loadUserData();
   }
   
-  Future<void> _loadUserData() async {
+  Future<void> _loadUserData({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
     });
@@ -43,9 +45,9 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     try {
       // Load all user data in parallel
       await Future.wait([
-        _loadUserProfile(),
-        _loadLeaveHistory(),
-        _loadAttendanceHistory(),
+        _loadUserProfile(forceRefresh),
+        _loadLeaveHistory(forceRefresh),
+        _loadAttendanceHistory(forceRefresh),
         _checkFaceRegistration(),
       ]);
     } catch (e) {
@@ -63,9 +65,26 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     }
   }
   
-  Future<void> _loadUserProfile() async {
+  Future<void> _loadUserProfile(bool forceRefresh) async {
     try {
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cachedProfile = await _cacheService.getCachedUserProfile(widget.userId);
+        if (cachedProfile != null) {
+          print('Loading user profile from cache for user ${widget.userId}');
+          setState(() {
+            _userData = cachedProfile;
+          });
+          return;
+        }
+      }
+      
+      // If not in cache or forcing refresh, load from API
+      print('Loading user profile from API for user ${widget.userId}');
       final profile = await _apiService.getUserProfile(widget.userId);
+      
+      // Cache the result
+      await _cacheService.cacheUserProfile(widget.userId, profile);
       
       if (mounted) {
         setState(() {
@@ -78,9 +97,28 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     }
   }
   
-  Future<void> _loadLeaveHistory() async {
+  Future<void> _loadLeaveHistory(bool forceRefresh) async {
     try {
-      final history = await _apiService.getLeaveRequests(widget.userId.toString());
+      final userId = widget.userId.toString();
+      
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cachedLeaveHistory = await _cacheService.getCachedLeaveRequests(userId);
+        if (cachedLeaveHistory != null && cachedLeaveHistory.isNotEmpty) {
+          print('Loading leave history from cache for user $userId');
+          setState(() {
+            _leaveHistory = cachedLeaveHistory;
+          });
+          return;
+        }
+      }
+      
+      // If not in cache or forcing refresh, load from API
+      print('Loading leave history from API for user $userId');
+      final history = await _apiService.getLeaveRequests(userId);
+      
+      // Cache the result
+      await _cacheService.cacheLeaveRequests(userId, history);
       
       if (mounted) {
         setState(() {
@@ -93,11 +131,36 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     }
   }
   
-  Future<void> _loadAttendanceHistory() async {
+  Future<void> _loadAttendanceHistory(bool forceRefresh) async {
     try {
-      final history = await _apiService.getAttendanceHistory(widget.userId.toString());
+      final userId = widget.userId.toString();
       
-      // Limit to latest 10 records
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        final cachedAttendanceHistory = await _cacheService.getCachedAttendanceHistory(userId);
+        if (cachedAttendanceHistory != null && cachedAttendanceHistory.isNotEmpty) {
+          print('Loading attendance history from cache for user $userId');
+          
+          // Limit to latest 10 records
+          final latestRecords = cachedAttendanceHistory.length > 10 
+              ? cachedAttendanceHistory.sublist(0, 10) 
+              : cachedAttendanceHistory;
+          
+          setState(() {
+            _attendanceHistory = latestRecords;
+          });
+          return;
+        }
+      }
+      
+      // If not in cache or forcing refresh, load from API
+      print('Loading attendance history from API for user $userId');
+      final history = await _apiService.getAttendanceHistory(userId);
+      
+      // Cache all records
+      await _cacheService.cacheAttendanceHistory(userId, history);
+      
+      // Limit to latest 10 records for display
       final latestRecords = history.length > 10 ? history.sublist(0, 10) : history;
       
       if (mounted) {
@@ -177,6 +240,25 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     );
   }
   
+  String _getProfilePhotoUrl(String? photoPath) {
+    if (photoPath == null || photoPath.isEmpty) {
+      return '';
+    }
+    
+    // Full URL already
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+      return photoPath;
+    }
+    
+    // Relative path starting with /profile-pictures
+    if (photoPath.startsWith('/profile-pictures/')) {
+      return 'https://api.garrisonta.org$photoPath';
+    }
+    
+    // Just the filename
+    return 'https://api.garrisonta.org/profile-pictures/$photoPath';
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -187,7 +269,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadUserData,
+            onPressed: () => _loadUserData(forceRefresh: true),
             tooltip: 'Refresh',
           ),
         ],
@@ -217,7 +299,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(50),
                                       child: CachedNetworkImage(
-                                        imageUrl: _buildProfilePhotoUrl(_userData!['profile_photo']),
+                                        imageUrl: _getProfilePhotoUrl(_userData!['profile_photo']),
                                         width: 100,
                                         height: 100,
                                         fit: BoxFit.cover,
@@ -266,7 +348,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                                                                    _userData!['full_name'],
+                                          _userData!['full_name'],
                                           style: const TextStyle(
                                             fontSize: 24,
                                             fontWeight: FontWeight.bold,
@@ -511,33 +593,6 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     );
   }
 
-  // Add this helper method to the class:
-  String _buildProfilePhotoUrl(String photoPath) {
-    if (photoPath == null || photoPath.isEmpty) {
-      return '';
-    }
-    
-    // If it's already a full URL, return it
-    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
-      return photoPath;
-    }
-    
-    // If it's just a filename without path
-    if (!photoPath.contains('/')) {
-      return 'https://api.garrisonta.org/profile-pictures/$photoPath';
-    }
-    
-    // If it has a path but doesn't start with /profile-pictures
-    if (!photoPath.startsWith('/profile-pictures')) {
-      // Extract the filename from the path
-      final filename = photoPath.split('/').last;
-      return 'https://api.garrisonta.org/profile-pictures/$filename';
-    }
-    
-    // If it starts with /profile-pictures, just add the base URL
-    return 'https://api.garrisonta.org$photoPath';
-  }
-  
   String _getInitials(String fullName) {
     List<String> names = fullName.split(' ');
     String initials = '';

@@ -1,4 +1,4 @@
-// Modified login_screen.dart with improved loading animation for face sync
+// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'dart:async';
@@ -8,6 +8,7 @@ import '../services/biometric_service.dart';
 import '../services/secure_storage_service.dart';
 import '../screens/admin/admin_dashboard.dart';
 import '../services/face_recognition_manager.dart';
+import '../services/cache_service.dart';
 import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -33,6 +34,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   final _sessionService = SessionService();
   final _biometricService = BiometricService();
   final _secureStorageService = SecureStorageService();
+  final _cacheService = CacheService();
   
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -40,6 +42,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   
   // Improved loading animation controls
   bool _isSyncingFace = false;
+  bool _isLoadingAdminData = false;
+  String _loadingText = "Signing in...";
   late AnimationController _loadingAnimationController;
   
   // Biometrics
@@ -172,6 +176,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       // Show face synchronization in progress
       setState(() {
         _isSyncingFace = true;
+        _loadingText = "Syncing face data...";
       });
       
       // Face Recognition Sync - Run and show status to user
@@ -195,11 +200,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           });
         }
       }
-
-      // Navigate based on user role
+      
+      // Determine user access
       final int roleId = response['user']['role_id'] ?? 0;
       final List<int> adminRoleIds = [1, 2, 3, 6, 7, 13, 14];
       final bool hasAdminAccess = adminRoleIds.contains(roleId);
+      
+      // For admin users, preload all user data
+      if (hasAdminAccess) {
+        await _preloadAdminData(response['user']['id']);
+      } else {
+        // For regular users, just preload their own profile
+        await _preloadUserProfile(response['user']['id']);
+      }
 
       if (hasAdminAccess) {
         Navigator.pushReplacement(
@@ -240,6 +253,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     setState(() {
       _isLoading = true;
+      _loadingText = "Signing in...";
     });
 
     try {
@@ -273,6 +287,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       // Show face synchronization in progress
       setState(() {
         _isSyncingFace = true;
+        _loadingText = "Syncing face data...";
       });
       
       // Face Recognition Sync - Run visibly with progress indicator
@@ -296,11 +311,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           });
         }
       }
-
+      
       // Determine user access
       final int roleId = response['user']['role_id'] ?? 0;
       final List<int> adminRoleIds = [1, 2, 3, 6, 7, 13, 14];
       final bool hasAdminAccess = adminRoleIds.contains(roleId);
+      
+      // For admin users, preload all user data
+      if (hasAdminAccess) {
+        await _preloadAdminData(response['user']['id']);
+      } else {
+        // For regular users, just preload their own profile
+        await _preloadUserProfile(response['user']['id']);
+      }
 
       if (hasAdminAccess) {
         Navigator.pushReplacement(
@@ -381,6 +404,56 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           _isLoading = false;
         });
       }
+    }
+  }
+  
+  // Preload admin data (all users, departments, roles, etc)
+  Future<void> _preloadAdminData(int adminId) async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoadingAdminData = true;
+      _loadingText = "Loading user data...";
+    });
+    
+    try {
+      // For admin users, preload all necessary data
+      final apiService = ApiService();
+      
+      // Fetch all users and cache them
+      final allUsers = await apiService.getAllUsers();
+      await _cacheService.cacheAllUsers(allUsers);
+      
+      // Fetch departments and roles and cache them
+      final allDepartments = await apiService.getAllDepartments();
+      await _cacheService.cacheDepartments(allDepartments);
+      
+      final allRoles = await apiService.getAllRoles();
+      await _cacheService.cacheRoles(allRoles);
+      
+      print('Admin data preloaded and cached successfully');
+    } catch (e) {
+      print('Error preloading admin data: $e');
+      // Continue with login anyway - data will be fetched when needed
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingAdminData = false;
+        });
+      }
+    }
+  }
+  
+  // Preload current user's profile
+  Future<void> _preloadUserProfile(int userId) async {
+    try {
+      // Just load the user's own profile
+      final userProfile = await _apiService.getUserProfile(userId);
+      await _cacheService.cacheUserProfile(userId, userProfile);
+      print('User profile preloaded successfully');
+    } catch (e) {
+      print('Error preloading user profile: $e');
+      // Continue with login anyway
     }
   }
 
@@ -641,7 +714,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 ),
               ),
               
-              // Enhanced loading overlay with animation and face sync status
+              // Enhanced loading overlay with animation and dynamic state indicators
               if (_isLoading)
                 Container(
                   color: Colors.black54,
@@ -664,7 +737,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   width: 50,
                                   height: 50,
                                   child: CircularProgressIndicator(
-                                    value: _isSyncingFace ? null : _loadingAnimationController.value,
+                                    value: (_isSyncingFace || _isLoadingAdminData) ? null : _loadingAnimationController.value,
                                     strokeWidth: 3,
                                     color: Colors.blue,
                                   ),
@@ -675,15 +748,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             
                             // Dynamic loading message based on current operation
                             Text(
-                              _isSyncingFace ? "Syncing face data..." : "Signing in...",
+                              _loadingText,
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             
-                            // Show progress indicator for face sync
-                            if (_isSyncingFace) ...[
+                            // Show progress indicator for specific operations
+                            if (_isSyncingFace || _isLoadingAdminData) ...[
                               const SizedBox(height: 12),
                               SizedBox(
                                 width: 200,
@@ -697,9 +770,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              const Text(
-                                "This helps improve facial recognition",
-                                style: TextStyle(
+                              Text(
+                                _isSyncingFace 
+                                  ? "This helps improve facial recognition"
+                                  : _isLoadingAdminData 
+                                    ? "Preparing admin dashboard data" 
+                                    : "",
+                                style: const TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey,
                                 ),
