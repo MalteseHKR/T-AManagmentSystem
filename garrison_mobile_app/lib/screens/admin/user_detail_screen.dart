@@ -1,6 +1,7 @@
 // lib/screens/admin/user_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../util/simplified_certificate_helper.dart';
 import '../../services/api_service.dart';
 import '../../services/session_service.dart';
 import '../../services/cache_service.dart';
@@ -37,7 +38,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     _loadUserData();
   }
   
-  Future<void> _loadUserData({bool forceRefresh = false}) async {
+  Future<void> _loadUserData({bool forceRefresh = true}) async {
     setState(() {
       _isLoading = true;
     });
@@ -101,11 +102,25 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     try {
       final userId = widget.userId.toString();
       
+      // Always clear cache if force refreshing
+      if (forceRefresh) {
+        await _cacheService.clearCachedLeaveRequests(userId);
+        print('Cache cleared due to force refresh for user $userId');
+      }
+      
       // Check cache first if not forcing refresh
       if (!forceRefresh) {
         final cachedLeaveHistory = await _cacheService.getCachedLeaveRequests(userId);
         if (cachedLeaveHistory != null && cachedLeaveHistory.isNotEmpty) {
-          print('Loading leave history from cache for user $userId');
+          print('Loading leave history from cache for user $userId (${cachedLeaveHistory.length} items)');
+          
+          // Debug print for each sick leave in cache
+          for (var leave in cachedLeaveHistory) {
+            if (leave['leave_type'] == 'Sick') {
+              print('CACHE: Sick Leave ID ${leave['request_id']} has certificate: ${leave['medical_certificate']}');
+            }
+          }
+          
           setState(() {
             _leaveHistory = cachedLeaveHistory;
           });
@@ -116,6 +131,14 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
       // If not in cache or forcing refresh, load from API
       print('Loading leave history from API for user $userId');
       final history = await _apiService.getLeaveRequests(userId);
+      
+      // Debug print for API response
+      print('API returned ${history.length} leave requests');
+      for (var leave in history) {
+        if (leave['leave_type'] == 'Sick') {
+          print('API: Sick Leave ID ${leave['request_id']} has certificate: ${leave['medical_certificate']}');
+        }
+      }
       
       // Cache the result
       await _cacheService.cacheLeaveRequests(userId, history);
@@ -130,7 +153,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
       // Continue without leave history
     }
   }
-  
+    
   Future<void> _loadAttendanceHistory(bool forceRefresh) async {
     try {
       final userId = widget.userId.toString();
@@ -171,6 +194,19 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     } catch (e) {
       print('Error loading attendance history: $e');
       // Continue without attendance history
+    }
+  }
+
+  // Add this method to clear the cache for leave requests
+  Future<void> _clearLeaveHistoryCache() async {
+    final userId = widget.userId.toString();
+    print('Clearing leave history cache for user $userId');
+    await _cacheService.clearCachedLeaveRequests(userId);
+    // Show success message
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Leave history cache cleared')),
+      );
     }
   }
   
@@ -228,6 +264,12 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
       case 'rejected':
         chipColor = Colors.red;
         break;
+      case 'pending certificate':
+        chipColor = Colors.deepOrange;
+        break;
+      case 'cancelled':
+        chipColor = Colors.grey;
+        break;
       default:
         chipColor = Colors.grey;
     }
@@ -259,6 +301,8 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
     // Just the filename
     return 'https://api.garrisonta.org/profile-pictures/$photoPath';
   }
+  
+  // Method to view a medical certificate
   
   @override
   Widget build(BuildContext context) {
@@ -525,6 +569,9 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                             ? const Text('No leave requests found')
                             : Column(
                                 children: _leaveHistory.map((leave) {
+                                  // Use our simplified helper to check if this should show a certificate
+                                  final bool showCertificateButton = CertificateViewer.shouldHaveCertificate(leave);
+                                  
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 8),
                                     child: Padding(
@@ -559,12 +606,44 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                                               ),
                                             ),
                                           ],
+                                          
+                                          // Simplified certificate button logic
+                                          if (showCertificateButton) ...[
+                                            const SizedBox(height: 8),
+                                            OutlinedButton.icon(
+                                              icon: const Icon(Icons.medical_services, size: 18),
+                                              label: const Text('View Medical Certificate'),
+                                              onPressed: () {
+                                                _sessionService.userActivity();
+                                                if (leave['medical_certificate'] == null) {
+                                                  // Show warning if certificate data is missing
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text('Certificate data is missing. Try clearing cache and refreshing.'),
+                                                      backgroundColor: Colors.orange,
+                                                    ),
+                                                  );
+                                                }
+                                                // Use our simplified viewer regardless, it will show appropriate errors
+                                                CertificateViewer.viewSickLeaveDocument(
+                                                  context, 
+                                                  leave,
+                                                  _apiService
+                                                );
+                                              },
+                                              style: OutlinedButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                                                minimumSize: const Size(0, 0),
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
                                   );
                                 }).toList(),
-                              ),
+                              )
                       ),
                     ],
                   ),
@@ -573,6 +652,59 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   }
   
   Widget _buildSection({required String title, required Widget child}) {
+    // Special handling for Leave Requests section to add refresh button
+    if (title == 'Leave Requests') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Row(
+                children: [
+                  // Add clear cache button
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Clear Cache', style: TextStyle(fontSize: 12)),
+                    onPressed: () => _clearLeaveHistoryCache(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                      minimumSize: const Size(0, 0),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Refresh button
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 20),
+                    onPressed: () => _loadLeaveHistory(true),
+                    tooltip: 'Refresh leave history',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: child,
+            ),
+          ),
+        ],
+      );
+    }
+    
+    // Regular section without special controls
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

@@ -1,6 +1,6 @@
 // lib/screens/admin/leave_management_screen.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:time_attendance_app/util/simplified_certificate_helper.dart';
 import '../../services/api_service.dart';
 import '../../services/session_service.dart';
 import '../../services/timezone_service.dart';
@@ -304,6 +304,14 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       itemBuilder: (context, index) {
         final request = _pendingLeaveRequests[index];
         
+        // Debug print for troubleshooting
+        if (request['leave_type_id'] == 2 || request['leave_type'] == 'Sick') {
+          print('Pending sick leave ID: ${request['request_id']}');
+          print('  Status: ${request['status']}');
+          print('  Certificate: ${request['medical_certificate']}');
+          print('  Should show button: ${CertificateViewer.shouldHaveCertificate(request)}');
+        }
+        
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Padding(
@@ -369,6 +377,23 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                     ],
                   ),
                 
+                // Use CertificateViewer helper to determine if we should show the button
+                if (CertificateViewer.shouldHaveCertificate(request))
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.medical_services),
+                        label: const Text('View Medical Certificate'),
+                        onPressed: () {
+                          _sessionService.userActivity();
+                          CertificateViewer.viewSickLeaveDocument(context, request, _apiService);
+                        },
+                      ),
+                    ],
+                  ),
+                
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -399,7 +424,7 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       },
     );
   }
-  
+
   Widget _buildAllRequestsTab() {
     if (_allLeaveRequests.isEmpty) {
       return const Center(
@@ -412,6 +437,14 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
       itemBuilder: (context, index) {
         final request = _allLeaveRequests[index];
         final bool isPending = request['status'] == 'pending';
+        
+        // Debug print for troubleshooting
+        if (request['leave_type_id'] == 2 || request['leave_type'] == 'Sick') {
+          print('All tabs - Sick leave ID: ${request['request_id']}');
+          print('  Status: ${request['status']}');
+          print('  Certificate: ${request['medical_certificate']}');
+          print('  Should show button: ${CertificateViewer.shouldHaveCertificate(request)}');
+        }
         
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -475,6 +508,23 @@ class _LeaveManagementScreenState extends State<LeaveManagementScreen> {
                     children: [
                       const Text('Reason:'),
                       Text(request['reason']),
+                    ],
+                  ),
+                
+                // Use CertificateViewer helper to determine if we should show the button
+                if (CertificateViewer.shouldHaveCertificate(request))
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.medical_services),
+                        label: const Text('View Medical Certificate'),
+                        onPressed: () {
+                          _sessionService.userActivity();
+                          CertificateViewer.viewSickLeaveDocument(context, request, _apiService);
+                        },
+                      ),
                     ],
                   ),
                 

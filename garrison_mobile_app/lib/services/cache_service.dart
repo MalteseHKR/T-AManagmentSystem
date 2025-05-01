@@ -31,6 +31,23 @@ class CacheService {
     }
   }
 
+  // Clear cached leave requests for a specific user
+  Future<bool> clearCachedLeaveRequests(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final success = await prefs.remove(LEAVE_REQUESTS_PREFIX + userId);
+      if (success) {
+        print('Successfully cleared leave requests cache for user $userId');
+      } else {
+        print('No leave requests cache found for user $userId');
+      }
+      return success;
+    } catch (e) {
+      print('Error clearing cached leave requests: $e');
+      return false;
+    }
+  }
+
   // Get cached user profile
   Future<Map<String, dynamic>?> getCachedUserProfile(int userId) async {
     try {
@@ -140,18 +157,40 @@ class CacheService {
     }
   }
 
-  // Cache leave requests
+  // Enhanced cacheLeaveRequests method that handles medical certificates
   Future<void> cacheLeaveRequests(String userId, List<Map<String, dynamic>> requests) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(LEAVE_REQUESTS_PREFIX + userId, json.encode(requests));
+      
+      // Process requests to handle medical certificates appropriately
+      final List<Map<String, dynamic>> requestsToCache = requests.map((request) {
+        // Create a copy of the request to avoid modifying the original
+        final Map<String, dynamic> cachedRequest = Map.from(request);
+        
+        // If there's a medical certificate path, ensure it's properly handled
+        if (cachedRequest['medical_certificate'] != null) {
+          // You might want to store additional information about the certificate
+          // but typically just the path is sufficient since the actual file
+          // should be stored in your server/filesystem
+          cachedRequest['has_medical_certificate'] = true;
+        }
+        
+        return cachedRequest;
+      }).toList();
+
+      await prefs.setString(
+        LEAVE_REQUESTS_PREFIX + userId, 
+        json.encode(requestsToCache)
+      );
+      
       print('Cached ${requests.length} leave requests for user $userId');
     } catch (e) {
       print('Error caching leave requests: $e');
+      rethrow; // Consider rethrowing to handle the error upstream
     }
   }
 
-  // Get cached leave requests
+  // Enhanced getCachedLeaveRequests method
   Future<List<Map<String, dynamic>>?> getCachedLeaveRequests(String userId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -160,7 +199,18 @@ class CacheService {
       if (dataStr != null) {
         final List<dynamic> data = json.decode(dataStr);
         print('Retrieved ${data.length} leave requests from cache for user $userId');
-        return data.map((item) => Map<String, dynamic>.from(item)).toList();
+        
+        return data.map((item) {
+          final Map<String, dynamic> request = Map<String, dynamic>.from(item);
+          
+          // Handle any cached medical certificate information
+          if (request['has_medical_certificate'] == true) {
+            // You might want to verify the certificate still exists
+            // or handle it in some special way
+          }
+          
+          return request;
+        }).toList();
       }
       
       return null;

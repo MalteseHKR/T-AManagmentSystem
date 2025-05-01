@@ -1,13 +1,12 @@
 // lib/screens/leave_screen.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../services/timezone_service.dart';
 import '../services/session_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/leave_request_widget.dart';
 import '../widgets/pending_certificates_widget.dart';
+import '../util/simplified_certificate_helper.dart';
 
 class LeaveScreen extends StatefulWidget {
   final Map<String, dynamic> userDetails;
@@ -159,6 +158,75 @@ class _LeaveScreenState extends State<LeaveScreen> {
     );
   }
 
+  // Method to cancel a leave request
+  Future<void> _cancelLeaveRequest(Map<String, dynamic> request) async {
+    try {
+      // Reset session timer on user interaction
+      _sessionService.userActivity();
+      
+      // Show confirmation dialog
+      final bool confirm = await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Cancel Leave Request'),
+          content: const Text('Are you sure you want to cancel this leave request?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('No'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Yes, Cancel'),
+            ),
+          ],
+        ),
+      ) ?? false;
+      
+      if (!confirm) return;
+      
+      // Show loading indicator
+      setState(() {
+        _isLoading = true;
+      });
+      
+      // Call the dedicated API to cancel the leave request
+      await _apiService.cancelLeaveRequest(
+        int.parse(request['request_id'].toString()),
+      );
+      
+      // Refresh data
+      await _loadLeaveBalance();
+      await _loadLeaveRequests();
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Leave request cancelled successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error cancelling leave request: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error cancelling leave request: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Widget _buildLeaveBalanceCard() {
     return Card(
       elevation: 4,
@@ -274,6 +342,51 @@ class _LeaveScreenState extends State<LeaveScreen> {
     );
   }
 
+  // Helper method to check if a leave request should be editable
+  bool _isLeaveRequestEditable(Map<String, dynamic> request) {
+    final status = request['status']?.toString().toLowerCase() ?? '';
+    
+    // Pending certificate requests are managed separately
+    if (status == 'pending certificate') {
+      return false;
+    }
+    
+    // Check if the leave dates are in the future
+    final startDate = DateTime.parse(request['start_date']?.toString() ?? '');
+    final today = DateTime.now();
+    final isPastDate = startDate.isBefore(DateTime(today.year, today.month, today.day));
+    
+    // Rule 1: Pending requests are always editable
+    if (status == 'pending') {
+      return true;
+    }
+    
+    // Rule 2: Approved requests that haven't started yet are editable
+    if (status == 'approved' && !isPastDate) {
+      return true;
+    }
+    
+    // All other cases are not editable
+    return false;
+  }
+  
+  // Helper method to check if a leave request should be cancelable
+  bool _isLeaveRequestCancelable(Map<String, dynamic> request) {
+    final status = request['status']?.toString().toLowerCase() ?? '';
+    
+    // Check if the leave dates are in the future
+    final startDate = DateTime.parse(request['start_date']?.toString() ?? '');
+    final today = DateTime.now();
+    final isPastDate = startDate.isBefore(DateTime(today.year, today.month, today.day));
+    
+    // Rule: Pending or approved requests that haven't started yet can be cancelled
+    if ((status == 'pending' || status == 'approved') && !isPastDate) {
+      return true;
+    }
+    
+    return false;
+  }
+
   Widget _buildLeaveRequestItem(Map<String, dynamic> request) {
     // Check if it's a sick leave with pending certificate
     final bool isPendingCertificate = 
@@ -281,6 +394,13 @@ class _LeaveScreenState extends State<LeaveScreen> {
         request['status'] == 'Pending Certificate';
         
     final bool isFullDay = request['is_full_day'] ?? true;
+    
+    // Check if this leave request should show certificate button using our simplified helper
+    final bool showCertificateButton = CertificateViewer.shouldHaveCertificate(request);
+    
+    // Check editability and cancelability
+    final bool canEdit = _isLeaveRequestEditable(request);
+    final bool canCancel = _isLeaveRequestCancelable(request);
 
     return ListTile(
       title: Row(
@@ -288,7 +408,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
           Expanded(
             child: Text(request['leave_type']?.toString() ?? 'Unknown'),
           ),
-          if (!isPendingCertificate && request['status']?.toLowerCase() != 'rejected')
+          // Show edit button if editable
+          if (canEdit)
             IconButton(
               icon: const Icon(Icons.edit, size: 20),
               onPressed: () {
@@ -296,6 +417,13 @@ class _LeaveScreenState extends State<LeaveScreen> {
                 _showLeaveRequestDialog(leaveRequestToEdit: request);
               },
               tooltip: 'Edit request',
+            ),
+          // Show cancel button if cancelable
+          if (canCancel)
+            IconButton(
+              icon: const Icon(Icons.cancel, size: 20),
+              onPressed: () => _cancelLeaveRequest(request),
+              tooltip: 'Cancel request',
             ),
         ],
       ),
@@ -319,14 +447,14 @@ class _LeaveScreenState extends State<LeaveScreen> {
             Text(
               '${_formatDate(request['start_date']?.toString())} to ${_formatDate(request['end_date']?.toString())}',
             ),
-            
+              
           // Show time details for partial day leave
           if (!isFullDay && request['start_time'] != null && request['end_time'] != null)
             Text(
               'Time: ${request['start_time']} - ${request['end_time']}',
               style: const TextStyle(fontSize: 12),
             ),
-            
+              
           if (request['reason'] != null && request['reason'].toString().isNotEmpty)
             Text(
               'Reason: ${request['reason']}',
@@ -334,14 +462,20 @@ class _LeaveScreenState extends State<LeaveScreen> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            
-          if (request['medical_certificate_url'] != null)
+              
+          // Simplified: Show certificate button only for sick leave with certificate
+          if (showCertificateButton) 
             TextButton.icon(
               icon: const Icon(Icons.medical_services, size: 16),
               label: const Text('View Medical Certificate', style: TextStyle(fontSize: 12)),
               onPressed: () {
                 _sessionService.userActivity();
-                // Implement view certificate functionality
+                // Use our new simplified viewer
+                CertificateViewer.viewSickLeaveDocument(
+                  context, 
+                  request,
+                  _apiService
+                );
               },
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
@@ -369,6 +503,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
         break;
       case 'rejected':
         chipColor = Colors.red;
+        break;
+      case 'cancelled':  // Added new status
+        chipColor = Colors.grey;
         break;
       default:
         chipColor = Colors.grey;

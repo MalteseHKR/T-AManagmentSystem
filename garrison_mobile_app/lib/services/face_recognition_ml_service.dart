@@ -19,7 +19,7 @@ class FaceRecognitionMLService {
   static const String MODEL_FILE = "assets/models/mobilefacenet.tflite";
   static const int FACE_WIDTH = 112;
   static const int FACE_HEIGHT = 112;
-  static const double SIMILARITY_THRESHOLD = 0.6; // Adjust based on testing
+  static const double SIMILARITY_THRESHOLD = 0.7; // Adjust based on testing
 
   late Interpreter _interpreter;
   late FaceDetector _faceDetector;
@@ -327,24 +327,6 @@ class FaceRecognitionMLService {
     }
   }
 
-  // Create a fallback Face object for iOS
-  Face _createFallbackFace(Rect bounds) {
-    // This is an internal method to create a fake Face object when detection fails
-    // We're using the private constructor for testing/fallback purposes
-    return Face(
-      boundingBox: bounds,
-      landmarks: {},
-      contours: {},
-      trackingId: 1,
-      headEulerAngleX: 0,
-      headEulerAngleY: 0,
-      headEulerAngleZ: 0,
-      leftEyeOpenProbability: 0.9,
-      rightEyeOpenProbability: 0.9,
-      smilingProbability: 0.5,
-    );
-  }
-
   // Method to create rotated versions of the image for iOS fallback
   Future<File?> _createRotatedImage(File imageFile, int angle) async {
     try {
@@ -604,10 +586,10 @@ class FaceRecognitionMLService {
           final g = imgBytes[baseIndex + 1];
           final b = imgBytes[baseIndex + 2];
           
-          // Simple normalization to [0,1] for iOS
-          buffer[pixelIndex++] = r / 255.0;
-          buffer[pixelIndex++] = g / 255.0;
-          buffer[pixelIndex++] = b / 255.0;
+          // Normalize values to [-1, 1]
+          buffer[pixelIndex++] = (r - 127.5) / 127.5;
+          buffer[pixelIndex++] = (g - 127.5) / 127.5;
+          buffer[pixelIndex++] = (b - 127.5) / 127.5;
         }
       }
     }
@@ -892,8 +874,8 @@ class FaceRecognitionMLService {
             (c) {
               final baseIndex = (y * FACE_WIDTH + x) * 3 + c;
               if (baseIndex < imgBytes.length) {
-                // Simple normalization to [0,1] for iOS
-                return imgBytes[baseIndex] / 255.0;
+                // Simple normalization to [-1,+1] for iOS
+                return (imgBytes[baseIndex] - 127.5) / 127.5;
               } else {
                 return 0.0;
               }
@@ -942,34 +924,26 @@ class FaceRecognitionMLService {
       }
       double euclideanDistance = sqrt(euclideanDistanceSquared);
       
-      // FINAL EXTREME FIX: Use a much more aggressive scaling for Euclidean distance
-      // For iOS, we're seeing distances around:
-      // - 0.03 for real users (very close match)
-      // - 0.06 for non-users (still close but different)
       
       // Convert Euclidean distance to a non-linear similarity score
       double euclideanSimilarity;
       
-      // Extremely tight threshold for what's considered a "match"
-      // Most legitimate matches have distance < 0.040
-      if (euclideanDistance < 0.040) {
-        // Real match: map [0.00-0.040] → [0.85-0.75]
-        euclideanSimilarity = 0.85 - (euclideanDistance / 0.040) * 0.10;
-      } else if (euclideanDistance < 0.055) {
-        // Borderline case: map [0.040-0.055] → [0.75-0.65]
-        euclideanSimilarity = 0.75 - ((euclideanDistance - 0.040) / 0.015) * 0.10;
-      } else if (euclideanDistance < 0.070) {
-        // Likely different people: map [0.055-0.070] → [0.65-0.50]
-        euclideanSimilarity = 0.65 - ((euclideanDistance - 0.055) / 0.015) * 0.15;
+      // Adjusted thresholds based on real-world data
+      if (euclideanDistance < 0.12) {
+        // Real match: map [0.00-0.12] → [0.85-0.75]
+        euclideanSimilarity = 0.85 - (euclideanDistance / 0.12) * 0.10;
+      } else if (euclideanDistance < 0.18) {
+        // Borderline case: map [0.12-0.18] → [0.75-0.65]
+        euclideanSimilarity = 0.75 - ((euclideanDistance - 0.12) / 0.06) * 0.10;
       } else {
-        // Definitely different people: anything > 0.070 is below 0.50
-        euclideanSimilarity = max(0.0, 0.50 - ((euclideanDistance - 0.070) / 0.030) * 0.50);
+        // Different people: anything > 0.18 should fail
+        euclideanSimilarity = 0.0;
       }
       
       debugPrint('$TAG: iOS Euclidean distance: $euclideanDistance, converted to similarity: $euclideanSimilarity');
       
       // Use primarily Euclidean distance with minimal weight to cosine similarity
-      double weightedSimilarity = 0.05 * similarity + 0.95 * euclideanSimilarity;
+      double weightedSimilarity = 0.7 * similarity + 0.3 * euclideanSimilarity;
       
       // Add small randomization to non-exact matches for extra assurance
       if (euclideanDistance > 0.050) {

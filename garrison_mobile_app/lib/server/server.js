@@ -370,7 +370,7 @@ async function processAndSaveEmployeePhoto(photoPath, userId) {
 // Medical Certificate Upload Route
 app.post('/api/upload-medical-certificate',
     authenticateToken,
-    upload.single('certificate'),
+certificateUpload.single('certificate'),
     (req, res) => {
         if (!req.file) {
             console.log('No file uploaded');
@@ -1242,7 +1242,6 @@ app.post('/api/leave', authenticateToken, async (req, res) => {
 });
 
 // Submit Preliminary Sick Leave Request Route
-// Submit Preliminary Sick Leave Request Route
 app.post('/api/leave/preliminary-sick', authenticateToken, async (req, res) => {
     const connection = await db.getConnection();
 
@@ -1423,6 +1422,95 @@ app.get('/api/leave/pending-certificates/:userId', authenticateToken, async (req
     }
 });
 
+// Cancel Leave Request Route
+app.put('/api/leave/cancel/:requestId', authenticateToken, async (req, res) => {
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        const requestId = req.params.requestId;
+        const userId = req.user.userId;
+
+        // Verify the request belongs to the user and is cancelable
+        const [requestRows] = await connection.execute(
+            `SELECT request_id, user_id, leave_type_id, start_date, end_date, status 
+       FROM leave_requests 
+       WHERE request_id = ?`,
+            [requestId]
+        );
+
+        if (requestRows.length === 0) {
+            return res.status(404).json({ message: 'Leave request not found' });
+        }
+
+        const leaveRequest = requestRows[0];
+
+        if (leaveRequest.user_id != userId) {
+            return res.status(403).json({ message: 'Unauthorized access to this leave request' });
+        }
+
+        // Check if the request is cancelable (future date and correct status)
+        const startDate = new Date(leaveRequest.start_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Set to beginning of today
+
+        const isPastDate = startDate < today;
+        const status = leaveRequest.status.toLowerCase();
+
+        if (isPastDate) {
+            return res.status(400).json({
+                message: 'Cannot cancel a leave request that has already started or passed'
+            });
+        }
+
+        if (status !== 'pending' && status !== 'approved') {
+            return res.status(400).json({
+                message: 'Only pending or approved leave requests can be cancelled'
+            });
+        }
+
+        // Calculate the number of days to return to balance
+        const endDate = new Date(leaveRequest.end_date);
+        let workingDays = 0;
+
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            // Skip weekends (0 = Sunday, 6 = Saturday)
+            if (d.getDay() !== 0 && d.getDay() !== 6) {
+                workingDays++;
+            }
+        }
+
+        // Update leave request status to "cancelled"
+        await connection.execute(
+            'UPDATE leave_requests SET status = ?, updated_at = NOW() WHERE request_id = ?',
+            ['cancelled', requestId]
+        );
+
+        // Return the days to the leave balance
+        await connection.execute(
+            `UPDATE leave_balances 
+       SET used_days = GREATEST(0, used_days - ?) 
+       WHERE user_id = ? AND leave_type_id = ? AND year = YEAR(CURRENT_DATE)`,
+            [workingDays, userId, leaveRequest.leave_type_id]
+        );
+
+        await connection.commit();
+
+        res.json({
+            success: true,
+            message: 'Leave request cancelled successfully',
+            days_returned: workingDays
+        });
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error cancelling leave request:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    } finally {
+        connection.release();
+    }
+});
+
 app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
     const connection = await db.getConnection();
 
@@ -1450,14 +1538,14 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: 'Invalid leave type' });
         }
 
-        // Verify the request belongs to the user and is editable (pending status)
+        // Verify the request belongs to the user
         const [requestRows] = await connection.execute(
-            'SELECT request_id, user_id, leave_type_id, start_date, end_date, is_full_day FROM leave_requests WHERE request_id = ? AND status = ?',
-            [requestId, 'pending']
+            'SELECT request_id, user_id, leave_type_id, start_date, end_date, is_full_day, status FROM leave_requests WHERE request_id = ?',
+            [requestId]
         );
 
         if (requestRows.length === 0) {
-            return res.status(404).json({ message: 'Editable leave request not found' });
+            return res.status(404).json({ message: 'Leave request not found' });
         }
 
         if (requestRows[0].user_id != userId) {
@@ -1465,6 +1553,22 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
         }
 
         const oldRequest = requestRows[0];
+
+        // Check if request is editable based on status and date
+        const startDate = new Date(oldRequest.start_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Set to beginning of today
+        const isPastDate = startDate < today;
+        const status = oldRequest.status.toLowerCase();
+
+        // Only pending requests or future approved requests can be edited
+        const isEditable = status === 'pending' || (status === 'approved' && !isPastDate);
+
+        if (!isEditable) {
+            return res.status(400).json({
+                message: 'This leave request cannot be edited due to its status or date'
+            });
+        }
 
         // Calculate days for old request
         const oldStartDate = new Date(oldRequest.start_date);
@@ -1518,6 +1622,13 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
             }
         }
 
+        // Determine the new status - if the request was approved and is being modified, set back to pending
+        let newStatus = oldRequest.status;
+        if (status === 'approved') {
+            newStatus = 'pending';
+            console.log('Setting approved leave request back to pending after modification');
+        }
+
         // If leave type is changing, update both balances
         if (oldRequest.leave_type_id !== leave_type_id) {
             // Return days to old leave type
@@ -1541,11 +1652,11 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
             );
         }
 
-        // Update the leave request
+        // Update the leave request with new status
         await connection.execute(
             `UPDATE leave_requests 
             SET leave_type_id = ?, start_date = ?, end_date = ?, reason = ?,
-            is_full_day = ?, start_time = ?, end_time = ?, updated_at = NOW()
+            is_full_day = ?, start_time = ?, end_time = ?, status = ?, updated_at = NOW()
             WHERE request_id = ?`,
             [
                 leave_type_id,
@@ -1555,6 +1666,7 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
                 is_full_day ? 1 : 0,
                 start_time || null,
                 end_time || null,
+                newStatus,
                 requestId
             ]
         );
@@ -1565,7 +1677,8 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
             success: true,
             message: 'Leave request updated successfully',
             days_requested: newRequestedDays,
-            days_difference: daysDifference
+            days_difference: daysDifference,
+            status: newStatus
         });
     } catch (error) {
         await connection.rollback();
@@ -1608,7 +1721,7 @@ app.get('/api/leave-requests/:userId', authenticateToken, async (req, res) => {
         const userId = req.params.userId;
 
         const [rows] = await db.execute(
-            'SELECT lr.request_id, lt.leave_type_name as leave_type, lr.start_date, lr.end_date, lr.reason, lr.status, lr.created_at FROM leave_requests lr JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id WHERE lr.user_id = ? ORDER BY lr.created_at DESC',
+            'SELECT lr.request_id, lt.leave_type_name as leave_type, lr.start_date, lr.end_date, lr.reason, lr.status, lr.created_at, lr.medical_certificate FROM leave_requests lr JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id WHERE lr.user_id = ? ORDER BY lr.created_at DESC',
             [userId]
         );
 
@@ -1714,7 +1827,7 @@ app.get('/api/admin/leave-requests', authenticateToken, async (req, res) => {
     try {
         const [rows] = await db.execute(
             `SELECT lr.request_id, lr.user_id, lr.leave_type_id, lt.leave_type_name as leave_type,
-            lr.start_date, lr.end_date, lr.reason, lr.status, lr.created_at,
+            lr.start_date, lr.end_date, lr.reason, lr.status, lr.created_at, lr.medical_certificate,
             ui.user_name, ui.user_surname
             FROM leave_requests lr
             JOIN leave_types lt ON lr.leave_type_id = lt.leave_type_id

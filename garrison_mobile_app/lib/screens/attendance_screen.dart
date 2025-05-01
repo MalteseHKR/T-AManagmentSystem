@@ -1,13 +1,10 @@
 // lib/screens/attendance_screen.dart
 import 'dart:io';
 import 'dart:async';
-import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/face_recognition_manager.dart' show FaceRecognitionManager, FaceRegistrationStatus;
 import 'enhanced_liveness_detection_screen.dart';
@@ -18,7 +15,6 @@ import '../services/notification_service.dart';
 import '../services/timezone_service.dart';
 import '../services/session_service.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import '../widgets/server_images_viewer.dart';
 
 final NotificationService _notificationService = NotificationService();
 
@@ -50,17 +46,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   final _faceManager = FaceRecognitionManager();
   String? _lastPunchDate;
   String? _lastPunchTime;
-  String? _lastPhotoUrl;
   String? _faceValidationMessage;
   bool _isFaceValid = false;
   final MapController _mapController = MapController();
   bool _isCameraInitialized = false;
   Rect? _faceBounds;
-  String? _faceSizeFeedback;
 
   // New properties for clock
   late Timer _clockTimer;
-  DateTime _currentTime = DateTime.now();
   bool _isCameraError = false;
   
   // For screen refresh
@@ -74,47 +67,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     debugPrint('Confidence: ${result['confidence']}');
     debugPrint('Message: ${result['message']}');
     debugPrint('-----------------------------------------');
-  }
-
-  // Debug to show Server imported images
-  void _showServerImagesViewer() {
-    // Get the downloaded images from the face manager
-    final imagePaths = _faceManager.downloadedFaceImagePaths;
-
-    if (imagePaths.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No server images available yet. Try syncing face data first.'))
-      );
-      return;
-    }
-    
-    // Validate paths
-    List<String> validPaths = [];
-    for (String path in imagePaths) {
-      final file = File(path);
-      if (file.existsSync()) {
-        validPaths.add(path);
-      } else {
-        debugPrint('Invalid image path: $path');
-      }
-    }
-    
-    if (validPaths.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No valid server images found'))
-      );
-      return;
-    }
-    
-    showDialog(
-      context: context,
-      builder: (context) => Dialog.fullscreen(
-        child: ServerImagesViewer(
-          imagePaths: validPaths,
-          onClose: () => Navigator.of(context).pop(),
-        ),
-      ),
-    );
   }
 
   // Improved face size validation method to add to the _AttendanceScreenState class
@@ -147,69 +99,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     return isWidthValid && isHeightValid;
   }
 
-  // Helper method to generate face size feedback message
-  String _getFaceSizeFeedback(Rect? faceBounds, {required Size imageSize}) {
-    if (faceBounds == null) return 'No face detected';
-    
-    // Get image dimensions
-    final double imageWidth = imageSize.width;
-    final double imageHeight = imageSize.height;
-    
-    // Calculate face dimensions relative to image size
-    final double faceWidthPercent = faceBounds.width / imageWidth;
-    final double faceHeightPercent = faceBounds.height / imageHeight;
-    
-    // Define thresholds
-    const double minAcceptablePercent = 0.20;
-    const double maxAcceptablePercent = 0.70;
-    
-    if (faceWidthPercent < minAcceptablePercent || faceHeightPercent < minAcceptablePercent) {
-      return 'Please move closer to the camera';
-    } else if (faceWidthPercent > maxAcceptablePercent || faceHeightPercent > maxAcceptablePercent) {
-      return 'Please move further from the camera';
-    } else {
-      return 'Face size is good';
-    }
-  }
-
-  // Add a method to trigger face data syncing for testing
-  void _syncFaceData() async {
-    setState(() {
-      _isLoading = true;
-    });
-    
-    try {
-      // Get the user ID from user details
-      final userId = widget.userDetails['id'].toString();
-      
-      // Sync face data
-      final success = await _faceManager.syncUserFaceData(userId);
-      
-      // Show result
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success 
-            ? 'Face data synced successfully' 
-            : 'Failed to sync face data'),
-          backgroundColor: success ? Colors.green : Colors.red,
-        )
-      );
-      
-      // If successful, show server images
-      if (success) {
-        _showServerImagesViewer();
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error syncing face data: $e'))
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -235,15 +124,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
         setState(() {
-          _currentTime = DateTime.now();
         });
       }
     });
-  }
-
-  // Method to format current time
-  String _formatCurrentTime() {
-    return DateFormat('EEEE, dd MMM yyyy HH:mm:ss').format(_currentTime);
   }
 
   Future<void> _checkAttendanceStatus() async {
@@ -255,7 +138,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
           if (status['last_punch'] != null) {
             _lastPunchDate = status['last_punch']['date'];
             _lastPunchTime = status['last_punch']['time'];
-            _lastPhotoUrl = status['last_punch']['photo_url'];
           }
         });
         
@@ -389,7 +271,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     
     try {
       // First dispose any existing camera controller
-      if (_cameraController != null && _cameraController.value.isInitialized) {
+      if (_cameraController.value.isInitialized) {
         await _cameraController.dispose();
         debugPrint("Disposed existing camera controller");
       }
@@ -962,7 +844,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         _isPunchedIn = newPunchStatus;
         _lastPunchDate = newPunchDate;
         _lastPunchTime = newPunchTime;
-        _lastPhotoUrl = response['photo_url'];
         _showCamera = true;
         _capturedImage = null;
         _isCameraInitialized = false;
@@ -1052,7 +933,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     // Platform-specific camera handling
     if (Platform.isAndroid) {
       // Android needs more careful camera disposal
-      if (_cameraController != null && _cameraController.value.isInitialized) {
+      if (_cameraController.value.isInitialized) {
         debugPrint("Android: Properly disposing camera");
         _cameraController.dispose().then((_) {
           debugPrint("Android: Camera disposed successfully");
@@ -1082,7 +963,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     } else {
       // iOS handling (already working correctly)
       Future.delayed(Duration(milliseconds: 200), () {
-        if (_cameraController != null && _cameraController.value.isInitialized) {
+        if (_cameraController.value.isInitialized) {
           try {
             _cameraController.dispose();
           } catch (e) {
@@ -1096,9 +977,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   }
 
   // Use timezone service for formatting time
-  String _formatTime(String? timeStr) {
-    return _timezoneService.formatTimeWithOffset(timeStr);
-  }
 
   // Build Camera Card with clock
   Widget _buildCameraCard() {
@@ -1528,29 +1406,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Attendance'),
-          actions: [
-            // Server images button
-            IconButton(
-              icon: const Icon(Icons.face),
-              tooltip: 'Server Face Images',
-              onPressed: _showServerImagesViewer,
-            ),
-            // Sync face data button
-            IconButton(
-              icon: const Icon(Icons.sync),
-              tooltip: 'Sync Face Data',
-              onPressed: _syncFaceData,
-            ),
-            // Your existing refresh button
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () async {
-                await _checkAttendanceStatus();
-                _forceScreenRefresh();
-              },
-              tooltip: 'Refresh Status',
-            ),
-          ],
+          // Removed all debugging buttons from the actions array
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())

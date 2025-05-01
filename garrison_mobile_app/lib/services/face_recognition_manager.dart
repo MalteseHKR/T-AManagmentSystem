@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import './face_recognition_ml_service.dart';
 import './enhanced_liveness_detection_service.dart';

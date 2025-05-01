@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
-import 'timezone_service.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -31,10 +30,39 @@ class ApiService {
       print('Token cleared');
     }
   }
-
   
-  // Add timezone service
-  final TimezoneService _timezoneService = TimezoneService();
+  // Standardize certificate URL without relying on external helper
+  String standardizeCertificateUrl(String? certificateUrl) {
+    if (certificateUrl == null || certificateUrl.toString().trim().isEmpty) {
+      return '';
+    }
+    
+    String url = certificateUrl.toString().trim();
+    
+    // Already a full URL
+    if (url.startsWith('http')) return url;
+    
+    // Handle various path formats - return just the path without the base URL
+    if (url.startsWith('/uploads/')) {
+      return url; // Already a path, return as is
+    }
+    
+    // Just a filename - add the /uploads/certificates/ path prefix
+    return '/uploads/certificates/$url';
+  }
+
+  // Get the full URL for viewing a certificate
+  String getCertificateViewUrl(String certificatePath) {
+    if (certificatePath.isEmpty) {
+      return '';
+    }
+    
+    // Make sure we're using a standardized path
+    String path = standardizeCertificateUrl(certificatePath);
+    
+    // Add the base URL for viewing
+    return 'https://api.garrisonta.org$path';
+  }
 
   // Login with improved error handling for attempts and lockout
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -178,7 +206,7 @@ class ApiService {
     }
   }
 
-  // Medical Certificate Upload
+  // Medical Certificate Upload - FIXED to save path only, not full URL
   Future<String?> uploadMedicalCertificate(File file) async {
     if (_token == null) {
       throw Exception('Not authenticated');
@@ -229,7 +257,40 @@ class ApiService {
       
       if (response.statusCode == 200) {
         final jsonData = json.decode(responseBody);
-        return jsonData['fileUrl'];
+        final String? fileUrl = jsonData['fileUrl'];
+        
+        // FIXED: Return the path only, not the full URL
+        if (fileUrl != null) {
+          print('Received file URL: $fileUrl');
+          // Ensure it's just the path
+          String path = fileUrl;
+          
+          // If the server returns a full URL, extract just the path
+          if (path.startsWith('http')) {
+            // Try to extract just the path portion
+            try {
+              final uri = Uri.parse(path);
+              path = uri.path;
+              print('Extracted path from URL: $path');
+            } catch (e) {
+              print('Error parsing URL: $e');
+              // If URI parsing fails, just strip off standard API URL prefix
+              if (path.startsWith('https://api.garrisonta.org')) {
+                path = path.replaceFirst('https://api.garrisonta.org', '');
+                print('Stripped domain to get path: $path');
+              }
+            }
+          }
+          
+          // Make sure path starts with /uploads/
+          if (!path.startsWith('/uploads/')) {
+            path = '/uploads/certificates/$path';
+            print('Added prefix to path: $path');
+          }
+          
+          return path;
+        }
+        return null;
       } else {
         throw Exception('Failed to upload medical certificate. Status: ${response.statusCode}, Body: $responseBody');
       }
@@ -349,6 +410,13 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
+        
+        // Log certificate data for debugging
+        for (var request in data) {
+          print('Processing admin leave request ID: ${request['request_id']}');
+          print('Original certificate data: ${request['medical_certificate']}');
+        }
+        
         return data.cast<Map<String, dynamic>>();
       } else {
         throw Exception('Failed to load leave requests');
@@ -657,6 +725,9 @@ class ApiService {
       formattedEndTime = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
     }
 
+    // Generate a standardized reason message for completed sick leave
+    String updatedReason = "Completed sick leave with medical certificate provided.";
+
     print('Completing sick leave request:');
     print('Request ID: $requestId');
     print('Start Date: ${cleanStartDate.toString()}');
@@ -665,6 +736,7 @@ class ApiService {
     print('Is Full Day: $isFullDay');
     print('Start Time: $formattedStartTime');
     print('End Time: $formattedEndTime');
+    print('Updated Reason: $updatedReason');
 
     try {
       final response = await http.put(
@@ -676,11 +748,13 @@ class ApiService {
         body: jsonEncode({
           'start_date': '${cleanStartDate.year}-${cleanStartDate.month.toString().padLeft(2, '0')}-${cleanStartDate.day.toString().padLeft(2, '0')}',
           'end_date': '${cleanEndDate.year}-${cleanEndDate.month.toString().padLeft(2, '0')}-${cleanEndDate.day.toString().padLeft(2, '0')}',
-          'medical_certificate': certificateUrl,  // Use existing field name
+          // FIXED: Ensure certificate URL is just the path
+          'medical_certificate': certificateUrl != null ? standardizeCertificateUrl(certificateUrl) : null,
           'status': 'Pending',
           'is_full_day': isFullDay,
           'start_time': formattedStartTime,
           'end_time': formattedEndTime,
+          'reason': updatedReason,  // Add the updated reason
         }),
       );
 
@@ -794,6 +868,41 @@ class ApiService {
     }
   }
 
+  // Updated method to handle leave request cancellation
+  Future<Map<String, dynamic>> cancelLeaveRequest(int requestId) async {
+    if (_token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      print('Cancelling leave request with ID: $requestId');
+      
+      final response = await http.put(
+        Uri.parse('$baseUrl/leave/cancel/$requestId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_token',
+        },
+        body: jsonEncode({
+          'status': 'cancelled',
+        }),
+      );
+
+      print('Cancel leave request response status: ${response.statusCode}');
+      print('Cancel leave request response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorBody = jsonDecode(response.body);
+        throw Exception(errorBody['message'] ?? 'Failed to cancel leave request');
+      }
+    } catch (e) {
+      print('Error cancelling leave request: $e');
+      rethrow;
+    }
+  }
+
   // Update leave request status
   Future<void> updateLeaveRequestStatus({
     required int requestId,
@@ -842,10 +951,55 @@ class ApiService {
         return 'https://api.garrisonta.org/api/face-photo/$userId/${photoPath.split('/').last}';
       }
     }
-  
-  // Default fallback - just append to base URL
-  return 'https://api.garrisonta.org$photoPath';
-}
+
+    // Default fallback - just append to base URL
+    return 'https://api.garrisonta.org$photoPath';
+  }
+
+  // Updated method to check if a leave request is editable based on status and dates
+  bool isLeaveRequestEditable(Map<String, dynamic> request) {
+    final status = request['status']?.toString().toLowerCase() ?? '';
+    
+    // Pending certificate requests are managed separately
+    if (status == 'pending certificate') {
+      return false;
+    }
+    
+    // Check if the leave dates are in the future
+    final startDate = DateTime.parse(request['start_date']?.toString() ?? DateTime.now().toString());
+    final today = DateTime.now();
+    final isPastDate = startDate.isBefore(DateTime(today.year, today.month, today.day));
+    
+    // Rule 1: Pending requests are always editable
+    if (status == 'pending') {
+      return true;
+    }
+    
+    // Rule 2: Approved requests that haven't started yet are editable
+    if (status == 'approved' && !isPastDate) {
+      return true;
+    }
+    
+    // All other cases are not editable
+    return false;
+  }
+
+  // Updated method to check if a leave request is cancelable
+  bool isLeaveRequestCancelable(Map<String, dynamic> request) {
+    final status = request['status']?.toString().toLowerCase() ?? '';
+    
+    // Check if the leave dates are in the future
+    final startDate = DateTime.parse(request['start_date']?.toString() ?? DateTime.now().toString());
+    final today = DateTime.now();
+    final isPastDate = startDate.isBefore(DateTime(today.year, today.month, today.day));
+    
+    // Rule: Pending or approved requests that haven't started yet can be cancelled
+    if ((status == 'pending' || status == 'approved') && !isPastDate) {
+      return true;
+    }
+    
+    return false;
+  }
 
   // Get user face photos for model training
   Future<List<String>> getUserFacePhotos(String userId) async {
@@ -908,124 +1062,6 @@ class ApiService {
     }
   }
 
-  // Download a face photo by URL
-  Future<File?> downloadFacePhoto(String photoUrl) async {
-    if (token == null) {
-      throw Exception('Not authenticated');
-    }
-
-    try {
-      // Remove leading "/api" if already present to avoid duplication
-      String correctedUrl = photoUrl.startsWith('/api')
-          ? photoUrl.replaceFirst('/api', '')
-          : photoUrl;
-
-      final fullUrl = '$baseUrl$correctedUrl';
-
-      print('Attempting to download face photo from URL: $fullUrl');
-      print('Using authorization token: ${token?.substring(0, 10)}...');
-
-      final response = await http.get(
-        Uri.parse(fullUrl),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      print('Face photo download response status: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final tempDir = await getTemporaryDirectory();
-        final filename = correctedUrl.split('/').last;
-        final file = File('${tempDir.path}/$filename');
-        await file.writeAsBytes(response.bodyBytes);
-        print('Successfully saved photo to: ${file.path}');
-        return file;
-      } else {
-        print('Download failed with status ${response.statusCode}: ${response.body}');
-        throw Exception('Failed to download face photo');
-      }
-    } catch (e) {
-      print('Complete error details for face photo download: $e');
-      return null;
-    }
-  }
-
-
-  // Download all face photos for a user and return the files
-  Future<List<File>> downloadAllUserFacePhotos(String userId) async {
-    try {
-      // Get photo URLs
-      final photoUrls = await getUserFacePhotos(userId);
-      
-      if (photoUrls.isEmpty) {
-        print('No face photos found for user $userId');
-        return [];
-      }
-      
-      // Download each photo
-      final List<File> files = [];
-      for (final url in photoUrls) {
-        final file = await downloadFacePhoto(url);
-        if (file != null) {
-          files.add(file);
-        }
-      }
-      
-      print('Downloaded ${files.length} face photos for user $userId');
-      return files;
-    } catch (e) {
-      print('Error downloading user face photos: $e');
-      return [];
-    }
-  }
-
-  // Helper method to properly format profile photo URLs
-  String getProfilePhotoUrl(String? photoPath) {
-    if (photoPath == null || photoPath.isEmpty) {
-      return '';
-    }
-    
-    // Full URL already
-    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
-      return photoPath;
-    }
-    
-    // Relative path starting with /profile-pictures
-    if (photoPath.startsWith('/profile-pictures/')) {
-      return 'https://api.garrisonta.org$photoPath';
-    }
-    
-    // Just the filename
-    return 'https://api.garrisonta.org/profile-pictures/$photoPath';
-  }
-
-  // Check if user has registered face
-  Future<Map<String, dynamic>> checkFaceRegistration(String userId) async {
-    if (token == null) {
-      throw Exception('Not authenticated');
-    }
-
-    try {
-      print('Checking face registration for user $userId');
-      final response = await http.get(
-        Uri.parse('$baseUrl/face-status/$userId'),
-        headers: _headers,
-      );
-
-      print('Face registration check response: ${response.statusCode} - ${response.body}');
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        throw Exception('Failed to check face registration');
-      }
-    } catch (e) {
-      print('Error checking face registration: $e');
-      rethrow;
-    }
-  }
-
   // Get Attendance Status
   Future<Map<String, dynamic>> getAttendanceStatus(int userId) async {
     try {
@@ -1061,31 +1097,6 @@ class ApiService {
       throw Exception('Network error: Unable to connect to the server');
     } catch (e) {
       throw Exception('Error getting attendance status: $e');
-    }
-  }
-  
-  Future<Map<String, String>> getUserProfilePhotos() async {
-    if (token == null) {
-      throw Exception('Not authenticated');
-    }
-
-    try {
-      // This would be a new endpoint you'd need to add to your server
-      final response = await http.get(
-        Uri.parse('$baseUrl/user-profile-photos'),
-        headers: _headers,
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final Map<String, dynamic> photosMap = data['photos'] ?? {};
-        return photosMap.map((key, value) => MapEntry(key, value.toString()));
-      } else {
-        throw Exception('Failed to load profile photos mapping');
-      }
-    } catch (e) {
-      print('Error loading profile photos mapping: $e');
-      return {}; // Return empty map on error
     }
   }
 
@@ -1167,6 +1178,61 @@ class ApiService {
     }
   }
 
+  // Get Leave Requests
+  Future<List<Map<String, dynamic>>> getLeaveRequests(String userId) async {
+    // Add token validation
+    if (_token == null || _token!.isEmpty) {
+      throw Exception('No token provided');
+    }
+    
+    print('Calling getLeaveRequests with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+    
+    // Use the correct endpoint path
+    final response = await http.get(
+      Uri.parse('$baseUrl/leave-requests/$userId'),
+      headers: _headers,
+    );
+
+    // Print response for debugging
+    print('getLeaveRequests response status: ${response.statusCode}');
+    
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      
+      // Enhanced debug logging for certificate data
+      for (var request in data) {
+        print('Processing leave request ID: ${request['request_id']}');
+        print('Original certificate data: ${request['medical_certificate']}');
+      }
+      
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to load leave requests');
+    }
+  }
+
+  // Get Attendance History
+  Future<List<Map<String, dynamic>>> getAttendanceHistory(String userId) async {
+    // Add token validation
+    if (_token == null || _token!.isEmpty) {
+      throw Exception('No token provided');
+    }
+    
+    print('Calling getAttendanceHistory with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/attendance-history/$userId'), // FIXED: Changed from attendance/status to attendance-history endpoint
+      headers: _headers,
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to load attendance history');
+    }
+  }
+  
   // Submit Leave Request with adjusted dates
   Future<void> submitLeaveRequest({
     required String leaveType,
@@ -1195,6 +1261,11 @@ class ApiService {
       formattedEndTime = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
     }
 
+    // FIXED: Standardize certificate path format if present
+    String? standardizedCertificateUrl = certificateUrl != null ? 
+                                        standardizeCertificateUrl(certificateUrl) : 
+                                        null;
+    
     print('API Submit Leave Request:');
     print('Leave Type: $leaveType');
     print('Start Date: $cleanStartDate');
@@ -1203,7 +1274,8 @@ class ApiService {
     print('Start Time: $formattedStartTime');
     print('End Time: $formattedEndTime');
     print('Reason: $reason');
-    print('Certificate URL: $certificateUrl');
+    print('Original Certificate URL: $certificateUrl');
+    print('Standardized Certificate URL: $standardizedCertificateUrl');
 
     final response = await http.post(
       Uri.parse('$baseUrl/leave'),
@@ -1216,7 +1288,7 @@ class ApiService {
         'start_date': '${cleanStartDate.year}-${cleanStartDate.month.toString().padLeft(2, '0')}-${cleanStartDate.day.toString().padLeft(2, '0')}',
         'end_date': '${cleanEndDate.year}-${cleanEndDate.month.toString().padLeft(2, '0')}-${cleanEndDate.day.toString().padLeft(2, '0')}',
         'reason': reason,
-        'medical_certificate': certificateUrl,  // Use existing field name
+        'medical_certificate': standardizedCertificateUrl,  // Use standardized path
         'is_full_day': isFullDay,
         'start_time': formattedStartTime,
         'end_time': formattedEndTime,
@@ -1232,52 +1304,145 @@ class ApiService {
     }
   }
 
-  // Get Leave Requests
-  Future<List<Map<String, dynamic>>> getLeaveRequests(String userId) async {
-    // Add token validation
-    if (_token == null || _token!.isEmpty) {
-      throw Exception('No token provided');
+  // Download a face photo by URL
+  Future<File?> downloadFacePhoto(String photoUrl) async {
+    if (token == null) {
+      throw Exception('Not authenticated');
     }
-    
-    print('Calling getLeaveRequests with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
-    
-    // Use the correct endpoint path
-    final response = await http.get(
-      Uri.parse('$baseUrl/leave-requests/$userId'),
-      headers: _headers,
-    );
 
-    // Print response for debugging
-    print('getLeaveRequests response status: ${response.statusCode}');
-    print('getLeaveRequests response body: ${response.body}');
+    try {
+      // Remove leading "/api" if already present to avoid duplication
+      String correctedUrl = photoUrl.startsWith('/api')
+          ? photoUrl.replaceFirst('/api', '')
+          : photoUrl;
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.cast<Map<String, dynamic>>();
-    } else {
-      throw Exception('Failed to load leave requests');
+      final fullUrl = '$baseUrl$correctedUrl';
+
+      print('Attempting to download face photo from URL: $fullUrl');
+      print('Using authorization token: ${token?.substring(0, 10)}...');
+
+      final response = await http.get(
+        Uri.parse(fullUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('Face photo download response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final tempDir = await getTemporaryDirectory();
+        final filename = correctedUrl.split('/').last;
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsBytes(response.bodyBytes);
+        print('Successfully saved photo to: ${file.path}');
+        return file;
+      } else {
+        print('Download failed with status ${response.statusCode}: ${response.body}');
+        throw Exception('Failed to download face photo');
+      }
+    } catch (e) {
+      print('Complete error details for face photo download: $e');
+      return null;
     }
   }
-  
-  // Get Attendance History
-  Future<List<Map<String, dynamic>>> getAttendanceHistory(String userId) async {
-    // Add token validation
-    if (_token == null || _token!.isEmpty) {
-      throw Exception('No token provided');
+
+  // Download all face photos for a user and return the files
+  Future<List<File>> downloadAllUserFacePhotos(String userId) async {
+    try {
+      // Get photo URLs
+      final photoUrls = await getUserFacePhotos(userId);
+      
+      if (photoUrls.isEmpty) {
+        print('No face photos found for user $userId');
+        return [];
+      }
+      
+      // Download each photo
+      final List<File> files = [];
+      for (final url in photoUrls) {
+        final file = await downloadFacePhoto(url);
+        if (file != null) {
+          files.add(file);
+        }
+      }
+      
+      print('Downloaded ${files.length} face photos for user $userId');
+      return files;
+    } catch (e) {
+      print('Error downloading user face photos: $e');
+      return [];
+    }
+  }
+
+  // Helper method to properly format profile photo URLs
+  String getProfilePhotoUrl(String? photoPath) {
+    if (photoPath == null || photoPath.isEmpty) {
+      return '';
     }
     
-    print('Calling getAttendanceHistory with token: ${_token?.substring(0, Math.min(20, _token?.length ?? 0))}...');
+    // Full URL already
+    if (photoPath.startsWith('http://') || photoPath.startsWith('https://')) {
+      return photoPath;
+    }
     
-    final response = await http.get(
-      Uri.parse('$baseUrl/attendance-history/$userId'), // FIXED: Changed from attendance/status to attendance-history endpoint
-      headers: _headers,
-    );
+    // Relative path starting with /profile-pictures
+    if (photoPath.startsWith('/profile-pictures/')) {
+      return 'https://api.garrisonta.org$photoPath';
+    }
+    
+    // Just the filename
+    return 'https://api.garrisonta.org/profile-pictures/$photoPath';
+  }
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.cast<Map<String, dynamic>>();
-    } else {
-      throw Exception('Failed to load attendance history');
+  // Check if user has registered face
+  Future<Map<String, dynamic>> checkFaceRegistration(String userId) async {
+    if (token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      print('Checking face registration for user $userId');
+      final response = await http.get(
+        Uri.parse('$baseUrl/face-status/$userId'),
+        headers: _headers,
+      );
+
+      print('Face registration check response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to check face registration');
+      }
+    } catch (e) {
+      print('Error checking face registration: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, String>> getUserProfilePhotos() async {
+    if (token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    try {
+      // This would be a new endpoint you'd need to add to your server
+      final response = await http.get(
+        Uri.parse('$baseUrl/user-profile-photos'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final Map<String, dynamic> photosMap = data['photos'] ?? {};
+        return photosMap.map((key, value) => MapEntry(key, value.toString()));
+      } else {
+        throw Exception('Failed to load profile photos mapping');
+      }
+    } catch (e) {
+      print('Error loading profile photos mapping: $e');
+      return {}; // Return empty map on error
     }
   }
 }

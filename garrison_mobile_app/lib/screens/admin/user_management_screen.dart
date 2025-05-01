@@ -1,6 +1,5 @@
 // lib/screens/admin/user_management_screen.dart
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../services/session_service.dart';
 import '../../services/cache_service.dart';
@@ -487,8 +486,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       itemBuilder: (context, index) {
                         final user = filteredUsers[index];
                         final bool isActive = user['active'] == 1;
-                        final int userId = user['user_id'];
-                        final String fullName = '${user['name']} ${user['surname']}';
                         
                         // This approach prioritizes displaying the initials and treats the image as optional
                         return Card(

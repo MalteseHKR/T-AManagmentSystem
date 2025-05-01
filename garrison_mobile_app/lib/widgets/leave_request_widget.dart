@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
+import 'package:time_attendance_app/util/simplified_certificate_helper.dart'; // FIXED: Using simplified helper
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
 import '../services/session_service.dart';
@@ -32,12 +33,16 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
   DateTime? _rangeEnd;
   final _reasonController = TextEditingController();
   File? _medicalCertificate;
+  String? _existingCertificateUrl;
   bool _isFullDay = true;
   TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
   bool _isSubmitting = false;
   DateTime _focusedDay = DateTime.now();
   CalendarFormat _calendarFormat = CalendarFormat.month;
+  
+  // Add state variable for single day vs date range
+  bool _isSingleDaySelection = true;
   
   // For sick leave temporary request
   bool _isSickLeaveRequested = false;
@@ -69,11 +74,24 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
         _rangeEnd = DateTime.parse(request['end_date']);
       }
       
+      // Determine if it's a single day request
+      if (_rangeStart != null && _rangeEnd != null) {
+        final isSameDay = _rangeStart!.year == _rangeEnd!.year && 
+                         _rangeStart!.month == _rangeEnd!.month && 
+                         _rangeStart!.day == _rangeEnd!.day;
+        _isSingleDaySelection = isSameDay;
+      }
+      
       // Parse reason
       _reasonController.text = request['reason'] ?? '';
       
       // Parse full day vs partial day
       _isFullDay = request['is_full_day'] ?? true;
+      
+      // If it's partial day, enforce single day selection
+      if (!_isFullDay) {
+        _isSingleDaySelection = true;
+      }
       
       // Parse start and end times if partial day
       if (!_isFullDay && request['start_time'] != null) {
@@ -99,6 +117,12 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
         _sickLeaveRequestDate = request['request_date'] != null 
             ? DateTime.parse(request['request_date']) 
             : DateTime.now().subtract(const Duration(days: 1));
+      }
+      
+      // Check for existing certificate
+      if (request['medical_certificate'] != null && 
+          request['medical_certificate'].toString().isNotEmpty) {
+        _existingCertificateUrl = request['medical_certificate'];
       }
     });
   }
@@ -238,6 +262,27 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
     }
   }
   
+  // Method to view a medical certificate - MODIFIED to use simplified helper
+  void _viewMedicalCertificate(String? certificateUrl) {
+    _sessionService.userActivity();
+    
+    if (certificateUrl == null || certificateUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No certificate available to view')),
+      );
+      return;
+    }
+    
+    // Create a "fake" leave request map with the certificate URL
+    Map<String, dynamic> tempRequest = {
+      'request_id': 'preview',
+      'medical_certificate': certificateUrl
+    };
+    
+    // Use the simplified helper
+    CertificateViewer.viewSickLeaveDocument(context, tempRequest, _apiService);
+  }
+  
   Future<void> _completeSickLeaveRequest() async {
     _sessionService.userActivity();
     
@@ -248,7 +293,7 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
       return;
     }
     
-    if (_medicalCertificate == null) {
+    if (_medicalCertificate == null && _existingCertificateUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please upload a medical certificate')),
       );
@@ -260,25 +305,30 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
     });
     
     try {
-      String? certificateUrl;
+      String? certificateUrl = _existingCertificateUrl;
       
-      // Upload the medical certificate
-      try {
-        certificateUrl = await _apiService.uploadMedicalCertificate(_medicalCertificate!);
-        print('Uploaded Certificate URL: $certificateUrl');
-      } catch (uploadError) {
-        print('Medical Certificate Upload Error: $uploadError');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to upload medical certificate: $uploadError'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() {
-          _isSubmitting = false;
-        });
-        return;
+      // Upload the medical certificate if a new one is selected
+      if (_medicalCertificate != null) {
+        try {
+          certificateUrl = await _apiService.uploadMedicalCertificate(_medicalCertificate!);
+          print('Uploaded Certificate URL: $certificateUrl');
+        } catch (uploadError) {
+          print('Medical Certificate Upload Error: $uploadError');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to upload medical certificate: $uploadError'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isSubmitting = false;
+          });
+          return;
+        }
       }
+      
+      // Set the reason to the standardized message
+      _reasonController.text = "Completed sick leave with medical certificate provided.";
       
       // Complete the sick leave request with date range and certificate
       await _apiService.completeSickLeaveRequest(
@@ -327,7 +377,7 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
       }
     }
   }
-  
+
   Future<void> _submitRegularLeaveRequest() async {
     _sessionService.userActivity();
     
@@ -346,7 +396,7 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
     }
     
     // For sick leave, medical certificate is required
-    if (_selectedLeaveType == 'Sick' && _medicalCertificate == null) {
+    if (_selectedLeaveType == 'Sick' && _medicalCertificate == null && _existingCertificateUrl == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please upload a medical certificate for sick leave')),
       );
@@ -365,13 +415,18 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
     });
     
     try {
-      String? certificateUrl;
+      String? certificateUrl = _existingCertificateUrl;
       
       // Upload medical certificate if provided
       if (_medicalCertificate != null) {
         try {
           certificateUrl = await _apiService.uploadMedicalCertificate(_medicalCertificate!);
           print('Uploaded Certificate URL: $certificateUrl');
+          
+          // For sick leave, update reason to indicate certificate was provided
+          if (_selectedLeaveType == 'Sick') {
+            _reasonController.text = "Completed sick leave with medical certificate provided.";
+          }
         } catch (uploadError) {
           print('Medical Certificate Upload Error: $uploadError');
           ScaffoldMessenger.of(context).showSnackBar(
@@ -472,7 +527,8 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
       });
     }
   }
-  
+
+  // Enhanced day type selector with duration type (single day vs date range)
   Widget _buildDayTypeSelector() {
     return Card(
       elevation: 4,
@@ -485,13 +541,61 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Duration Type',
+              'Leave Duration',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 12),
+            // First set of radio buttons for Single Day vs Date Range
+            if (_isFullDay) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<bool>(
+                      title: const Text('Single Day'),
+                      value: true,
+                      groupValue: _isSingleDaySelection,
+                      onChanged: (value) {
+                        _sessionService.userActivity();
+                        setState(() {
+                          _isSingleDaySelection = value!;
+                          // If switching to single day with a date range, set end date to start date
+                          if (_isSingleDaySelection && _rangeStart != null) {
+                            _rangeEnd = _rangeStart;
+                          }
+                        });
+                      },
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<bool>(
+                      title: const Text('Date Range'),
+                      value: false,
+                      groupValue: _isSingleDaySelection,
+                      onChanged: (value) {
+                        _sessionService.userActivity();
+                        setState(() {
+                          _isSingleDaySelection = value!;
+                          // If switching to date range with a single date, reset end date
+                          if (!_isSingleDaySelection && _rangeStart != null) {
+                            _rangeEnd = null;
+                          }
+                        });
+                      },
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(),
+            ],
+            
+            // Second set of radio buttons for Full Day vs Partial Day
             Row(
               children: [
                 Expanded(
@@ -518,9 +622,13 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
                       _sessionService.userActivity();
                       setState(() {
                         _isFullDay = value!;
-                        // For partial days, set both range start and end to the same day
-                        if (value == false && _rangeStart != null) {
-                          _rangeEnd = _rangeStart;
+                        
+                        // For partial days, force single day selection and set both dates the same
+                        if (value == false) {
+                          _isSingleDaySelection = true;
+                          if (_rangeStart != null) {
+                            _rangeEnd = _rangeStart;
+                          }
                         }
                       });
                     },
@@ -530,6 +638,8 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
                 ),
               ],
             ),
+            
+            // Time selection for partial day
             if (!_isFullDay) ...[
               const SizedBox(height: 12),
               Row(
@@ -575,6 +685,17 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
   }
   
   Widget _buildCalendarCard() {
+    // Set the correct range selection mode based on our selection type
+    RangeSelectionMode selectionMode;
+    
+    if (!_isFullDay || _isSingleDaySelection) {
+      // For partial day or single day selection, disable range selection
+      selectionMode = RangeSelectionMode.disabled;
+    } else {
+      // For full day range selection, enforce range selection
+      selectionMode = RangeSelectionMode.enforced;
+    }
+    
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -589,7 +710,7 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Select Date Range',
+                  _isSingleDaySelection ? 'Select Date' : 'Select Date Range',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -627,7 +748,7 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
                   rangeStartDay: _rangeStart,
                   rangeEndDay: _rangeEnd,
                   calendarFormat: _calendarFormat,
-                  rangeSelectionMode: _isFullDay ? RangeSelectionMode.enforced : RangeSelectionMode.disabled,
+                  rangeSelectionMode: selectionMode,
                   onDaySelected: (selectedDay, focusedDay) {
                     _sessionService.userActivity();
                     
@@ -635,12 +756,11 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
                       _rangeStart = selectedDay;
                       _focusedDay = focusedDay;
                       
-                      // If partial day is selected, set both range start and end to the same day
-                      if (!_isFullDay) {
+                      // If single day selection or partial day, set end date same as start date
+                      if (_isSingleDaySelection || !_isFullDay) {
                         _rangeEnd = selectedDay;
                       } else {
-                        // If we're switching from partial to full day with a date already selected,
-                        // reset the end date to allow range selection
+                        // For full day date range, reset end date when selecting a new start date
                         _rangeEnd = null;
                       }
                     });
@@ -651,8 +771,8 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
                     });
                   },
                   onRangeSelected: (start, end, focusedDay) {
-                    // Only allow range selection for full day leave
-                    if (_isFullDay) {
+                    // Only allow range selection for full day date range
+                    if (!_isSingleDaySelection && _isFullDay) {
                       _sessionService.userActivity();
                       
                       setState(() {
@@ -695,14 +815,209 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
                 color: Colors.blue.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                'Selected Range: ${_rangeStart != null ? DateFormat('dd/MM/yyyy').format(_rangeStart!) : 'Start Date'} - ${_rangeEnd != null ? DateFormat('dd/MM/yyyy').format(_rangeEnd!) : 'End Date'}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
+              child: _isSingleDaySelection 
+                ? Text(
+                    'Selected Date: ${_rangeStart != null ? DateFormat('dd/MM/yyyy').format(_rangeStart!) : 'Select a date'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  )
+                : Text(
+                    'Selected Range: ${_rangeStart != null ? DateFormat('dd/MM/yyyy').format(_rangeStart!) : 'Start Date'} - ${_rangeEnd != null ? DateFormat('dd/MM/yyyy').format(_rangeEnd!) : 'End Date'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSickLeaveCompletion() {
+    // Calculate days remaining
+    final daysElapsed = DateTime.now().difference(_sickLeaveRequestDate!).inDays;
+    final daysRemaining = 10 - daysElapsed;
+    
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            elevation: 4,
+            color: Colors.amber.shade100,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  const Text(
+                    'Complete Your Sick Leave Request',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'You have $daysRemaining days remaining to upload your medical certificate and select dates.',
+                    style: TextStyle(
+                      color: daysRemaining <= 3 ? Colors.red : Colors.black87,
+                      fontWeight: daysRemaining <= 3 ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Day Type selector moved above calendar
+          _buildDayTypeSelector(),
+          
+          const SizedBox(height: 16),
+          
+          _buildCalendarCard(),
+          
+          const SizedBox(height: 16),
+          
+          // Medical Certificate Uploader
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Medical Certificate',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // If there's an existing certificate, show view option
+                  if (_existingCertificateUrl != null) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Certificate already uploaded',
+                            style: TextStyle(color: Colors.green[700]),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.visibility),
+                          label: const Text('View'),
+                          onPressed: () => _viewMedicalCertificate(_existingCertificateUrl),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.file_upload),
+                          label: const Text('Replace'),
+                          onPressed: () {
+                            setState(() {
+                              _existingCertificateUrl = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ] else if (_medicalCertificate != null) ...[
+                    // Preview selected certificate
+                    Text('Selected Certificate Preview:',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    Stack(
+                      alignment: Alignment.topRight,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            _medicalCertificate!,
+                            height: 150,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.red),
+                          onPressed: () {
+                            setState(() {
+                              _medicalCertificate = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ] else ...[
+                    // Standard uploader when no certificate is selected
+                    MedicalCertificateUploader(
+                      onFileSelected: (file) {
+                        _sessionService.userActivity();
+                        setState(() => _medicalCertificate = file);
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Notice that the reason will be automatically set
+          Card(
+            elevation: 4,
+            color: Colors.blue.shade50,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Note:',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'When you complete this sick leave request, the reason will be set to "Completed sick leave with medical certificate provided."',
+                    style: TextStyle(fontStyle: FontStyle.italic),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Submit Button
+          FilledButton(
+            onPressed: _isSubmitting ? null : _completeSickLeaveRequest,
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: _isSubmitting
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text('Complete Sick Leave Request'),
+          ),
+        ],
       ),
     );
   }
@@ -787,12 +1102,74 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      MedicalCertificateUploader(
-                        onFileSelected: (file) {
-                          _sessionService.userActivity();
-                          setState(() => _medicalCertificate = file);
-                        },
-                      ),
+                      
+                      // If there's an existing certificate, show view option
+                      if (_existingCertificateUrl != null) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Certificate already uploaded',
+                                style: TextStyle(color: Colors.green[700]),
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.visibility),
+                              label: const Text('View'),
+                              onPressed: () => _viewMedicalCertificate(_existingCertificateUrl),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.file_upload),
+                              label: const Text('Replace'),
+                              onPressed: () {
+                                setState(() {
+                                  _existingCertificateUrl = null;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ] else ...[
+                        MedicalCertificateUploader(
+                          onFileSelected: (file) {
+                            _sessionService.userActivity();
+                            setState(() => _medicalCertificate = file);
+                          },
+                        ),
+                      ],
+                      
+                      // Preview selected certificate if available
+                      if (_medicalCertificate != null) ...[
+                        const SizedBox(height: 16),
+                        Text('Selected Certificate Preview:',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 8),
+                        Stack(
+                          alignment: Alignment.topRight,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                _medicalCertificate!,
+                                height: 150,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.red),
+                              onPressed: () {
+                                setState(() {
+                                  _medicalCertificate = null;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -848,103 +1225,6 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
                   : Text(widget.leaveRequestToEdit != null ? 'Update Leave Request' : 'Submit Leave Request'),
             ),
           ],
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildSickLeaveCompletion() {
-    // Calculate days remaining
-    final daysElapsed = DateTime.now().difference(_sickLeaveRequestDate!).inDays;
-    final daysRemaining = 10 - daysElapsed;
-    
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Card(
-            elevation: 4,
-            color: Colors.amber.shade100,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  const Text(
-                    'Complete Your Sick Leave Request',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'You have $daysRemaining days remaining to upload your medical certificate and select dates.',
-                    style: TextStyle(
-                      color: daysRemaining <= 3 ? Colors.red : Colors.black87,
-                      fontWeight: daysRemaining <= 3 ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Day Type selector moved above calendar
-          _buildDayTypeSelector(),
-          
-          const SizedBox(height: 16),
-          
-          _buildCalendarCard(),
-          
-          const SizedBox(height: 16),
-          
-          // Medical Certificate Uploader
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Medical Certificate',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  MedicalCertificateUploader(
-                    onFileSelected: (file) {
-                      _sessionService.userActivity();
-                      setState(() => _medicalCertificate = file);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Submit Button
-          FilledButton(
-            onPressed: _isSubmitting ? null : _completeSickLeaveRequest,
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-            child: _isSubmitting
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Complete Sick Leave Request'),
-          ),
         ],
       ),
     );

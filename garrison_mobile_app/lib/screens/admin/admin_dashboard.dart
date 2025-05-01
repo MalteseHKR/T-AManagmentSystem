@@ -1,7 +1,6 @@
 // lib/screens/admin/admin_dashboard.dart
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../../services/api_service.dart';
 import '../../services/session_service.dart';
 import 'leave_management_screen.dart';
 import 'user_management_screen.dart';
@@ -208,213 +207,237 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
           ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Welcome card with user info
-              Card(
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Welcome, ${widget.userDetails['full_name']}',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${widget.userDetails['department']} • ${widget.userDetails['role']}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-              const Text(
-                'Personal Tools',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Grid of personal features
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                childAspectRatio: 1.2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              // Small welcome banner instead of card
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Attendance Card
-                  _buildFeatureCard(
-                    title: 'Attendance Punch',
-                    icon: Icons.fingerprint,
-                    color: Colors.teal,
-                    onTap: () {
-                      _sessionService.userActivity();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AttendanceScreen(
-                            camera: widget.camera,
-                            userDetails: widget.userDetails,
+                  // Enhanced welcome header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.person_outline, size: 24),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Welcome, ${widget.userDetails['full_name']}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      );
-                    },
+                        Text(
+                          '${widget.userDetails['department']} • ${widget.userDetails['role']}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[700],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
                   
-                  // Request Leave Card
-                  _buildFeatureCard(
-                    title: 'Request Leave',
-                    icon: Icons.event_available,
-                    color: Colors.amber,
-                    onTap: () {
-                      _sessionService.userActivity();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => LeaveScreen(
-                            userDetails: widget.userDetails,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                  const Divider(height: 8),
                   
-                  // Profile Card
-                  _buildFeatureCard(
-                    title: 'My Profile',
-                    icon: Icons.person,
-                    color: Colors.indigo,
-                    onTap: () {
-                      _sessionService.userActivity();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ProfileScreen(
-                            userDetails: widget.userDetails,
-                            onLogout: _confirmLogout,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 24),
-              const Text(
-                'Administrative Tools',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Grid of admin features
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                childAspectRatio: 1.2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                children: [
-                  // Leave Management Card
-                  if (hasAdminAccess) 
-                    _buildFeatureCard(
-                      title: 'Leave Management',
-                      icon: Icons.calendar_today,
-                      color: Colors.green,
-                      onTap: () {
-                        _sessionService.userActivity();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => LeaveManagementScreen(
-                              userDetails: widget.userDetails,
+                  // Main content with section headers and grid layout
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Personal tools header - larger text
+                          const Padding(
+                            padding: EdgeInsets.only(left: 6, top: 6, bottom: 6),
+                            child: Text(
+                              'Personal Tools',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  
-                  // User Management Card
-                  if (hasAdminAccess)
-                    _buildFeatureCard(
-                      title: 'User Management',
-                      icon: Icons.people,
-                      color: Colors.blue,
-                      onTap: () {
-                        _sessionService.userActivity();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => UserManagementScreen(
-                              userDetails: widget.userDetails,
+                          
+                          // Personal tools grid - now with 2 cards per row instead of 3
+                          SizedBox(
+                            height: constraints.maxHeight * 0.34, // Increased height allocation
+                            child: GridView.count(
+                              crossAxisCount: 2, // Changed from 3 to 2 cards per row
+                              childAspectRatio: 1.5, // Increased to make cards wider relative to height
+                              mainAxisSpacing: 12, // Increased spacing
+                              crossAxisSpacing: 12, // Increased spacing
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              children: [
+                                // Attendance Card
+                                _buildFeatureCard(
+                                  title: 'Attendance',
+                                  icon: Icons.fingerprint,
+                                  color: Colors.teal,
+                                  onTap: () {
+                                    _sessionService.userActivity();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AttendanceScreen(
+                                          camera: widget.camera,
+                                          userDetails: widget.userDetails,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                
+                                // Request Leave Card
+                                _buildFeatureCard(
+                                  title: 'Leave Requests',
+                                  icon: Icons.event_available,
+                                  color: Colors.amber,
+                                  onTap: () {
+                                    _sessionService.userActivity();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => LeaveScreen(
+                                          userDetails: widget.userDetails,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                
+                                // Profile Card
+                                _buildFeatureCard(
+                                  title: 'User Profile',
+                                  icon: Icons.person,
+                                  color: Colors.indigo,
+                                  onTap: () {
+                                    _sessionService.userActivity();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ProfileScreen(
+                                          userDetails: widget.userDetails,
+                                          onLogout: _confirmLogout,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  
-                  // Photo Upload Card
-                  _buildFeatureCard(
-                    title: 'Upload Face Photos',
-                    icon: Icons.face,
-                    color: Colors.purple,
-                    onTap: () {
-                      _sessionService.userActivity();
-                      
-                      // No longer need to access cameras - just navigate directly to the screen
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PhotoUploadScreen(
-                            userDetails: widget.userDetails,
+                          
+                          // Add more space between Personal Tools and Administrative Tools sections
+                          const SizedBox(height: 16),
+                          
+                          const Padding(
+                            padding: EdgeInsets.only(left: 6, top: 0, bottom: 6),
+                            child: Text(
+                              'Administrative Tools',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                  
-                  // Reports Card
-                  _buildFeatureCard(
-                    title: 'Attendance Reports',
-                    icon: Icons.bar_chart,
-                    color: Colors.orange,
-                    onTap: () {
-                      _sessionService.userActivity();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Reports feature coming soon')),
-                      );
-                    },
+                          
+                          // Admin tools grid - also 2 cards per row
+                          Expanded(
+                            child: GridView.count(
+                              crossAxisCount: 2, // Changed from 3 to 2 cards per row
+                              childAspectRatio: 1.5, // Increased to make cards wider
+                              mainAxisSpacing: 12, // Increased spacing
+                              crossAxisSpacing: 12, // Increased spacing
+                              shrinkWrap: true,
+                              physics: const ClampingScrollPhysics(), // Changed to allow scrolling if needed
+                              children: [
+                                // Leave Management Card
+                                if (hasAdminAccess) 
+                                  _buildFeatureCard(
+                                    title: 'Leave Management',
+                                    icon: Icons.calendar_today,
+                                    color: Colors.green,
+                                    onTap: () {
+                                      _sessionService.userActivity();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => LeaveManagementScreen(
+                                            userDetails: widget.userDetails,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                
+                                // User Management Card
+                                if (hasAdminAccess)
+                                  _buildFeatureCard(
+                                    title: 'User Management',
+                                    icon: Icons.people,
+                                    color: Colors.blue,
+                                    onTap: () {
+                                      _sessionService.userActivity();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => UserManagementScreen(
+                                            userDetails: widget.userDetails,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                
+                                // Photo Upload Card
+                                _buildFeatureCard(
+                                  title: 'Face Photo Upload',
+                                  icon: Icons.face,
+                                  color: Colors.purple,
+                                  onTap: () {
+                                    _sessionService.userActivity();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => PhotoUploadScreen(
+                                          userDetails: widget.userDetails,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                
+                                // Reports Card
+                                _buildFeatureCard(
+                                  title: 'Analytics Reports',
+                                  icon: Icons.bar_chart,
+                                  color: Colors.orange,
+                                  onTap: () {
+                                    _sessionService.userActivity();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Reports feature coming soon')),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
         ),
       ),
@@ -428,31 +451,33 @@ class _AdminDashboardState extends State<AdminDashboard> {
     required VoidCallback onTap,
   }) {
     return Card(
-      elevation: 2,
+      elevation: 3, // Increased elevation for more prominence
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10), // Slightly larger radius
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14), // Increased padding
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                size: 48,
+                size: 36, // Larger icon
                 color: color,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10), // Increased spacing
               Text(
                 title,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 14, // Larger text
                   fontWeight: FontWeight.bold,
                 ),
+                maxLines: 2, // Allow up to 2 lines for longer titles
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

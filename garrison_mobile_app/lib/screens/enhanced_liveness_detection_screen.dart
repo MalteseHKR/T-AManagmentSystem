@@ -7,7 +7,6 @@ import '../services/enhanced_liveness_detection_service.dart';
 import '../services/face_recognition_manager.dart';
 import '../services/session_service.dart';
 import '../util/image_utils.dart';
-import 'dart:math';
 
 class EnhancedLivenessDetectionScreen extends StatefulWidget {
   final CameraDescription camera;

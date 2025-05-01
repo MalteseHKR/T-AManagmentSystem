@@ -1,7 +1,6 @@
 // lib/util/image_utils.dart
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -12,8 +11,6 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 class ImageUtils {
   static const String TAG = "ImageUtils";
-
-  
 
   // Crop face from image using the bounding box from face detection
   static Future<File?> cropFaceFromImage(File imageFile, Rect faceBounds) async {

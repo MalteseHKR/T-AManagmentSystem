@@ -4,8 +4,6 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:image/image.dart' as img;
 
 // Liveness detection methods
 enum LivenessMethod {
@@ -36,7 +34,7 @@ class EnhancedLivenessDetectionService {
   
   // Processing rates
   static const int PROCESSING_INTERVAL_ANDROID = 300; // ms
-  static const int PROCESSING_INTERVAL_IOS = 500; // ms
+  static const int PROCESSING_INTERVAL_IOS = 300; // ms
   
   // Configure the fallback security level
   static const int MAX_ATTEMPTS_BEFORE_FALLBACK = 3;
@@ -60,11 +58,9 @@ class EnhancedLivenessDetectionService {
   double? _lastEyeOpenProbability;
   double? _lastHeadEulerY;
   double? _lastSmileProbability;
-  InputImage? _lastProcessedImage;
   
   // Auto-complete safety for iOS
   Timer? _autoCompleteTimer;
-  int _failedAttempts = 0;
   
   // Track total session time
   DateTime? _startTime;
@@ -131,7 +127,6 @@ class EnhancedLivenessDetectionService {
     _lastHeadEulerY = null;
     _lastSmileProbability = null;
     _faceImageSequence.clear();
-    _failedAttempts = 0;
     
     // Start timeout timer
     _startTime = DateTime.now();
@@ -170,7 +165,6 @@ class EnhancedLivenessDetectionService {
     _lastSmileProbability = null;
     _startTime = null;
     _faceImageSequence.clear();
-    _failedAttempts = 0;
     
     // Cancel any running timers
     _autoCompleteTimer?.cancel();
@@ -302,7 +296,6 @@ class EnhancedLivenessDetectionService {
       
       // Check if any face is detected - apply consistent logic for both platforms
       if (faces.isEmpty) {
-        _failedAttempts++;
         
         // Don't use lenient failure handling for iOS
         return {
@@ -317,7 +310,6 @@ class EnhancedLivenessDetectionService {
       
       // If multiple faces detected
       if (faces.length > 1) {
-        _failedAttempts++;
         return {
           'state': LivenessCheckState.actionRequired.toString(),
           'progress': _calculateProgress(),
@@ -329,20 +321,17 @@ class EnhancedLivenessDetectionService {
       }
       
       // Reset failed attempts counter on success
-      _failedAttempts = 0;
       
       // Get the detected face
       final face = faces.first;
       
       // Save this as the last processed image
-      _lastProcessedImage = inputImage;
       
       // Process based on current required action
       return _processLivenessAction(face, inputImage);
     } catch (e) {
       debugPrint('$TAG: Error processing image: $e');
       
-      _failedAttempts++;
       
       // Return a failure response for all platforms
       return {
@@ -354,24 +343,6 @@ class EnhancedLivenessDetectionService {
         'smileDetected': _smileDetected
       };
     }
-  }
-  
-  // Special handling for iOS - create a fallback response
-  Map<String, dynamic> _createIosFallbackResponse() {
-    debugPrint('$TAG: Creating iOS response with stricter fallback policy');
-    
-    // Never automatically mark as completed
-    _currentState = LivenessCheckState.failed;
-    
-    return {
-      'state': LivenessCheckState.failed.toString(),
-      'progress': 0.0,
-      'message': 'Verification failed. Please try again in better lighting conditions.',
-      'blinkDetected': _blinkDetected,
-      'headMovementDetected': _headMovementDetected,
-      'smileDetected': _smileDetected,
-      'eyeDirectionChangeDetected': _eyeDirectionChangeDetected
-    };
   }
   
   // Process blink detection
