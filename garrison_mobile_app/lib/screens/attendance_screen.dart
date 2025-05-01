@@ -6,13 +6,15 @@ import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
-import '../services/face_recognition_service.dart';
+import '../services/face_recognition_manager.dart' show FaceRecognitionManager, FaceRegistrationStatus;
+import 'enhanced_liveness_detection_screen.dart';
+import '../util/image_utils.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/notification_service.dart';
 import '../services/timezone_service.dart';
 import '../services/session_service.dart';
-import 'auto_liveness_detection_screen.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 final NotificationService _notificationService = NotificationService();
 
@@ -41,10 +43,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   final _apiService = ApiService();
   final _sessionService = SessionService();
   final _timezoneService = TimezoneService();
-  final _faceRecognitionService = FaceRecognitionService();
+  final _faceManager = FaceRecognitionManager();
   String? _lastPunchDate;
   String? _lastPunchTime;
-  String? _lastPhotoUrl;
   String? _faceValidationMessage;
   bool _isFaceValid = false;
   final MapController _mapController = MapController();
@@ -53,11 +54,50 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
   // New properties for clock
   late Timer _clockTimer;
-  DateTime _currentTime = DateTime.now();
   bool _isCameraError = false;
   
   // For screen refresh
   int _screenRefreshCounter = 0;
+
+  // Log verification details method:
+  void _logVerificationDetails(Map<String, dynamic> result) {
+    debugPrint('---------- VERIFICATION DETAILS ----------');
+    debugPrint('Platform: ${Platform.isIOS ? "iOS" : "Android"}');
+    debugPrint('Result: ${result['isVerified'] ? "VERIFIED" : "REJECTED"}');
+    debugPrint('Confidence: ${result['confidence']}');
+    debugPrint('Message: ${result['message']}');
+    debugPrint('-----------------------------------------');
+  }
+
+  // Improved face size validation method to add to the _AttendanceScreenState class
+  bool _isValidFaceSize(Rect? faceBounds, {required Size imageSize}) {
+    if (faceBounds == null) return false;
+    
+    // Get image dimensions
+    final double imageWidth = imageSize.width;
+    final double imageHeight = imageSize.height;
+    
+    // Calculate face dimensions relative to image size
+    final double faceWidth = faceBounds.width;
+    final double faceHeight = faceBounds.height;
+    
+    // Calculate face size as percentage of image dimensions
+    final double faceWidthPercent = faceWidth / imageWidth;
+    final double faceHeightPercent = faceHeight / imageHeight;
+    
+    // Define more tolerant acceptable size ranges
+    // These values are deliberately more permissive
+    const double minAcceptablePercent = 0.12; // Face should take up at least 12% of width/height
+    const double maxAcceptablePercent = 0.80; // Face should not take up more than 80% of width/height
+    
+    final bool isWidthValid = faceWidthPercent >= minAcceptablePercent && faceWidthPercent <= maxAcceptablePercent;
+    final bool isHeightValid = faceHeightPercent >= minAcceptablePercent && faceHeightPercent <= maxAcceptablePercent;
+    
+    debugPrint('Face width: ${(faceWidthPercent * 100).toStringAsFixed(1)}% of frame (${isWidthValid ? 'VALID' : 'INVALID'})');
+    debugPrint('Face height: ${(faceHeightPercent * 100).toStringAsFixed(1)}% of frame (${isHeightValid ? 'VALID' : 'INVALID'})');
+    
+    return isWidthValid && isHeightValid;
+  }
 
   @override
   void initState() {
@@ -84,15 +124,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) {
         setState(() {
-          _currentTime = DateTime.now();
         });
       }
     });
-  }
-
-  // Method to format current time
-  String _formatCurrentTime() {
-    return DateFormat('EEEE, dd MMM yyyy HH:mm:ss').format(_currentTime);
   }
 
   Future<void> _checkAttendanceStatus() async {
@@ -104,7 +138,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
           if (status['last_punch'] != null) {
             _lastPunchDate = status['last_punch']['date'];
             _lastPunchTime = status['last_punch']['time'];
-            _lastPhotoUrl = status['last_punch']['photo_url'];
           }
         });
         
@@ -238,7 +271,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     
     try {
       // First dispose any existing camera controller
-      if (_cameraController != null && _cameraController.value.isInitialized) {
+      if (_cameraController.value.isInitialized) {
         await _cameraController.dispose();
         debugPrint("Disposed existing camera controller");
       }
@@ -264,7 +297,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       
       if (Platform.isAndroid) {
         // For Android, set flash mode and exposure to improve camera stability
-        await _cameraController.setFlashMode(FlashMode.off);
+        await _cameraController.setFlashMode(FlashMode.auto);
         await _cameraController.setExposureMode(ExposureMode.auto);
       }
       
@@ -289,9 +322,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     // Reset session timer on user interaction
     _sessionService.userActivity();
     
-    // Reset all attempt counters
-    _faceRecognitionService.resetAllCounters();
-    
     if (!_isCameraInitialized || !_cameraController.value.isInitialized) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Camera is not ready. Please wait or restart the app.')),
@@ -307,17 +337,82 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     });
 
     try {
+      // Take the photo
       final XFile photo = await _cameraController.takePicture();
-      final File photoFile = File(photo.path);
+      final File originalPhotoFile = File(photo.path);
       
-      // First validate basic face requirements
-      final validationResult = await _faceRecognitionService.validateFace(photoFile);
+      debugPrint("Photo captured: ${originalPhotoFile.path} on ${Platform.isIOS ? 'iOS' : 'Android'}");
+      
+      // Apply platform-specific image processing using existing ImageUtils
+      final File? processedPhotoFile = await ImageUtils.preprocessImageForPlatform(
+        originalPhotoFile,
+        isForFaceDetection: true
+      );
+      
+      // Use the processed or original file
+      var fileToUse = processedPhotoFile ?? originalPhotoFile;
+      debugPrint("Using processed photo: ${fileToUse.path}");
+      
+      // Initialize the face recognition manager
+      final faceManager = FaceRecognitionManager();
+      await faceManager.initialize();
+      
+      // Get the user ID string from user details
+      final String userId = widget.userDetails['id'].toString();
+      
+      // UNIFIED APPROACH: Use the same validation flow for both platforms
+      debugPrint('Validating face in image: ${fileToUse.path}');
+      final validationResult = await faceManager.mlService.validateFace(fileToUse);
+      
       final bool isBasicValid = validationResult['isValid'];
+      debugPrint('Face validation result: $isBasicValid (${validationResult["message"]})');
+
+      // Add face size validation
+      if (isBasicValid) {
+        // Get photo dimensions
+        final bytes = await fileToUse.readAsBytes();
+        final image = await decodeImageFromList(bytes);
+        final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
+        
+        // Check face bounds
+        final Rect? faceBounds = validationResult['faceBounds'];
+        final bool isFaceSizeValid = _isValidFaceSize(faceBounds, imageSize: imageSize);
+        
+        debugPrint('Face size validation: $isFaceSizeValid');
+        
+        if (!isFaceSizeValid) {
+          // Face was detected but size is invalid
+          setState(() {
+            _isLoading = false;
+            _capturedImage = fileToUse;
+            _faceBounds = faceBounds;
+            
+            // Create size-specific feedback
+            final String feedback = faceBounds != null 
+                ? (faceBounds.width / imageSize.width < 0.15)
+                    ? 'Please move closer to the camera'
+                    : 'Please move further from the camera' 
+                : 'Face size is not valid';
+            
+            _faceValidationMessage = feedback;
+            _isFaceValid = false;
+          });
+          
+          // Auto-reset after 3 seconds
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted && _capturedImage != null) {
+              _retakePhoto();
+            }
+          });
+          return;
+        }
+      }
       
+      // If basic validation fails, return early
       if (!isBasicValid) {
         setState(() {
           _isLoading = false;
-          _capturedImage = photoFile;
+          _capturedImage = fileToUse;
           _faceBounds = validationResult['faceBounds'];
           _faceValidationMessage = validationResult['message'];
           _isFaceValid = false;
@@ -332,20 +427,103 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         return;
       }
       
+      // ADDED: Explicit check for multiple faces on iOS
+      if (Platform.isIOS) {
+        try {
+          // Create a detector specifically to check for multiple faces on iOS
+          final multipleFaceDetector = FaceDetector(
+            options: FaceDetectorOptions(
+              enableLandmarks: false, // No need for landmarks
+              enableClassification: false, // No need for classification
+              enableTracking: false,
+              minFaceSize: 0.05, // Low threshold for iOS
+              performanceMode: FaceDetectorMode.fast, // Fast mode for this check
+            ),
+          );
+          
+          final inputImage = InputImage.fromFilePath(fileToUse.path);
+          final faces = await multipleFaceDetector.processImage(inputImage);
+          multipleFaceDetector.close();
+          
+          if (faces.length > 1) {
+            debugPrint('iOS: Multiple faces detected: ${faces.length}');
+            setState(() {
+              _isLoading = false;
+              _capturedImage = fileToUse;
+              _faceValidationMessage = 'Multiple faces detected. Please ensure only your face is in the frame.';
+              _isFaceValid = false;
+            });
+            
+            // Auto-reset after 3 seconds
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && _capturedImage != null) {
+                _retakePhoto();
+              }
+            });
+            return;
+          }
+        } catch (e) {
+          debugPrint('Error checking for multiple faces on iOS: $e');
+          // Continue even if this check fails
+        }
+      }
+      
       setState(() {
         _isLoading = false;
-        _capturedImage = photoFile;
+        _capturedImage = fileToUse;
         _faceBounds = validationResult['faceBounds'];
       });
       
-      // Basic validation passed, now perform liveness detection
+      // Check if face is registered
+      final registrationStatus = await faceManager.checkFaceRegistrationStatus(userId);
+      
+      if (registrationStatus == FaceRegistrationStatus.notRegistered || 
+          registrationStatus == FaceRegistrationStatus.registrationInProgress) {
+        // Show dialog for registration
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text('Face Registration Required'),
+                content: const Text(
+                  'You need to register your face for authentication. '
+                  'Would you like to register your face now?'
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text('Cancel'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _retakePhoto();
+                    },
+                  ),
+                  TextButton(
+                    child: const Text('Register'),
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      _startFaceRegistration(fileToUse, userId);
+                    },
+                  ),
+                ],
+              );
+            },
+          );
+        }
+        return;
+      }
+      
+      // Navigate to liveness detection screen - pass the original photo to use for verification
+      final File originalVerificationPhoto = fileToUse;
+      
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => AutoLivenessDetectionScreen(
+          builder: (context) => EnhancedLivenessDetectionScreen(
             camera: widget.camera,
             userDetails: widget.userDetails,
-            onLivenessCheckComplete: (success) async {
+            onLivenessCheckComplete: (success, capturedImage) async {
               // Pop the liveness screen
               if (Navigator.canPop(context)) {
                 Navigator.pop(context);
@@ -370,59 +548,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                 return;
               }
               
-              // Liveness check passed, now verify face against registered face
-              final userId = widget.userDetails['id'].toString();
-              final token = _apiService.token!;
-              
-              setState(() {
-                _isLoading = true;
-                _faceValidationMessage = 'Verifying face...';
-              });
-              
-              try {
-                final verificationResult = await _faceRecognitionService.verifyFace(
-                  photoFile,
-                  userId,
-                  token
-                );
-                
-                setState(() {
-                  _isLoading = false;
-                  _showCamera = false;
-                  _isFaceValid = verificationResult['isVerified'];
-                  _faceValidationMessage = _isFaceValid 
-                      ? 'Face verification successful'
-                      : 'Face verification failed: ${verificationResult['message']}';
-                });
-
-                if (!_isFaceValid) {
-                  // If verification failed, make sure camera is ready for retake
-                  _reinitializeCamera().then((_) {
-                    // Show error message and auto-reset after delay
-                    Future.delayed(const Duration(seconds: 3), () {
-                      if (mounted) {
-                        _retakePhoto();
-                      }
-                    });
-                  });
-                }
-              } catch (e) {
-                setState(() {
-                  _isLoading = false;
-                  _faceValidationMessage = 'Error: $e';
-                  _isFaceValid = false;
-                });
-                
-                // Reinitialize camera after error
-                _reinitializeCamera().then((_) {
-                  // Auto-reset after error
-                  Future.delayed(const Duration(seconds: 3), () {
-                    if (mounted) {
-                      _retakePhoto();
-                    }
-                  });
-                });
-              }
+              // Always use the original photo for verification, ignoring liveness captured image
+              debugPrint('Liveness check passed, using original photo for verification');
+              _processVerificationAfterLiveness(originalVerificationPhoto, userId);
             },
           ),
         ),
@@ -440,298 +568,205 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     }
   }
 
-
-// New helper method to safely reinitialize the camera
-Future<void> _reinitializeCamera() async {
-  debugPrint("Reinitializing camera after liveness check");
-  if (_isCameraInitialized) {
-    try {
-      // Dispose old controller
-      await _cameraController.dispose();
-      _isCameraInitialized = false;
-    } catch (e) {
-      debugPrint("Error disposing camera: $e");
-    }
-  }
-  
-  // Brief delay before reinitializing
-  await Future.delayed(Duration(milliseconds: 500));
-  
-  return _initializeCamera();
-}
-
-    // New method to proceed with liveness detection
-  void _proceedWithLivenessDetection(File photoFile) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AutoLivenessDetectionScreen(
-          camera: widget.camera,
-          userDetails: widget.userDetails,
-          onLivenessCheckComplete: (success) async {
-            // Pop the liveness screen
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            }
-            
-            if (!success) {
-              // Liveness check failed
-              setState(() {
-                _faceValidationMessage = 'Face verification failed. Please try again.';
-                _isFaceValid = false;
-              });
-              
-              // Auto-reset after delay
-              Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) {
-                  _retakePhoto();
-                }
-              });
-              return;
-            }
-            
-            // Liveness check passed, now verify face against registered face
-            final userId = widget.userDetails['id'].toString();
-            final token = _apiService.token!;
-            
-            setState(() {
-              _isLoading = true;
-              _faceValidationMessage = 'Verifying face...';
-            });
-            
-            try {
-              _verifyFaceWithServer(photoFile, userId, token);
-            } catch (e) {
-              setState(() {
-                _isLoading = false;
-                _faceValidationMessage = 'Error: $e';
-                _isFaceValid = false;
-              });
-              
-              // Auto-reset after error
-              Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) {
-                  _retakePhoto();
-                }
-              });
-            }
-          },
-        ),
-      ),
-    );
-  }
-  
-  // New method to verify face with server
-  Future<void> _verifyFaceWithServer(File photoFile, String userId, String token) async {
-    try {
-      final verificationResult = await _faceRecognitionService.verifyFace(
-        photoFile,
-        userId,
-        token
-      );
-      
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _showCamera = false;
-          _isFaceValid = verificationResult['isVerified'];
-          _faceValidationMessage = _isFaceValid 
-              ? 'Face verification successful'
-              : 'Face verification failed: ${verificationResult['message']}';
-        });
-
-        if (!_isFaceValid) {
-          // For iOS, if verification failed but fallback mode is enabled, accept anyway
-          if (Platform.isIOS && _faceRecognitionService.isIosFallbackModeEnabled) {
-            debugPrint('iOS fallback: Accepting verification despite server failure');
-            setState(() {
-              _isFaceValid = true;
-              _faceValidationMessage = 'Face verification successful (iOS compatibility mode)';
-            });
-            return;
-          }
-          
-          // Show error message and auto-reset after delay
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) {
-              _retakePhoto();
-            }
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _faceValidationMessage = 'Error: $e';
-          
-          // For iOS, accept anyway if there's an error but fallback mode is enabled
-          if (Platform.isIOS && _faceRecognitionService.isIosFallbackModeEnabled) {
-            _isFaceValid = true;
-            _faceValidationMessage = 'Face verification successful (iOS compatibility mode)';
-          } else {
-            _isFaceValid = false;
-          }
-        });
-        
-        if (!_isFaceValid) {
-          // Auto-reset after error
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) {
-              _retakePhoto();
-            }
-          });
-        }
+  // New helper method to safely reinitialize the camera
+  Future<void> _reinitializeCamera() async {
+    debugPrint("Reinitializing camera after liveness check");
+    if (_isCameraInitialized) {
+      try {
+        // Dispose old controller
+        await _cameraController.dispose();
+        _isCameraInitialized = false;
+      } catch (e) {
+        debugPrint("Error disposing camera: $e");
       }
     }
-  }
-
-  // Updated method for auto-verification
-  void _startAutoVerification() {
-    // Reset session timer on user interaction
-    _sessionService.userActivity();
     
-    if (!_isCameraInitialized || !_cameraController.value.isInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Camera is not ready. Please wait or restart the app.')),
-      );
-      return;
-    }
-    
-    // Reset the liveness service first
-    _faceRecognitionService.resetLivenessCheck();
-    
-    // Reset iOS fallback mode to give it a fresh attempt
+    // Platform-specific delay
     if (Platform.isIOS) {
-      _faceRecognitionService.resetIosFallbackMode();
+      // iOS needs a longer delay
+      await Future.delayed(Duration(milliseconds: 1500));
+    } else {
+      await Future.delayed(Duration(milliseconds: 500));
     }
     
-    // For debugging
-    debugPrint('Starting auto verification...');
-    
-    // Temporarily disable liveness check requirement for quicker verification
-    _faceRecognitionService.setLivenessCheckRequired(false);
-    
-    // Show loading state while navigating
+    // Initialize with proper resolution for the platform
+    return _initializeCamera();
+  }
+
+  // Add new method for face registration
+  Future<void> _startFaceRegistration(File photoFile, String userId) async {
     setState(() {
       _isLoading = true;
+      _faceValidationMessage = 'Registering face...';
     });
     
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AutoLivenessDetectionScreen(
-          camera: widget.camera,
-          userDetails: widget.userDetails,
-          onLivenessCheckComplete: (success) {
-            // Don't use async here to avoid navigation issues
-            debugPrint('Liveness check completed with success: $success');
-            
-            // Make sure we're still mounted
-            if (!mounted) return;
-            
-            // Make the navigation safer by using a post-frame callback
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                // Safely pop if needed - check if we can pop first
-                if (Navigator.canPop(context)) {
-                  debugPrint('Popping liveness screen');
-                  Navigator.pop(context);
-                }
-                
-                if (success) {
-                  // Force liveness completion to ensure state consistency
-                  _faceRecognitionService.getLivenessDetectionService().forceCompletion();
-                  debugPrint('Liveness state after verification: ${_faceRecognitionService.livenessCheckState}');
-                  
-                  // Take a photo
-                  _takeFinalPhoto();
-                } else {
-                  // Reset UI state for failed verification
-                  setState(() {
-                    _isLoading = false;
-                    _showCamera = true;
-                    _capturedImage = null;
-                  });
-                  
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Face verification failed. Please try again.'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            });
-          },
-        ),
-      ),
-    ).then((_) {
-      // Restore liveness check requirement
-      _faceRecognitionService.setLivenessCheckRequired(true);
-      
-      // Make sure loading state is reset in case of unexpected return
-      if (mounted && _isLoading) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    });
-  }
-
-  // Helper method to take the final photo after successful verification
-  Future<void> _takeFinalPhoto() async {
     try {
-      debugPrint('Taking photo after successful verification');
+      final faceManager = FaceRecognitionManager();
+      await faceManager.initialize();
       
-      // For iOS, try to optimize camera settings for better quality
-      if (Platform.isIOS) {
-        try {
-          // Enable auto flash if available
-          await _cameraController.setFlashMode(FlashMode.auto);
-        } catch (e) {
-          debugPrint('Error setting camera settings for iOS: $e');
+      // First try to sync from server
+      bool syncSuccess = await faceManager.syncUserFaceData(userId);
+      
+      // If sync failed, register with the current photo
+      if (!syncSuccess) {
+        bool registrationSuccess = await faceManager.registerFace(photoFile, userId);
+        
+        if (!registrationSuccess) {
+          setState(() {
+            _isLoading = false;
+            _faceValidationMessage = 'Face registration failed. Please try again.';
+            _isFaceValid = false;
+          });
+          
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              _retakePhoto();
+            }
+          });
+          return;
         }
       }
       
-      final XFile photo = await _cameraController.takePicture();
-      final File photoFile = File(photo.path);
+      // Registration successful, proceed with liveness detection
+      setState(() {
+        _isLoading = false;
+        _faceValidationMessage = 'Face registered successfully. Now proceed with verification.';
+      });
       
-      if (mounted) {
-        // Set the captured image and other state
-        setState(() {
-          _isLoading = false;
-          _capturedImage = photoFile;
-          _isFaceValid = true;
-          _faceValidationMessage = 'Face verification successful';
-          _showCamera = false;
-        });
-        
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Verification successful! You can now punch in/out.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      // Short delay before proceeding with liveness detection
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          // Navigate to liveness detection
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EnhancedLivenessDetectionScreen(
+                camera: widget.camera,
+                userDetails: widget.userDetails,
+                onLivenessCheckComplete: (success, capturedImage) {
+                  // Handle liveness completion (same as in _takePhoto)
+                  // Implementation similar to the callback in _takePhoto
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                  
+                  if (!success) {
+                    setState(() {
+                      _faceValidationMessage = 'Face verification failed. Please try again.';
+                      _isFaceValid = false;
+                    });
+                    
+                    _reinitializeCamera().then((_) {
+                      Future.delayed(const Duration(seconds: 1), () {
+                        if (mounted) {
+                          _retakePhoto();
+                        }
+                      });
+                    });
+                    return;
+                  }
+                  
+                  // Process the verification as in the original method
+                  _processVerificationAfterLiveness(capturedImage ?? photoFile, userId);
+                },
+              ),
+            ),
+          );
+        }
+      });
     } catch (e) {
-      debugPrint('Error taking photo: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          // Ensure camera is visible on error
-          _showCamera = true;
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to take photo: $e')),
-        );
-      }
+      setState(() {
+        _isLoading = false;
+        _faceValidationMessage = 'Error during registration: $e';
+        _isFaceValid = false;
+      });
+      
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          _retakePhoto();
+        }
+      });
     }
   }
 
+  // Helper method to process verification after liveness
+  Future<void> _processVerificationAfterLiveness(File imageFile, String userId) async {
+    setState(() {
+      _isLoading = true;
+      _faceValidationMessage = 'Verifying face...';
+    });
+    
+    // Debug the image file
+    debugPrint('Verification image path: ${imageFile.path}');
+    debugPrint('Verification image exists: ${await imageFile.exists()}');
+    debugPrint('Verification image size: ${await imageFile.length()} bytes');
+    
+    try {
+      final faceManager = FaceRecognitionManager();
+      
+      // Add iOS-specific image processing
+      final File fileToVerify = Platform.isIOS 
+          ? await ImageUtils.enhanceImageForFaceDetection(imageFile) ?? imageFile
+          : imageFile;
+      
+      // Debug enhanced image file
+      debugPrint('Enhanced verification image path: ${fileToVerify.path}');
+      debugPrint('Enhanced verification image exists: ${await fileToVerify.exists()}');
+      debugPrint('Enhanced verification image size: ${await fileToVerify.length()} bytes');
+      
+      // Verify face with on-device recognition
+      final verificationResult = await faceManager.verifyFaceWithLiveness(
+        fileToVerify,
+        userId,
+        requireLiveness: false // Already passed liveness check
+      );
 
+      // Add the logging call right after getting the result
+      _logVerificationDetails(verificationResult);
+      
+      setState(() {
+        _isLoading = false;
+        _showCamera = false;
+        _isFaceValid = verificationResult['isVerified'];
+        _faceValidationMessage = _isFaceValid 
+            ? 'Face verification successful'
+            : 'Face verification failed: ${verificationResult['message']}';
+        
+        // Update the displayed image
+        _capturedImage = fileToVerify;
+        
+        // Debug the display state
+        debugPrint('Setting _capturedImage to: ${fileToVerify.path}');
+        debugPrint('_showCamera set to: $_showCamera');
+        debugPrint('_isFaceValid set to: $_isFaceValid');
+      });
+
+      if (!_isFaceValid) {
+        _reinitializeCamera().then((_) {
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              _retakePhoto();
+            }
+          });
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _faceValidationMessage = 'Error: $e';
+        _isFaceValid = false;
+      });
+      
+      _reinitializeCamera().then((_) {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            _retakePhoto();
+          }
+        });
+      });
+    }
+  }
+  
   Future<void> _punchInOut() async {
     // Reset session timer on user interaction
     _sessionService.userActivity();
@@ -809,9 +844,9 @@ Future<void> _reinitializeCamera() async {
         _isPunchedIn = newPunchStatus;
         _lastPunchDate = newPunchDate;
         _lastPunchTime = newPunchTime;
-        _lastPhotoUrl = response['photo_url'];
         _showCamera = true;
         _capturedImage = null;
+        _isCameraInitialized = false;
       });
       
       // Force screen refresh
@@ -846,6 +881,10 @@ Future<void> _reinitializeCamera() async {
             // Force another refresh
             _forceScreenRefresh();
             debugPrint('Second refresh after status check. Counter: $_screenRefreshCounter');
+
+            // Properly reinitialize camera after punch operation
+            await _reinitializeCamera();
+            
           } catch (e) {
             debugPrint('Error refreshing attendance: $e');
           }
@@ -894,7 +933,7 @@ Future<void> _reinitializeCamera() async {
     // Platform-specific camera handling
     if (Platform.isAndroid) {
       // Android needs more careful camera disposal
-      if (_cameraController != null && _cameraController.value.isInitialized) {
+      if (_cameraController.value.isInitialized) {
         debugPrint("Android: Properly disposing camera");
         _cameraController.dispose().then((_) {
           debugPrint("Android: Camera disposed successfully");
@@ -924,7 +963,7 @@ Future<void> _reinitializeCamera() async {
     } else {
       // iOS handling (already working correctly)
       Future.delayed(Duration(milliseconds: 200), () {
-        if (_cameraController != null && _cameraController.value.isInitialized) {
+        if (_cameraController.value.isInitialized) {
           try {
             _cameraController.dispose();
           } catch (e) {
@@ -938,9 +977,6 @@ Future<void> _reinitializeCamera() async {
   }
 
   // Use timezone service for formatting time
-  String _formatTime(String? timeStr) {
-    return _timezoneService.formatTimeWithOffset(timeStr);
-  }
 
   // Build Camera Card with clock
   Widget _buildCameraCard() {
@@ -977,10 +1013,11 @@ Future<void> _reinitializeCamera() async {
             
             // Camera Preview Container
             Container(
-              height: 250,
+              height: 350,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade300),
+                color: Colors.black, // Background color for areas not covered by the preview
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
@@ -991,9 +1028,31 @@ Future<void> _reinitializeCamera() async {
                     if (snapshot.connectionState == ConnectionState.done && 
                         _isCameraInitialized && 
                         _cameraController.value.isInitialized) {
-                      return CameraPreview(_cameraController);
+                      return Stack(
+                        children: [
+                          // Center the camera preview
+                          Center(
+                            child: CameraPreview(_cameraController),
+                          ),
+                          
+                          // Simple face guide overlay - centered in the view
+                          Center(
+                            child: Container(
+                              width: 150,  // Fixed width for the guide
+                              height: 180, // Fixed height for the guide
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                  color: Colors.green.withOpacity(0.7),
+                                  width: 3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
                     } else {
-                      // Loading indicator while camera is initializing
+                      // Loading indicator - unchanged
                       return const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1038,6 +1097,11 @@ Future<void> _reinitializeCamera() async {
 
   // Build preview card with face highlighting
   Widget _buildPreviewCard() {
+    // Debug the image being used for preview
+    debugPrint('Building preview card with image: ${_capturedImage?.path}');
+    debugPrint('Image exists: ${_capturedImage?.existsSync()}');
+    debugPrint('Image size: ${_capturedImage?.lengthSync()} bytes');
+      
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(
@@ -1114,25 +1178,25 @@ Future<void> _reinitializeCamera() async {
               ),
             ),
           
-          // Enhanced face preview with highlight
+          // Enhanced face preview with highlight - MODIFIED to avoid excessive cropping
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             width: double.infinity,
             height: 300,
             child: Stack(
               children: [
-                // Base image
+                // Base image - MODIFIED to use "contain" fit rather than "cover"
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Image.file(
                     _capturedImage!,
                     height: 280,
                     width: double.infinity,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain, // Changed from "cover" to "contain" to avoid excessive cropping
                   ),
                 ),
                 
-                // Face highlight overlay if a face is detected
+                // Face highlight overlay if a face is detected - MODIFIED to adjust with contain fitting
                 if (_faceBounds != null && _isFaceValid)
                   Positioned.fill(
                     child: CustomPaint(
@@ -1142,6 +1206,7 @@ Future<void> _reinitializeCamera() async {
                           _cameraController.value.previewSize?.height ?? 300,
                           _cameraController.value.previewSize?.width ?? 400,
                         ),
+                        useFillFit: false, // New parameter to indicate we're using "contain" instead of "cover"
                       ),
                     ),
                   ),
@@ -1341,16 +1406,7 @@ Future<void> _reinitializeCamera() async {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Attendance'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () async {
-                await _checkAttendanceStatus();
-                _forceScreenRefresh();
-              },
-              tooltip: 'Refresh Status',
-            ),
-          ],
+          // Removed all debugging buttons from the actions array
         ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
@@ -1429,7 +1485,7 @@ Future<void> _reinitializeCamera() async {
     }
     
     // Dispose the face recognition service
-    _faceRecognitionService.dispose();
+    _faceManager.dispose();
     
     super.dispose();
   }
@@ -1439,24 +1495,46 @@ Future<void> _reinitializeCamera() async {
 class FaceHighlightOverlay extends CustomPainter {
   final Rect faceBounds;
   final Size imageSize;
+  final bool useFillFit;
   
   FaceHighlightOverlay({
     required this.faceBounds,
     required this.imageSize,
+    this.useFillFit = true, // Default to the original behavior (cover)
   });
   
   @override
   void paint(Canvas canvas, Size size) {
-    // Create scaling factors
-    final double scaleX = size.width / imageSize.width;
-    final double scaleY = size.height / imageSize.height;
+    // Create scaling factors - modified to handle contain vs cover fitting
+    double scaleX, scaleY;
+    double offsetX = 0, offsetY = 0;
     
-    // Calculate the face rectangle in the scaled image
+    if (useFillFit) {
+      // Original "cover" behavior - fill the entire area
+      scaleX = size.width / imageSize.width;
+      scaleY = size.height / imageSize.height;
+    } else {
+      // "Contain" behavior - maintain aspect ratio, calculate centering offsets
+      final double imageAspectRatio = imageSize.width / imageSize.height;
+      final double containerAspectRatio = size.width / size.height;
+      
+      if (imageAspectRatio > containerAspectRatio) {
+        // Image is wider than container - fit to width, center vertically
+        scaleX = scaleY = size.width / imageSize.width;
+        offsetY = (size.height - (imageSize.height * scaleY)) / 2;
+      } else {
+        // Image is taller than container - fit to height, center horizontally
+        scaleX = scaleY = size.height / imageSize.height;
+        offsetX = (size.width - (imageSize.width * scaleX)) / 2;
+      }
+    }
+    
+    // Calculate the face rectangle in the scaled image, accounting for offsets
     final Rect scaledFaceRect = Rect.fromLTRB(
-      faceBounds.left * scaleX,
-      faceBounds.top * scaleY,
-      faceBounds.right * scaleX,
-      faceBounds.bottom * scaleY,
+      faceBounds.left * scaleX + offsetX,
+      faceBounds.top * scaleY + offsetY,
+      faceBounds.right * scaleX + offsetX,
+      faceBounds.bottom * scaleY + offsetY,
     );
     
     // Calculate enlarged face rectangle that covers more of the head
@@ -1473,9 +1551,9 @@ class FaceHighlightOverlay extends CustomPainter {
     // Create an enlarged rectangle that better encompasses the whole head
     Rect enlargedFaceRect = Rect.fromLTRB(
       scaledFaceRect.left - (extraWidth / 2), // Add width on both sides
-      scaledFaceRect.top - (extraHeight * 0.6), // Add more space for forehead
+      scaledFaceRect.top - (extraHeight * 0.1), // Add more space for forehead
       scaledFaceRect.right + (extraWidth / 2),
-      scaledFaceRect.bottom + (extraHeight * 0.4) // Add some space for chin
+      scaledFaceRect.bottom + (extraHeight * 0.1) // Add some space for chin
     );
     
     // Ensure the rectangle stays within the preview bounds
@@ -1539,4 +1617,44 @@ class FaceHighlightOverlay extends CustomPainter {
   
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// Add this simpler face guide overlay class
+class SimpleFaceGuideOverlay extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double width = size.width;
+    final double height = size.height;
+    
+    // Calculate a more appropriate face guide rectangle
+    // Make it wider and more rectangular (less oval)
+    final double guideWidth = width * 0.1; // 10% of width
+    final double guideHeight = height * 0.3; // 30% of height
+    
+    // Position the guide in the center
+    final double left = (width - guideWidth) / 2;
+    final double top = (height - guideHeight) / 2;
+    final double right = left + guideWidth;
+    final double bottom = top + guideHeight;
+    
+    final Rect guideRect = Rect.fromLTRB(left, top, right, bottom);
+    
+    // Create a rounded rectangle with less rounding
+    final RRect roundedRect = RRect.fromRectAndRadius(
+      guideRect,
+      Radius.circular(20), // Less rounded corners
+    );
+    
+    // Just draw a border for the guide - no transparency overlay
+    final Paint borderPaint = Paint()
+      ..color = Colors.green.withOpacity(0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    
+    // Draw the border
+    canvas.drawRRect(roundedRect, borderPaint);
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

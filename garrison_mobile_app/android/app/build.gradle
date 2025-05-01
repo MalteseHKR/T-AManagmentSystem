@@ -50,8 +50,11 @@ android {
         implementation 'androidx.window:window:1.0.0'
         implementation 'androidx.window:window-java:1.0.0'
         
-        // Add WorkManager dependency to fix initialization error
+       // Add WorkManager dependency to fix initialization error
         implementation 'androidx.work:work-runtime:2.8.1'
+        
+        // Add this line for AppCompat support (needed for biometric authentication)
+        implementation 'androidx.appcompat:appcompat:1.6.1'
     }
 }
 

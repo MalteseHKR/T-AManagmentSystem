@@ -1,0 +1,2 @@
+/Users/michaelfarrugia/Desktop/Colaborative development/time_attendance_app/garrison_mobile_app/android/app/.cxx/Debug/1kr1e4ju/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/michaelfarrugia/Desktop/Colaborative development/time_attendance_app/garrison_mobile_app/android/app/.cxx/Debug/1kr1e4ju/arm64-v8a/CMakeFiles/rebuild_cache.dir

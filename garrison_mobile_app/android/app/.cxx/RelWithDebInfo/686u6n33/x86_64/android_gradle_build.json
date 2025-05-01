@@ -1,0 +1,28 @@
+{
+  "buildFiles": [
+    "/Users/michaelfarrugia/flutter/packages/flutter_tools/gradle/src/main/groovy/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/michaelfarrugia/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/michaelfarrugia/Desktop/Colaborative development/time_attendance_app/garrison_mobile_app/android/app/.cxx/RelWithDebInfo/686u6n33/x86_64",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/michaelfarrugia/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/michaelfarrugia/Desktop/Colaborative development/time_attendance_app/garrison_mobile_app/android/app/.cxx/RelWithDebInfo/686u6n33/x86_64",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {},
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/Users/michaelfarrugia/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/Users/michaelfarrugia/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": []
+}
