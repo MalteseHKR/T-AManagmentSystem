@@ -80,6 +80,10 @@ class LeaveController extends Controller
             'end_date' => 'required|date|after_or_equal:start_date',
             'reason' => 'nullable|string|max:500',
             'medical_certificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:5120',
+            'admin_notes' => 'nullable|string|max:500',
+            'is_full_day' => 'nullable|boolean',
+            'start_time' => 'nullable|date_format:H:i|required_if:is_full_day,0',
+            'end_time' => 'nullable|date_format:H:i|required_if:is_full_day,0|after:start_time',
         ]);
 
         $certificatePath = null;
@@ -106,6 +110,11 @@ class LeaveController extends Controller
             'reason' => $validated['reason'],
             'status' => 'PENDING',
             'medical_certificate' => $certificatePath,
+            'admin_notes' => $request->has('admin_notes') ? $validated['admin_notes'] : null,
+            'is_full_day' => $request->has('is_full_day') ? $validated['is_full_day'] : 1,
+            'start_time' => $request->has('start_time') ? $validated['start_time'] : null,
+            'end_time' => $request->has('end_time') ? $validated['end_time'] : null,
+            'request_date' => now()->toDateString(),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -117,6 +126,7 @@ class LeaveController extends Controller
     {
         $request->validate([
             'status' => 'required|in:APPROVED,REJECTED',
+            'admin_notes' => 'nullable|string|max:500',
         ]);
 
         $leaveRequest = LeaveRequest::findOrFail($id);
@@ -131,6 +141,7 @@ class LeaveController extends Controller
         }
 
         $leaveRequest->status = $request->status;
+        $leaveRequest->admin_notes = $request->admin_notes;
         $leaveRequest->save();
 
         $statusText = $request->status == 'APPROVED' ? 'approved' : 'rejected';
@@ -197,6 +208,10 @@ class LeaveController extends Controller
             'end_date' => 'required|date|after_or_equal:start_date',
             'reason' => 'nullable|string|max:500',
             'medical_certificate' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:5120',
+            'admin_notes' => 'nullable|string|max:500',
+            'is_full_day' => 'nullable|boolean',
+            'start_time' => 'nullable|date_format:H:i|required_if:is_full_day,0',
+            'end_time' => 'nullable|date_format:H:i|required_if:is_full_day,0|after:start_time',
             'status' => 'required|in:pending,approved,rejected',
         ]);
 
@@ -259,6 +274,10 @@ class LeaveController extends Controller
                     'reason' => $validated['reason'],
                     'status' => $status,
                     'medical_certificate' => $certificatePath,
+                    'admin_notes' => $request->has('admin_notes') ? $validated['admin_notes'] : null,
+                    'is_full_day' => $request->has('is_full_day') ? $validated['is_full_day'] : 1,
+                    'start_time' => $request->has('start_time') ? $validated['start_time'] : null,
+                    'end_time' => $request->has('end_time') ? $validated['end_time'] : null,
                     'updated_at' => now(),
                 ]);
 

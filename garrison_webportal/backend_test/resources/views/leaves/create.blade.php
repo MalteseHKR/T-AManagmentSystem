@@ -87,6 +87,47 @@
                         @enderror
                     </div>
                 </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Leave Duration Type</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="is_full_day" id="fullDayOption" value="1" {{ old('is_full_day', '1') == '1' ? 'checked' : '' }}>
+                        <label class="form-check-label" for="fullDayOption">
+                            <i class="fas fa-calendar-day me-1"></i> Full Day
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="is_full_day" id="partialDayOption" value="0" {{ old('is_full_day') == '0' ? 'checked' : '' }}>
+                        <label class="form-check-label" for="partialDayOption">
+                            <i class="fas fa-hourglass-half me-1"></i> Partial Day
+                        </label>
+                    </div>
+                </div>
+
+                <div class="row mb-3" id="timeSelectionRow" style="display: none;">
+                    <div class="col-md-6">
+                        <label for="start_time" class="form-label fw-bold">Start Time</label>
+                        <input type="time" class="form-control leave-form-control @error('start_time') is-invalid @enderror" 
+                               id="start_time" name="start_time" value="{{ old('start_time') }}">
+                        @error('start_time')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="end_time" class="form-label fw-bold">End Time</label>
+                        <input type="time" class="form-control leave-form-control @error('end_time') is-invalid @enderror" 
+                               id="end_time" name="end_time" value="{{ old('end_time') }}">
+                        @error('end_time')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-12 mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i> For partial day leave, please specify the start and end times.
+                        </small>
+                    </div>
+                </div>
                 
                 <div class="mb-3">
                     <label for="reason" class="form-label fw-bold">Reason (Optional)</label>
@@ -106,6 +147,9 @@
                         You may upload a medical certificate if available. This is recommended but not required for sick leave.
                     </div>
                 </div>
+
+                <!-- Hidden field for request date -->
+                <input type="hidden" name="request_date" value="{{ date('Y-m-d') }}">
                 
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                     <button type="submit" class="btn btn-primary leave-btn" id="submitLeaveRequest">
@@ -189,6 +233,45 @@
         if (leaveTypeSelect.value === '2') {
             certificateField.style.display = 'block';
         }
+
+        // Show/hide time selection based on leave duration type
+        const fullDayOption = document.getElementById('fullDayOption');
+        const partialDayOption = document.getElementById('partialDayOption');
+        const timeSelectionRow = document.getElementById('timeSelectionRow');
+        const startTimeInput = document.getElementById('start_time');
+        const endTimeInput = document.getElementById('end_time');
+
+        function toggleTimeFields() {
+            if (partialDayOption.checked) {
+                timeSelectionRow.style.display = 'flex';
+                startTimeInput.setAttribute('required', 'required');
+                endTimeInput.setAttribute('required', 'required');
+            } else {
+                timeSelectionRow.style.display = 'none';
+                startTimeInput.removeAttribute('required');
+                endTimeInput.removeAttribute('required');
+            }
+        }
+
+        // Set initial state
+        toggleTimeFields();
+
+        // Add event listeners
+        fullDayOption.addEventListener('change', toggleTimeFields);
+        partialDayOption.addEventListener('change', toggleTimeFields);
+        
+        // Validate that end time is after start time
+        endTimeInput.addEventListener('change', function() {
+            if (startTimeInput.value && this.value <= startTimeInput.value) {
+                Swal.fire({
+                    title: 'Invalid Time Range',
+                    text: 'End time must be after start time',
+                    icon: 'warning',
+                    confirmButtonColor: '#3085d6'
+                });
+                this.value = '';
+            }
+        });
 
         // SweetAlert for form submission
         const form = document.getElementById('leaveRequestForm');

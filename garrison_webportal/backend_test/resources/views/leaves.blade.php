@@ -120,6 +120,7 @@
                             <th>Date Range</th>
                             <th>Duration</th>
                             <th>Status</th>
+                            <th>Request Date</th>
                             <th class="text-end pe-4">Actions</th>
                         </tr>
                     </thead>
@@ -143,6 +144,9 @@
                                     <div class="leave-date">
                                         <i class="fas fa-calendar-day me-1 text-primary"></i> 
                                         {{ date('d M Y', strtotime($leave->start_date)) }}
+                                        @if($leave->is_full_day == 0 && $leave->start_time)
+                                            <small class="text-muted ms-1">{{ date('H:i', strtotime($leave->start_time)) }}</small>
+                                        @endif
                                     </div>
                                     <div class="leave-date-arrow">
                                         <i class="fas fa-arrow-right text-muted"></i>
@@ -150,6 +154,9 @@
                                     <div class="leave-date">
                                         <i class="fas fa-calendar-day me-1 text-danger"></i> 
                                         {{ date('d M Y', strtotime($leave->end_date)) }}
+                                        @if($leave->is_full_day == 0 && $leave->end_time)
+                                            <small class="text-muted ms-1">{{ date('H:i', strtotime($leave->end_time)) }}</small>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
@@ -161,6 +168,9 @@
                                         $days = $start->diffInDays($end) + 1;
                                     @endphp
                                     {{ $days }} {{ Str::plural('day', $days) }}
+                                    @if($leave->is_full_day == 0)
+                                        <span class="badge bg-info ms-1">Partial</span>
+                                    @endif
                                 </span>
                             </td>
                             <td class="leave-status-col">
@@ -172,6 +182,7 @@
                                     <span class="badge status-rejected leave-badge text-danger">Rejected</span>
                                 @endif
                             </td>
+                            <td>{{ $leave->request_date ? date('d M Y', strtotime($leave->request_date)) : 'N/A' }}</td>
                             <td class="text-end pe-4 leave-actions-col">
                                 <div class="leave-actions">
 					@if($leave->medical_certificate)
@@ -183,6 +194,11 @@
         						data-end="{{ date('d M Y', strtotime($leave->end_date)) }}"
         						data-status="{{ $leave->status }}"
         						data-reason="{{ $leave->reason }}"
+        						data-admin-notes="{{ $leave->admin_notes }}"
+        						data-is-full-day="{{ $leave->is_full_day }}"
+        						data-start-time="{{ $leave->start_time ? date('H:i', strtotime($leave->start_time)) : '' }}"
+        						data-end-time="{{ $leave->end_time ? date('H:i', strtotime($leave->end_time)) : '' }}"
+        						data-request-date="{{ $leave->request_date ? date('d M Y', strtotime($leave->request_date)) : 'Not recorded' }}"
         						data-has-certificate="true"
         						data-certificate="{{ asset('certificates/' . $leave->medical_certificate) }}">
         					<i class="fas fa-eye"></i>
@@ -286,6 +302,9 @@
                             <div>
                                 <i class="fas fa-calendar-day me-2 text-primary"></i> 
                                 <span>{{ date('d M Y', strtotime($leave->start_date)) }}</span>
+                                @if($leave->is_full_day == 0 && $leave->start_time)
+                                    <small class="text-muted d-block">{{ date('H:i', strtotime($leave->start_time)) }}</small>
+                                @endif
                             </div>
                             <div class="leave-grid-date-arrow">
                                 <i class="fas fa-arrow-right"></i>
@@ -293,9 +312,12 @@
                             <div>
                                 <i class="fas fa-calendar-day me-2 text-danger"></i> 
                                 <span>{{ date('d M Y', strtotime($leave->end_date)) }}</span>
+                                @if($leave->is_full_day == 0 && $leave->end_time)
+                                    <small class="text-muted d-block">{{ date('H:i', strtotime($leave->end_time)) }}</small>
+                                @endif
                             </div>
                         </div>
-                        
+
                         <div class="leave-grid-duration">
                             <i class="fas fa-clock me-2"></i>
                             @php
@@ -304,7 +326,22 @@
                                 $days = $start->diffInDays($end) + 1;
                             @endphp
                             <span>{{ $days }} {{ Str::plural('day', $days) }}</span>
+                            @if($leave->is_full_day == 0)
+                                <span class="badge bg-info ms-1">Partial</span>
+                            @endif
                         </div>
+
+                        <div class="leave-grid-request-date">
+                            <i class="fas fa-file-signature me-2"></i>
+                            <span>Requested: {{ $leave->request_date ? date('d M Y', strtotime($leave->request_date)) : 'N/A' }}</span>
+                        </div>
+
+                        @if($leave->admin_notes)
+                        <div class="leave-grid-admin-notes">
+                            <i class="fas fa-comment-dots me-2"></i>
+                            <span>{{ Str::limit($leave->admin_notes, 40) }}</span>
+                        </div>
+                        @endif
                         
                         @if($leave->reason)
                         <div class="leave-grid-reason">
@@ -323,6 +360,11 @@
                             data-end="{{ date('d M Y', strtotime($leave->end_date)) }}"
                             data-status="{{ $leave->status }}"
                             data-reason="{{ $leave->reason }}"
+                            data-admin-notes="{{ $leave->admin_notes }}"
+                            data-is-full-day="{{ $leave->is_full_day }}"
+                            data-start-time="{{ $leave->start_time ? date('H:i', strtotime($leave->start_time)) : '' }}"
+                            data-end-time="{{ $leave->end_time ? date('H:i', strtotime($leave->end_time)) : '' }}"
+                            data-request-date="{{ $leave->request_date ? date('d M Y', strtotime($leave->request_date)) : 'Not recorded' }}"
                             data-has-certificate="{{ $leave->medical_certificate ? 'true' : 'false' }}"
                             data-certificate="{{ $leave->medical_certificate ? asset('certificates/' . $leave->medical_certificate) : '' }}">
                             <i class="fas fa-eye me-1"></i> View Details
@@ -474,6 +516,40 @@
                                 <i class="fas fa-calendar-day me-2"></i> End Date
                             </div>
                             <div class="leave-detail-value" id="leaveDetailEnd"></div>
+                        </div>
+                        
+                        <!-- Add duration type -->
+                        <div class="leave-detail-item">
+                            <div class="leave-detail-label">
+                                <i class="fas fa-clock me-2"></i> Duration Type
+                            </div>
+                            <div class="leave-detail-value" id="leaveDetailDurationType"></div>
+                        </div>
+                        
+                        <!-- Add time section for partial day leaves -->
+                        <div class="leave-detail-item full-width" id="leaveDetailTimeSection">
+                            <div class="leave-detail-label">
+                                <i class="fas fa-hourglass me-2"></i> Time Range
+                            </div>
+                            <div class="leave-detail-value" id="leaveDetailTimeRange"></div>
+                        </div>
+                        
+                        <!-- Add request date -->
+                        <div class="leave-detail-item">
+                            <div class="leave-detail-label">
+                                <i class="fas fa-file-signature me-2"></i> Request Date
+                            </div>
+                            <div class="leave-detail-value" id="leaveDetailRequestDate"></div>
+                        </div>
+                        
+                        <!-- Add admin notes -->
+                        <div class="leave-detail-item full-width" id="adminNotesSection">
+                            <div class="leave-detail-label">
+                                <i class="fas fa-comment-dots me-2"></i> Admin Notes
+                            </div>
+                            <div class="leave-detail-value" id="leaveDetailAdminNotes">
+                                <em class="text-muted">No admin notes available</em>
+                            </div>
                         </div>
                         
                         <div class="leave-detail-item full-width">
@@ -677,7 +753,7 @@
         // Leave details modal
         document.querySelectorAll('.view-details-btn').forEach(button => {
             button.addEventListener('click', function() {
-                // Get data attributes
+                // Get existing data attributes
                 const leaveId = this.getAttribute('data-id');
                 const employee = this.getAttribute('data-employee');
                 const type = this.getAttribute('data-type');
@@ -688,14 +764,43 @@
                 const hasCertificate = this.getAttribute('data-has-certificate') === 'true';
                 const certificateUrl = this.getAttribute('data-certificate');
                 
-                // Populate modal fields
+                // Get new data attributes
+                const adminNotes = this.getAttribute('data-admin-notes');
+                const isFullDay = this.getAttribute('data-is-full-day') === '1';
+                const startTime = this.getAttribute('data-start-time');
+                const endTime = this.getAttribute('data-end-time');
+                const requestDate = this.getAttribute('data-request-date');
+                
+                // Populate modal with existing fields
                 document.getElementById('leaveDetailId').textContent = leaveId;
                 document.getElementById('leaveDetailEmployee').textContent = employee;
                 document.getElementById('leaveDetailType').textContent = type;
                 document.getElementById('leaveDetailStart').textContent = start;
                 document.getElementById('leaveDetailEnd').textContent = end;
                 
-                // Handle status badge
+                // Populate new fields
+                document.getElementById('leaveDetailDurationType').textContent = isFullDay ? 'Full Day' : 'Partial Day';
+                
+                // Handle time range display
+                const timeSection = document.getElementById('leaveDetailTimeSection');
+                if (isFullDay) {
+                    timeSection.classList.add('d-none');
+                } else {
+                    timeSection.classList.remove('d-none');
+                    document.getElementById('leaveDetailTimeRange').textContent = `${startTime || 'Not set'} to ${endTime || 'Not set'}`;
+                }
+                
+                // Display request date
+                document.getElementById('leaveDetailRequestDate').textContent = requestDate;
+                
+                // Handle admin notes
+                if (adminNotes) {
+                    document.getElementById('leaveDetailAdminNotes').textContent = adminNotes;
+                } else {
+                    document.getElementById('leaveDetailAdminNotes').innerHTML = '<em class="text-muted">No admin notes available</em>';
+                }
+                
+                // Handle existing elements (status, reason, certificate)
                 const statusBadge = document.getElementById('leaveDetailStatus');
                 statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
                 statusBadge.className = 'badge';
@@ -704,14 +809,12 @@
                     status.toLowerCase() === 'approved' ? 'bg-success' : 'bg-danger'
                 );
                 
-                // Handle reason
                 if (reason) {
                     document.getElementById('leaveDetailReason').textContent = reason;
                 } else {
                     document.getElementById('leaveDetailReason').innerHTML = '<em class="text-muted">No reason provided</em>';
                 }
                 
-                // Handle certificate section
                 const certificateSection = document.getElementById('certificateSection');
                 if (hasCertificate) {
                     certificateSection.classList.remove('d-none');

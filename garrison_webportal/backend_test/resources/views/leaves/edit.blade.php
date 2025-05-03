@@ -67,6 +67,18 @@
                         @enderror
                     </div>
                 </div>
+
+                @if($leave->request_date)
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Request Date</label>
+                    <input type="text" class="form-control" value="{{ date('d F Y', strtotime($leave->request_date)) }}" disabled>
+                    <div class="form-text">
+                        <i class="fas fa-calendar-check me-1"></i> Original request submission date
+                    </div>
+                </div>
+                @else
+                <input type="hidden" name="request_date" value="{{ date('Y-m-d') }}">
+                @endif
                 
                 <div class="row mb-3">
                     <div class="col-md-6">
@@ -83,6 +95,49 @@
                         @error('end_date')
                         <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Leave Duration Type</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="is_full_day" id="fullDayOption" value="1" 
+                            {{ old('is_full_day', $leave->is_full_day) == 1 ? 'checked' : '' }}>
+                        <label class="form-check-label" for="fullDayOption">
+                            <i class="fas fa-calendar-day me-1"></i> Full Day
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="is_full_day" id="partialDayOption" value="0"
+                            {{ old('is_full_day', $leave->is_full_day) == 0 ? 'checked' : '' }}>
+                        <label class="form-check-label" for="partialDayOption">
+                            <i class="fas fa-hourglass-half me-1"></i> Partial Day
+                        </label>
+                    </div>
+                </div>
+
+                <div class="row mb-3" id="timeSelectionRow" style="display: {{ old('is_full_day', $leave->is_full_day) == 0 ? 'flex' : 'none' }};">
+                    <div class="col-md-6">
+                        <label for="start_time" class="form-label fw-bold">Start Time</label>
+                        <input type="time" class="form-control leave-form-control @error('start_time') is-invalid @enderror" 
+                               id="start_time" name="start_time" value="{{ old('start_time', $leave->start_time) }}">
+                        @error('start_time')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="end_time" class="form-label fw-bold">End Time</label>
+                        <input type="time" class="form-control leave-form-control @error('end_time') is-invalid @enderror" 
+                               id="end_time" name="end_time" value="{{ old('end_time', $leave->end_time) }}">
+                        @error('end_time')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-12 mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i> For partial day leave, please specify the start and end times.
+                        </small>
                     </div>
                 </div>
                 
@@ -142,6 +197,20 @@
                         <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     @endif
+                </div>
+
+                <div class="mb-3" id="adminNotesSection" {{ Auth::user()->id == $leave->user_id ? 'style="display: none;"' : '' }}>
+                    <label for="admin_notes" class="form-label fw-bold">
+                        Admin Notes <span class="text-muted">(Visible to employee)</span>
+                    </label>
+                    <textarea class="form-control leave-form-control @error('admin_notes') is-invalid @enderror" 
+                        id="admin_notes" name="admin_notes" rows="3" {{ Auth::user()->id == $leave->user_id ? 'disabled' : '' }}>{{ old('admin_notes', $leave->admin_notes) }}</textarea>
+                    @error('admin_notes')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <div class="form-text">
+                        <i class="fas fa-info-circle me-1"></i> Use this field to provide feedback or reasons for approval/rejection.
+                    </div>
                 </div>
                 
                 <div class="d-flex flex-column flex-md-row justify-content-between mt-4">
@@ -214,6 +283,54 @@ document.addEventListener('DOMContentLoaded', function() {
             leaveTypeSelect.addEventListener('change', function() {
                 // Show certificate field only for sick leave (ID = 2)
                 certificateField.style.display = this.value === '2' ? 'block' : 'none';
+            });
+        }
+
+        // Show/hide time selection based on leave duration type
+        const fullDayOption = document.getElementById('fullDayOption');
+        const partialDayOption = document.getElementById('partialDayOption');
+        const timeSelectionRow = document.getElementById('timeSelectionRow');
+        const startTimeInput = document.getElementById('start_time');
+        const endTimeInput = document.getElementById('end_time');
+
+        function toggleTimeFields() {
+            if (partialDayOption.checked) {
+                timeSelectionRow.style.display = 'flex';
+                startTimeInput.setAttribute('required', 'required');
+                endTimeInput.setAttribute('required', 'required');
+            } else {
+                timeSelectionRow.style.display = 'none';
+                startTimeInput.removeAttribute('required');
+                endTimeInput.removeAttribute('required');
+            }
+        }
+
+        // Set initial state and add event listeners
+        fullDayOption.addEventListener('change', toggleTimeFields);
+        partialDayOption.addEventListener('change', toggleTimeFields);
+
+        // Validate that end time is after start time
+        endTimeInput.addEventListener('change', function() {
+            if (startTimeInput.value && this.value <= startTimeInput.value) {
+                Swal.fire({
+                    title: 'Invalid Time Range',
+                    text: 'End time must be after start time',
+                    icon: 'warning',
+                    confirmButtonColor: '#3085d6'
+                });
+                this.value = '';
+            }
+        });
+
+        // Show admin notes field only for supervisors
+        const statusSelect = document.getElementById('status');
+        const adminNotesSection = document.getElementById('adminNotesSection');
+
+        if (statusSelect && adminNotesSection) {
+            statusSelect.addEventListener('change', function() {
+                if (this.value === 'approved' || this.value === 'rejected') {
+                    adminNotesSection.style.display = 'block';
+                }
             });
         }
 
