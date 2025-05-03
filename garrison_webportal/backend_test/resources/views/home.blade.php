@@ -10,30 +10,30 @@
 @section('content')
 <div class="home-container">
     <!-- Hero Section -->
-    <div class="hero-content d-flex">
+    <div class="hero-content d-flex flex-column flex-lg-row align-items-center py-4 py-md-5 px-3">
         <!-- Logo Section -->
-        <div class="logo-section" >
+        <div class="logo-section text-center mb-4 mb-lg-0">
             <img src="{{ asset('garrison.svg') }}" 
-                 alt="Garrison Logo" 
-                 class="logo" style="width: 300px; height: 300px;">
+                alt="Garrison Logo" 
+                class="img-fluid" style="max-width: 230px;">
         </div>
 
         <!-- Welcome Text Section -->
-        <div class="welcome-section">
-            <h1 class="welcome-title">Welcome to Garrison</h1>
-            <p class="welcome-subtitle">Time and Attendance Management System</p>
-            <div class="welcome-divider"></div>
-            <p class="welcome-description">
+        <div class="welcome-section ms-lg-4 text-center text-lg-start">
+            <h1 class="welcome-title fs-1 fw-bold">Welcome to Garrison</h1>
+            <p class="welcome-subtitle fs-4 text-muted">Time and Attendance Management System</p>
+            <div class="welcome-divider d-none d-lg-block my-3 bg-primary" style="height: 3px; width: auto;"></div>
+            <p class="welcome-description my-3">
                 Streamline your workforce management with our comprehensive time and attendance solution. 
                 Track attendance, manage schedules, and optimize productivity all in one place.
             </p>
             
             <!-- Action Buttons -->
-            <div class="action-buttons">
-                <a href="{{ route('dashboard') }}" class="primary-button dashboard-button">
-                    <span class="button-content">
-                        <span class="button-text">Go to Dashboard</span>
-                        <i class="fas fa-arrow-right button-icon"></i>
+            <div class="action-buttons mt-3">
+                <a href="{{ route('dashboard') }}" class="btn btn-primary btn-lg">
+                    <span class="d-flex align-items-center">
+                        <span>Login Here</span>
+                        <i class="fas fa-arrow-right ms-2"></i>
                     </span>
                 </a>
             </div>
@@ -124,7 +124,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -230,4 +230,4 @@
         }
     });
 </script>
-@endsection
+@endpush

@@ -59,9 +59,10 @@
                     </div>
                     
                     <!-- Form for disable MFA action (hidden) -->
-                    <form id="disable-mfa-form" method="POST" action="{{ route('mfa.disable') }}" class="d-none">
-                        @csrf
-                    </form>
+		    <form id="disable-mfa-form" method="POST" action="{{ route('mfa.disable') }}" class="d-none">
+    			@csrf
+    			<input type="hidden" name="confirm" value="confirm">
+		    </form>
                 @else
                     <div class="alert alert-warning d-flex align-items-center">
                         <i class="fa fa-shield-virus fs-5 me-2"></i>
@@ -84,7 +85,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -160,4 +161,4 @@
         }
     });
 </script>
-@endsection
+@endpush

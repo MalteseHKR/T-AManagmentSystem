@@ -102,7 +102,7 @@
                     
                     @if($leave->medical_certificate)
                     <div class="mb-2">
-                        <p class="mb-1">Current certificate: <a href="{{ asset('storage/certificates/' . $leave->medical_certificate) }}" target="_blank" class="text-primary">View Document</a></p>
+                        <p class="mb-1">Current certificate: <a href="{{ asset('certificates/' . $leave->medical_certificate) }}" target="_blank" class="text-primary">View Document</a></p>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="remove_certificate" name="remove_certificate" value="1">
                             <label class="form-check-label" for="remove_certificate">
@@ -158,7 +158,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -250,4 +250,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100); // Small delay to ensure DOM is fully ready
 });
 </script>
-@endsection
+@endpush

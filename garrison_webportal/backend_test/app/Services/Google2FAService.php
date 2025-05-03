@@ -174,4 +174,47 @@ class Google2FAService
 
         return false;
     }
+
+    /**
+     * Verify a code for a user
+     * Will check both regular 2FA codes and recovery codes
+     */
+    public function verifyCode($userId, $code)
+    {
+        $user = DB::table('login')->where('user_login_id', $userId)->first();
+        
+        if (!$user || !$user->google2fa_secret) {
+            return false;
+        }
+        
+        // If code is 6 digits, treat as regular 2FA code
+        if (preg_match('/^\d{6}$/', $code)) {
+            return $this->google2fa->verifyKey($user->google2fa_secret, $code);
+        }
+        
+        // Otherwise, treat as recovery code
+        if ($user->recovery_codes) {
+            $recoveryCodes = json_decode($user->recovery_codes, true);
+            
+            // Check if the code exists in recovery codes
+            if (in_array($code, $recoveryCodes)) {
+                // Remove the used recovery code
+                $recoveryCodes = array_filter($recoveryCodes, function($rc) use ($code) {
+                    return $rc !== $code;
+                });
+                
+                // Update recovery codes in database
+                DB::table('login')->where('user_login_id', $userId)->update([
+                    'recovery_codes' => json_encode(array_values($recoveryCodes))
+                ]);
+                
+                // Log recovery code usage
+                Log::info("User {$userId} used a recovery code to authenticate");
+                
+                return true;
+            }
+        }
+        
+        return false;
+    }
 }

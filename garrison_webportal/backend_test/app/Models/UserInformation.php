@@ -34,6 +34,10 @@ class UserInformation extends Model
         'role_id',
     ];
 
+    protected $casts = [
+        'user_job_start' => 'datetime',
+    ];
+
     /**
      * Get the user that owns the user information.
      */

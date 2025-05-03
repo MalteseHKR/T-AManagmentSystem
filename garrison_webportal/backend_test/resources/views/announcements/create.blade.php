@@ -148,13 +148,13 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Toast notification setup - exact same as in analytics.blade.php
+    // Toast notification setup
     const Toast = Swal.mixin({
         toast: true,
         position: 'top-end',
@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Show success/error messages (same as in analytics)
+    // Show success/error messages from session
     @if(session('success'))
         Toast.fire({
             icon: 'success',
@@ -182,105 +182,93 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     @endif
 
-    // Character counter for content field
-    const contentField = document.getElementById('content');
-    const charCount = document.getElementById('char-count');
-    
-    if (contentField && charCount) {
-        // Set initial character count
-        charCount.textContent = contentField.value.length + ' characters';
-        
-        // Update character count on input
-        contentField.addEventListener('input', function() {
-            charCount.textContent = this.value.length + ' characters';
-        });
-    }
-    
-    // Form reference
+    // Form reference - adjust the ID to match your form
     const form = document.getElementById('announcementForm');
     
-    // Simplified form submission with confirmation
-    form.addEventListener('submit', function(event) {
-        event.preventDefault(); // Prevent default form submission
-        
-        // Get the form data
-        const title = document.getElementById('title').value.trim();
-        const content = document.getElementById('content').value.trim();
-        const category = document.getElementById('category').value;
-        
-        // Check form validity
-        if (!form.checkValidity()) {
-            // Use browser's built-in validation
-            form.reportValidity();
-            return;
-        }
-        
-        // Additional validation for content length
-        if (content.length < 10) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Content Too Short',
-                text: 'Please provide more detailed content for your announcement.',
-                confirmButtonColor: '#dc3545'
-            });
-            return;
-        }
-        
-        // Show confirmation dialog
-        Swal.fire({
-            title: 'Create Announcement?',
-            html: `
-                <p>Are you sure you want to publish this announcement?</p>
-                <div class="text-start mt-3 mb-1 text-muted small">Title:</div>
-                <div class="text-start p-2 mb-3 border rounded bg-light">${title}</div>
-                <div class="text-start text-muted small">This will display with your account details.</div>
-            `,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#2563eb',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Yes, publish it!',
-            cancelButtonText: 'No, keep editing',
-            reverseButtons: true
-        }).then((result) => {
-            if (result.isConfirmed) {
-                // Show loading state
-                Swal.fire({
-                    title: 'Creating announcement...',
-                    text: 'Please wait while we publish your announcement.',
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
-                
-                // Submit the form
-                form.submit();
+    // Form submission with confirmation
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            // Check form validity
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
             }
-        });
-    });
-    
-    // Fix the cancel button
-    const cancelButton = document.querySelector('button[type="button"].btn-outline-secondary');
-    if (cancelButton) {
-        cancelButton.addEventListener('click', function() {
+            
+            // Show confirmation dialog
             Swal.fire({
-                title: 'Discard changes?',
-                text: 'Any unsaved changes will be lost.',
-                icon: 'warning',
+                title: 'Submit Request?',
+                text: 'Are you sure you want to submit this request?',
+                icon: 'question',
                 showCancelButton: true,
-                confirmButtonColor: '#6c757d',
-                cancelButtonColor: '#2563eb',
-                confirmButtonText: 'Yes, discard changes',
+                confirmButtonColor: '#2563eb',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, submit it!',
                 cancelButtonText: 'No, keep editing',
                 reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
-                    window.location.href = "{{ route('announcements') }}";
+                    // Show loading state
+                    Swal.fire({
+                        title: 'Processing...',
+                        text: 'Please wait while we process your request.',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    
+                    // Submit the form
+                    form.submit();
                 }
             });
         });
     }
+    
+    // Cancel button handling
+    const cancelButton = document.querySelector('button.btn-outline-secondary, a.btn-outline-secondary');
+    if (cancelButton) {
+        cancelButton.addEventListener('click', function(e) {
+            if (form && form.querySelector('input:not([type="hidden"]):focus, select:focus, textarea:focus') !== null) {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'Discard changes?',
+                    text: 'Any unsaved changes will be lost.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#6c757d',
+                    cancelButtonColor: '#2563eb',
+                    confirmButtonText: 'Yes, discard changes',
+                    cancelButtonText: 'No, keep editing',
+                    reverseButtons: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = cancelButton.getAttribute('href') || '{{ route("announcements") }}';
+                    }
+                });
+            }
+        });
+    }
+    
+    // Date validation with SweetAlert
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    
+    if (startDateInput && endDateInput) {
+        endDateInput.addEventListener('change', function() {
+            if (this.value && startDateInput.value && this.value < startDateInput.value) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Invalid Date Range',
+                    text: 'End date cannot be before start date',
+                    confirmButtonColor: '#3085d6'
+                }).then(() => {
+                    this.value = startDateInput.value;
+                });
+            }
+        });
+    }
 });
 </script>
-@endsection
+@endpush

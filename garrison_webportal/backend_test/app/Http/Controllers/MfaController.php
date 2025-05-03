@@ -141,4 +141,10 @@ SVG;
 
         return view('auth.mfa.recovery-codes', compact('recoveryCodes'));
     }
+
+    public function isEnabled($userId = null)
+    {
+        $userId = $userId ?? Auth::id();
+        return $this->google2faService->isMfaEnabled($userId);
+    }
 }

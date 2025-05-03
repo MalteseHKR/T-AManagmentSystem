@@ -42,9 +42,16 @@
                 
                 <form method="POST" action="{{ route('mfa.verify') }}" class="verify-form">
                     @csrf
+                    <input type="hidden" name="recovery_mode" id="recovery_mode" value="false">
                     
                     <div class="mb-3">
-                        <label for="code" class="form-label">Authentication Code</label>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="code" class="form-label mb-0">Authentication Code</label>
+                            <div class="input-mode-toggle">
+                                <span id="mode-indicator" class="badge bg-primary">Authenticator Mode</span>
+                            </div>
+                        </div>
+                        
                         <div class="code-input-container">
                             <input id="code" type="text" 
                                    class="form-control @error('code') is-invalid @enderror" 
@@ -54,8 +61,8 @@
                             <i class="fa fa-lock input-icon"></i>
                         </div>
                         
-                        <small class="form-text text-muted">
-                            Enter the 6-digit code from your authenticator app OR enter a recovery code.
+                        <small class="form-text text-muted" id="code-instructions">
+                            Enter the 6-digit code from your authenticator app.
                         </small>
                         
                         @error('code')
@@ -83,7 +90,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -118,16 +125,20 @@
 
         // Focus input field automatically
         const codeInput = document.getElementById('code');
+        const modeIndicator = document.getElementById('mode-indicator');
+        const codeInstructions = document.getElementById('code-instructions');
+        let isRecoveryMode = false;
+        
         if (codeInput) {
             codeInput.focus();
         }
 
-        // Format code input to numbers only
+        // Format code input based on mode
         codeInput.addEventListener('input', function(e) {
-            // Allow for recovery codes (which can contain letters) or 6-digit codes
-            if (this.value.length <= 6) {
+            if (!isRecoveryMode) {
+                // Authenticator mode - 6 digits only
                 this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
-
+                
                 // Auto-submit if 6 digits entered
                 if (this.value.length === 6) {
                     Swal.fire({
@@ -139,15 +150,17 @@
                         }
                     });
 
-                    // Optional: Add a small delay before submitting
                     setTimeout(() => {
                         document.querySelector('.verify-form button[type="submit"]').click();
                     }, 300);
                 }
+            } else {
+                // Recovery mode - allow alphanumeric and hyphens
+                this.value = this.value.replace(/[^a-zA-Z0-9\-]/g, '');
             }
         });
 
-        // Help link for recovery options
+        // Help link for recovery options with mode toggle
         const recoveryHelpLink = document.getElementById('recovery-help');
         if (recoveryHelpLink) {
             recoveryHelpLink.addEventListener('click', function() {
@@ -161,10 +174,85 @@
                         </div>
                     `,
                     icon: 'info',
-                    confirmButtonColor: '#2563eb'
+                    confirmButtonColor: '#2563eb',
+                    showCancelButton: true,
+                    confirmButtonText: 'Switch to Recovery Mode',
+                    cancelButtonText: 'Stay in Authenticator Mode'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Switch to recovery code mode
+                        document.getElementById('recovery_mode').value = 'true';
+                        
+                        isRecoveryMode = true;
+                        
+                        // Update UI to reflect recovery mode
+                        modeIndicator.textContent = 'Recovery Mode';
+                        modeIndicator.classList.remove('bg-primary');
+                        modeIndicator.classList.add('bg-warning');
+                        
+                        // Update input attributes
+                        codeInput.removeAttribute('maxlength');
+                        codeInput.removeAttribute('pattern');
+                        codeInput.removeAttribute('inputmode');
+                        codeInput.placeholder = 'Enter recovery code';
+                        codeInstructions.textContent = 'Enter your recovery code (e.g. ABCD-EFGH-IJKL)';
+                        
+                        // Clear any existing input and focus
+                        codeInput.value = '';
+                        codeInput.focus();
+                    }
                 });
             });
         }
+        
+        // Add a button to switch back to authenticator mode
+        const resetModeBtn = document.createElement('button');
+        resetModeBtn.type = 'button';
+        resetModeBtn.className = 'btn btn-sm btn-outline-secondary mt-2 d-none';
+        resetModeBtn.innerHTML = '<i class="fa fa-undo me-1"></i> Switch back to Authenticator Mode';
+        resetModeBtn.id = 'reset-mode-btn';
+        
+        document.querySelector('.verify-form').appendChild(resetModeBtn);
+        
+        resetModeBtn.addEventListener('click', function() {
+            // Switch back to authenticator mode
+            document.getElementById('recovery_mode').value = 'false';
+            isRecoveryMode = false;
+            
+            // Update UI to reflect authenticator mode
+            modeIndicator.textContent = 'Authenticator Mode';
+            modeIndicator.classList.remove('bg-warning');
+            modeIndicator.classList.add('bg-primary');
+            
+            // Update input attributes
+            codeInput.setAttribute('maxlength', '6');
+            codeInput.setAttribute('pattern', '[0-9]{6}');
+            codeInput.setAttribute('inputmode', 'numeric');
+            codeInput.placeholder = 'Enter 6-digit code';
+            codeInstructions.textContent = 'Enter the 6-digit code from your authenticator app.';
+            
+            // Clear any existing input and focus
+            codeInput.value = '';
+            codeInput.focus();
+            
+            // Hide the reset button
+            this.classList.add('d-none');
+        });
+        
+        // Show/hide reset button based on mode
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    if (modeIndicator.classList.contains('bg-warning')) {
+                        resetModeBtn.classList.remove('d-none');
+                    } else {
+                        resetModeBtn.classList.add('d-none');
+                    }
+                }
+            });
+        });
+        
+        observer.observe(modeIndicator, { attributes: true });
     });
 </script>
-@endsection
+@endpush

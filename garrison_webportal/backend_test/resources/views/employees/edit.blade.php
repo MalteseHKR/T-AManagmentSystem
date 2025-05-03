@@ -77,7 +77,9 @@
                     
                     <div class="mb-3">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="user_active" name="user_active" value="1" {{ old('user_active', $userInfo->user_active) ? 'checked' : '' }}>
+                            <input type="hidden" name="user_active" value="0">
+				<input class="form-check-input" type="checkbox" id="user_active" name="user_active" value="1"
+    				{{ old('user_active', $userInfo->user_active) ? 'checked' : '' }}>
                             <label class="form-check-label" for="user_active">
                                 Active Employee
                             </label>
@@ -186,7 +188,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -282,4 +284,4 @@
         });
     });
 </script>
-@endsection
+@endpush

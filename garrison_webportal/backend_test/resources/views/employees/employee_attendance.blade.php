@@ -223,7 +223,7 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/5.10.1/main.min.css" rel="stylesheet">
 @endpush
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <!-- FullCalendar JS -->
@@ -407,4 +407,4 @@
         }
     });
 </script>
-@endsection
+@endpush

@@ -252,7 +252,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -319,4 +319,4 @@
         }
     });
 </script>
-@endsection
+@endpush

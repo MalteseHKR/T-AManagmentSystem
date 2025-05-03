@@ -22,7 +22,7 @@
                     </div>
                 </div>
                 
-                <div class="recovery-codes-container mt-4 mb-4">
+                <div class="recovery-codes-container mt-4 mb-4" id="print-section">
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped text-center align-middle">
                             <thead class="table-primary">
@@ -36,7 +36,7 @@
                                     <tr>
                                         <td><code>{{ $code }}</code></td>
                                         <td>
-                                            <button class="btn btn-sm btn-outline-primary btn-copy" data-code="{{ $code }}" title="Copy to clipboard">
+                                            <button type="button" class="btn btn-sm btn-outline-primary btn-copy" data-code="{{ $code }}" title="Copy to clipboard">
                                                 <i class="fa fa-clipboard text-primary"></i>
                                             </button>
                                         </td>
@@ -53,11 +53,11 @@
                             <i class="fa fa-check-circle me-1"></i> I've saved these codes
                         </a>
                 
-                        <button id="btn-copy-all" class="btn btn-info">
+                        <button type="button" id="btn-copy-all" class="btn btn-info">
                             <i class="fa fa-clipboard me-1"></i> Copy All
                         </button>
                 
-                        <button class="btn btn-secondary" onclick="printRecoveryCodes()">
+                        <button type="button" class="btn btn-secondary" onclick="printRecoveryCodes()">
                             <i class="fa fa-print me-1"></i> Print
                         </button>
                     </div>
@@ -69,100 +69,118 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
 function printRecoveryCodes() {
-    const content = document.querySelector('.recovery-codes-container').innerHTML;
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>Garrison - Recovery Codes</title>
-            <style>
-                body { font-family: sans-serif; padding: 20px; }
-                h1 { font-size: 18px; margin-bottom: 20px; }
-                .recovery-code-item { 
-                    font-family: monospace; 
-                    margin-bottom: 10px; 
-                    display: block; 
-                    font-size: 16px;
-                    padding: 8px;
-                    background: #f8f9fa;
-                }
-                .btn-copy { display: none; }
-            </style>
-        </head>
-        <body>
-            <h1>Recovery Codes - Keep these private and secure</h1>
-            <div class="recovery-codes-container">
-                ${content}
-            </div>
-            <p style="margin-top: 30px">These codes can be used once each to log in if you lose access to your authenticator app.</p>
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    
-    // Show success notification
+    const originalContents = document.body.innerHTML;
+    const printContents = document.getElementById('print-section').innerHTML;
+
+    const style = `
+        <style>
+            body { font-family: sans-serif; padding: 20px; }
+            .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            .table th, .table td { border: 1px solid #dee2e6; padding: 8px; }
+            .table-primary { background-color: #e9ecef; }
+            .btn-copy { display: none !important; }
+        </style>
+    `;
+
+    document.body.innerHTML = style + '<h1>Recovery Codes - Keep these private and secure</h1>' + printContents + '<p style="margin-top: 30px">These codes can be used once each to log in if you lose access to your authenticator app.</p>';
+    window.print();
+    document.body.innerHTML = originalContents;
+    window.location.reload();
+}
+
+document.querySelectorAll('.btn-copy').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const code = btn.dataset.code;
+
+        if (!code) {
+            console.warn("\u26A0\uFE0F No code found in data attribute.");
+            return;
+        }
+
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(code).then(() => {
+                showCopySuccess("Recovery code copied to clipboard.");
+            }).catch(err => {
+                console.error("Clipboard API failed:", err);
+                fallbackCopy(code);
+            });
+        } else {
+            fallbackCopy(code);
+        }
+    });
+});
+
+function fallbackCopy(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        showCopySuccess("Recovery code copied to clipboard.");
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops!',
+            text: 'Failed to copy the code.',
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false
+        });
+    }
+    document.body.removeChild(textarea);
+}
+
+function showCopySuccess(message) {
     Swal.fire({
-        title: 'Print Dialog Opened',
-        text: 'Recovery codes sent to printer',
         icon: 'success',
-        timer: 2000,
+        title: 'Copied!',
+        text: message,
+        toast: true,
+        position: 'top-end',
+        timer: 3000,
         showConfirmButton: false
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Individual copy buttons
-    document.querySelectorAll('.btn-copy').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const code = this.parentElement.getAttribute('data-code');
-            navigator.clipboard.writeText(code).then(() => {
-                Swal.fire({
-                    title: 'Copied!',
-                    text: 'Recovery code copied to clipboard',
-                    icon: 'success',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-            }).catch(err => {
-                Swal.fire({
-                    title: 'Error',
-                    text: 'Failed to copy code: ' + err,
-                    icon: 'error'
-                });
-            });
+document.getElementById('btn-copy-all')?.addEventListener('click', () => {
+    const codes = Array.from(document.querySelectorAll('.btn-copy')).map(btn => btn.dataset.code).join('\n');
+
+    if (!codes) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'No Codes Found',
+            text: 'Could not find any recovery codes to copy.',
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false
         });
-    });
-    
-    // Copy all button
-    document.getElementById('btn-copy-all').addEventListener('click', function() {
-        const codes = Array.from(document.querySelectorAll('.recovery-code-item'))
-            .map(item => item.getAttribute('data-code'))
-            .join('\n');
-            
-        navigator.clipboard.writeText(codes).then(() => {
-            Swal.fire({
-                title: 'All Copied!',
-                text: 'All recovery codes copied to clipboard',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            });
-        }).catch(err => {
-            Swal.fire({
-                title: 'Error',
-                text: 'Failed to copy codes: ' + err,
-                icon: 'error'
-            });
+        return;
+    }
+
+    navigator.clipboard.writeText(codes).then(() => {
+        showCopySuccess("All recovery codes copied.");
+    }).catch(err => {
+        console.error("Copy all failed:", err);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Failed to copy recovery codes.',
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false
         });
     });
 });
 </script>
-@endsection
+@endpush

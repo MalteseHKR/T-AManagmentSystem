@@ -10,6 +10,15 @@
 @section('show_navbar', true)
 
 @section('content')
+
+
+<script>
+    function viewLocation(lat, lng) {
+        alert(`Location: ${lat}, ${lng}`);
+    }
+</script>
+
+
 <div class="container">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <h1 class="attendance-header mb-0">Attendance Records</h1>
@@ -196,93 +205,116 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Show success toast if exists
-        @if(session('success'))
-            Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: "{{ session('success') }}",
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 4000,
-                timerProgressBar: true
-            });
-        @endif
-        
-        // Show error message if exists
-        @if(session('error'))
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: "{{ session('error') }}",
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 4000,
-                timerProgressBar: true
-            });
-        @endif
-        
-        // Show loading toast when first loaded
-        Swal.fire({
-            title: 'Loading attendance data...',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 1500,
-            timerProgressBar: true,
-            icon: 'info',
-            didOpen: (toast) => {
-                toast.addEventListener('mouseenter', Swal.stopTimer)
-                toast.addEventListener('mouseleave', Swal.resumeTimer)
-            }
-        });
-        
-        // Refresh data button
-        const refreshBtn = document.getElementById('refresh-data');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', function() {
-                Swal.fire({
-                    title: 'Refreshing Data',
-                    text: 'Please wait while we refresh attendance records...',
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
-                
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-            });
-        }
-    });
-    
-    // Function to view location
-    function viewLocation(lat, lng) {
-        // Get cached location name
+document.addEventListener('DOMContentLoaded', function () {
+    const mapLinks = document.querySelectorAll('.map-link');
+    const DELAY_INCREMENT = 1000;
+    let delay = 0;
+
+    // Cache Helpers
+    function getLocationFromCache(lat, lng) {
         const cacheKey = `location_${lat}_${lng}`;
-        let locationName = 'Unknown Location';
-        
         try {
-            const cached = localStorage.getItem(cacheKey);
-            if (cached) {
-                const data = JSON.parse(cached);
-                if (data.location) {
-                    locationName = data.location;
-                }
+            const cached = JSON.parse(localStorage.getItem(cacheKey));
+            if (cached && Date.now() - cached.timestamp < 30 * 24 * 60 * 60 * 1000) {
+                return cached.location;
             }
         } catch (e) {
-            // If error, continue with unknown location
+            console.warn('Cache parse error:', e);
         }
-        
+        return null;
+    }
+
+    function saveLocationToCache(lat, lng, location) {
+        const cacheKey = `location_${lat}_${lng}`;
+        localStorage.setItem(cacheKey, JSON.stringify({ location, timestamp: Date.now() }));
+    }
+
+    function hideLoading(indicator) {
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    }
+
+    function updateLocationText(textEl, indicatorEl, location) {
+        textEl.textContent = location;
+        hideLoading(indicatorEl);
+    }
+
+    function tryNominatim(lat, lng, locationText, loadingIndicator) {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`;
+        fetch(url, {
+            headers: {
+                'User-Agent': 'GarrisonTimeAttendanceBot/1.0 (admin@garrisonta.org)',
+                'Accept-Language': 'en'
+            }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error(`Nominatim error: ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            const loc = data.address?.city || data.address?.town || data.address?.village ||
+                        data.address?.county || data.address?.state || 'Unknown';
+            updateLocationText(locationText, loadingIndicator, loc);
+            saveLocationToCache(lat, lng, loc);
+        })
+        .catch(err => {
+            console.error('Nominatim failed:', err);
+            tryFallback(lat, lng, locationText, loadingIndicator);
+        });
+    }
+
+    function tryFallback(lat, lng, locationText, loadingIndicator) {
+        const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`;
+        fetch(url)
+        .then(res => res.json())
+        .then(data => {
+            const loc = data.locality || data.city || data.principalSubdivision || 'View Location';
+            updateLocationText(locationText, loadingIndicator, loc);
+            saveLocationToCache(lat, lng, loc);
+        })
+        .catch(err => {
+            console.error('Fallback failed:', err);
+            updateLocationText(locationText, loadingIndicator, 'View Location');
+        });
+    }
+
+    mapLinks.forEach(link => {
+        const lat = link.dataset.lat;
+        const lng = link.dataset.lng;
+        const locationText = link.querySelector('.location-text');
+        const loadingIndicator = link.querySelector('.loading-indicator');
+
+        if (!lat || !lng || !locationText) return;
+
+        const cached = getLocationFromCache(lat, lng);
+        if (cached) {
+            updateLocationText(locationText, loadingIndicator, cached);
+        } else {
+            setTimeout(() => {
+                tryNominatim(lat, lng, locationText, loadingIndicator);
+            }, delay);
+            delay += DELAY_INCREMENT;
+        }
+    });
+
+    // SweetAlert for location
+    window.viewLocation = function(lat, lng) {
+        const cacheKey = `location_${lat}_${lng}`;
+        let locationName = 'Unknown Location';
+
+        try {
+            const cached = JSON.parse(localStorage.getItem(cacheKey));
+            if (cached && cached.location) {
+                locationName = cached.location;
+            }
+        } catch {}
+
         Swal.fire({
             title: 'Location Details',
             html: `
@@ -312,154 +344,77 @@
             showConfirmButton: false,
             focusConfirm: false
         });
-    }
-    
-    // Function to view attendance photo
-    function viewAttendancePhoto(imageUrl) {
+    };
+
+    // SweetAlert for attendance photo
+    window.viewAttendancePhoto = function(imageUrl) {
         Swal.fire({
             title: 'Attendance Photo',
-            html: `
-                <div class="attendance-photo-container">
-                    <img src="${imageUrl}" alt="Attendance Photo" class="img-fluid">
-                </div>
-            `,
+            html: `<div class="attendance-photo-container"><img src="${imageUrl}" alt="Attendance Photo" class="img-fluid"></div>`,
             width: '500px',
             showCloseButton: true,
             showConfirmButton: false,
             focusConfirm: false
         });
-    }
-</script>
+    };
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Get all map links
-    const mapLinks = document.querySelectorAll('.map-link');
-    
-    // Cache location data in local storage
-    function getLocationFromCache(lat, lng) {
-        const cacheKey = `location_${lat}_${lng}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-            try {
-                const data = JSON.parse(cached);
-                // Cache expires after 30 days
-                if (Date.now() - data.timestamp < 30 * 24 * 60 * 60 * 1000) {
-                    return data.location;
-                } else {
-                    // Remove expired cache
-                    localStorage.removeItem(cacheKey);
-                }
-            } catch (e) {
-                // Handle old format or invalid data
-                localStorage.removeItem(cacheKey);
-            }
-        }
-        return null;
-    }
-    
-    function saveLocationToCache(lat, lng, location) {
-        if (location && location !== 'Location unavailable') {
-            const cacheKey = `location_${lat}_${lng}`;
-            const cacheData = {
-                location: location,
-                timestamp: Date.now()
-            };
-            localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-        }
-    }
-    
-    // Process all locations automatically rather than on hover
-    // To avoid rate limiting, add a slight delay between requests
-    let delay = 0;
-    const DELAY_INCREMENT = 500; // Half second to avoid rate limiting
-    
-    // Process each link
-    mapLinks.forEach(function(link) {
-        const lat = link.getAttribute('data-lat');
-        const lng = link.getAttribute('data-lng');
-        const locationText = link.querySelector('.location-text');
-        const loadingIndicator = link.querySelector('.loading-indicator');
-        
-        // First check if we have this in cache
-        const cachedLocation = getLocationFromCache(lat, lng);
-        if (cachedLocation) {
-            locationText.textContent = cachedLocation;
-            loadingIndicator.style.display = 'none';
-            return;
-        }
-        
-        // Add a delay to avoid rate limiting
-        setTimeout(function() {
-            // Try both Nominatim and a fallback service
-            tryNominatim(lat, lng, locationText, loadingIndicator);
-        }, delay);
-        
-        // Increase delay for next request
-        delay += DELAY_INCREMENT;
+    // Session-based alerts
+    @if(session('success'))
+    Swal.fire({
+        icon: 'success',
+        title: 'Success',
+        text: "{{ session('success') }}",
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
     });
-    
-    function tryNominatim(lat, lng, locationText, loadingIndicator) {
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('API response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data && data.address) {
-                    // Display city or town, or county if those aren't available
-                    const location = data.address.city || data.address.town || 
-                                    data.address.village || data.address.hamlet ||
-                                    data.address.county || data.address.state;
-                    if (location) {
-                        locationText.textContent = location;
-                        // Hide loading indicator after showing location
-                        hideLoadingIndicator(loadingIndicator);
-                        saveLocationToCache(lat, lng, location);
-                    } else {
-                        tryFallbackService(lat, lng, locationText, loadingIndicator);
-                    }
-                } else {
-                    tryFallbackService(lat, lng, locationText, loadingIndicator);
-                }
-            })
-            .catch(error => {
-                tryFallbackService(lat, lng, locationText, loadingIndicator);
-            });
-    }
-    
-    function tryFallbackService(lat, lng, locationText, loadingIndicator) {
-        // Try BigDataCloud as fallback (also free, different rate limits)
-        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && (data.locality || data.city || data.principalSubdivision)) {
-                    const location = data.locality || data.city || data.principalSubdivision;
-                    locationText.textContent = location;
-                    saveLocationToCache(lat, lng, location);
-                } else {
-                    locationText.textContent = 'View Location';
-                }
-                // Hide loading indicator
-                hideLoadingIndicator(loadingIndicator);
-            })
-            .catch(error => {
-                locationText.textContent = 'View Location';
-                hideLoadingIndicator(loadingIndicator);
-            });
-    }
-    
-    // Function to properly hide the loading indicator
-    function hideLoadingIndicator(indicator) {
-        if (indicator) {
-            indicator.style.display = 'none';
+    @endif
+
+    @if(session('error'))
+    Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: "{{ session('error') }}",
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true
+    });
+    @endif
+
+    Swal.fire({
+        title: 'Loading attendance data...',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500,
+        timerProgressBar: true,
+        icon: 'info',
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer)
+            toast.addEventListener('mouseleave', Swal.resumeTimer)
         }
+    });
+
+    // Refresh data
+    const refreshBtn = document.getElementById('refresh-data');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function () {
+            Swal.fire({
+                title: 'Refreshing Data',
+                text: 'Please wait while we refresh attendance records...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+            setTimeout(() => window.location.reload(), 1000);
+        });
     }
 });
 </script>
-@endsection
+@endpush
 
 @push('styles')
 <style>

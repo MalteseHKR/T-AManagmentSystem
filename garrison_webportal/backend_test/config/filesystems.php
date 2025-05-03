@@ -42,6 +42,12 @@ return [
         'visibility' => 'public',
     ],
 
+    'uploads' => [
+	    'driver' => 'local',
+	    'root' => env('UPLOADS_PATH', storage_path('app/uploads')),
+    ],
+
+
     'local_uploads' => [
    	'driver' => 'local',
     	'root' => env('EMPLOYEE_PHOTOS_PATH', storage_path('app/employeephotos')),

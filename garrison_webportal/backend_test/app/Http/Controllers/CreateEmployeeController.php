@@ -58,14 +58,12 @@ class CreateEmployeeController extends Controller
             $userId = DB::table('user_information')->insertGetId([
                 'user_name' => $validated['name'],
                 'user_surname' => $validated['surname'],
-                'user_title' => $validated['job_role'],
                 'user_phone' => $validated['phone_number'],
                 'user_email' => $validated['email'],
                 'user_dob' => $validated['date_of_birth'],
                 'user_job_start' => $validated['start_date'],
                 'user_job_end' => null,
                 'user_active' => $validated['active'],
-                'user_department' => $validated['department'],
                 'role_id' => $roleData->role_id,
                 'department_id' => $departmentData->department_id
             ]);
@@ -106,7 +104,7 @@ class CreateEmployeeController extends Controller
                         $extension = strtolower($image->getClientOriginalExtension());
                         if ($extension === 'jfif') $extension = 'jpg';
 
-                        $filename = "{$firstName}{$lastName}Photo{$photoNumber}_{$userId}.{$extension}";
+                        $filename = "{$firstName}_{$lastName}{$photoNumber}_{$userId}.{$extension}";
                         $filename = preg_replace('/[^A-Za-z0-9_.-]/', '_', $filename);
 
                         try {
@@ -145,9 +143,9 @@ class CreateEmployeeController extends Controller
             return redirect()->route('employees')->with('success', 'Employee created successfully.');
         } catch (\Exception $e) {
             Log::error("? Error creating employee: " . $e->getMessage());
-            return redirect()->route('create')
-                ->with('error', 'Something went wrong while creating the employee.')
-                ->withInput();
-        }
+            return redirect()->route('employees.create') // ? Correct route name
+        	->with('error', 'Something went wrong while creating the employee.')
+        	->withInput();
+	}
     }
 }

@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use App\Models\UserInformation;
 use App\Models\Department;
@@ -253,27 +253,71 @@ class EmployeeController extends Controller
     /**
      * Update the employee information
      */
-    public function update(Request $request, $id)
-    {
-        // Validate the request
-        $validated = $request->validate([
-            'user_name' => 'required|string|max:255',
-            'user_surname' => 'required|string|max:255',
-            'user_email' => 'required|email|max:255',
-            'user_phone' => 'nullable|string|max:20',
-            'department_id' => 'required|exists:departments,department_id',
-            'role_id' => 'required|exists:roles,role_id',
-            'user_active' => 'boolean',
-        ]);
-        
-        // Find the user information
-        $userInfo = UserInformation::where('user_id', $id)->firstOrFail();
-        
-        // Update the user information
-        $userInfo->update($validated);
-        
-        return redirect()
-            ->route('employee.profile', $id)
-            ->with('success', 'Employee information updated successfully');
+
+
+
+public function update(Request $request, $id)
+{
+    $validated = $request->validate([
+        'user_name' => 'required|string|max:255',
+        'user_surname' => 'required|string|max:255',
+        'user_email' => 'required|email|max:255',
+        'user_phone' => 'nullable|string|max:20',
+        'department_id' => 'required|exists:departments,department_id',
+        'role_id' => 'required|exists:roles,role_id',
+        'user_active' => 'boolean',
+        'ai_image_1' => 'nullable|image|mimes:jpeg,jpg,png,gif,jfif|max:2048',
+        'ai_image_2' => 'nullable|image|mimes:jpeg,jpg,png,gif,jfif|max:2048',
+        'ai_image_3' => 'nullable|image|mimes:jpeg,jpg,png,gif,jfif|max:2048',
+    ]);
+
+    $userInfo = UserInformation::where('user_id', $id)->firstOrFail();
+    $userInfo->update($validated);
+
+    $firstName = preg_replace('/[^A-Za-z0-9]/', '', $validated['user_name']);
+    $lastName = preg_replace('/[^A-Za-z0-9]/', '', $validated['user_surname']);
+    $photoNumber = 1;
+
+    foreach ([1, 2, 3] as $index) {
+        $field = "ai_image_{$index}";
+        if ($request->hasFile($field) && $request->file($field)->isValid()) {
+            $image = $request->file($field);
+            $extension = strtolower($image->getClientOriginalExtension());
+            if ($extension === 'jfif') $extension = 'jpg';
+
+            $filename = "{$firstName}_{$lastName}{$photoNumber}_{$id}.{$extension}";
+            $filename = preg_replace('/[^A-Za-z0-9_.-]/', '_', $filename);
+
+            try {
+                Storage::disk('local_uploads')->putFileAs('', $image, $filename);
+                Log::info("? Uploaded image to local_uploads: $filename");
+
+                // Save first valid image as profile photo
+                if ($photoNumber === 1) {
+                    $profileName = "{$firstName}{$lastName}_profile_{$id}.{$extension}";
+                    $profileName = preg_replace('/[^A-Za-z0-9_.-]/', '_', $profileName);
+
+                    Storage::disk('profile_photos')->putFileAs('', $image, $profileName);
+                    Log::info("? Uploaded profile image to profile_photos: $profileName");
+
+                    $absolutePath = Storage::disk('profile_photos')->path($profileName);
+
+                    DB::table('user_profile_photo')->updateOrInsert(
+                        ['user_id' => $id],
+                        ['file_name_link' => $absolutePath]
+                    );
+                }
+
+                $photoNumber++;
+            } catch (\Exception $e) {
+                Log::error("? Error uploading or saving image: " . $e->getMessage());
+            }
+        }
     }
+
+    return redirect()
+        ->route('employee.profile', $id)
+        ->with('success', 'Employee information updated successfully.');
+}
+
 }

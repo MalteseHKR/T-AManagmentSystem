@@ -9,6 +9,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -73,6 +74,37 @@ Route::get('/login-complete', function() {
     return redirect('/login')->with('error', 'Please log in first');
 })->name('login.complete');
 
+// Add this route BEFORE your auth middleware group
+Route::middleware(['web'])->group(function() {
+    // Change password routes - available WITHOUT full authentication
+    Route::get('/change-password', function(Request $request) {
+        Log::info("Change Password form accessed", [
+            'user_id' => session('user_id'),
+            'is_logged_in' => session('is_logged_in') ?? false,
+            'from_url' => url()->previous()
+        ]);
+        
+        // Update the view path to match the correct file location
+        return view('auth.change-password');
+    })->name('auth.change-password');
+
+    Route::post('/change-password', function(Request $request) {
+        Log::info("Change Password submitted", [
+            'user_id' => session('user_id'),
+            'is_logged_in' => session('is_logged_in') ?? false
+        ]);
+        
+        return app()->make(App\Http\Controllers\Auth\LoginController::class)->changePassword($request);
+    })->name('auth.change-password.submit');
+
+    Route::post('/change-password', [App\Http\Controllers\Auth\LoginController::class, 'changePassword'])
+        ->name('password.change.submit');
+
+    // First-time password change routes
+    Route::get('/first-change', [LoginController::class, 'showFirstTimePasswordChange'])->name('auth.first-change');
+    Route::post('/first-change', [LoginController::class, 'firstTimeChangePassword'])->name('auth.first-change.submit');
+});
+
 // All protected routes in a single middleware group
 Route::middleware(['auth'])->group(function () {
     // Dashboard
@@ -125,27 +157,49 @@ Route::middleware(['auth'])->group(function () {
     // Session Management
     Route::post('/session/extend', [App\Http\Controllers\SessionController::class, 'extend'])->name('session.extend');
 
+    // Profile routes
+    Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');
+    Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::get('/profile/password', [LoginController::class, 'showChangePasswordForm'])->name('profile.password');
+    Route::post('/profile/password', [LoginController::class, 'changePassword'])->name('profile.password.update');
+    Route::get('/profile/attendance', [ProfileController::class, 'attendance'])->name('profile.attendance');
+    Route::get('/profile/leave', [ProfileController::class, 'leave'])->name('profile.leave');
+    Route::post('/profile/leave/apply', [ProfileController::class, 'applyLeave'])->name('profile.leave.apply');
 
-Route::get('/secure-image/{filename}', function ($filename) {
-    $path = "/home/softwaredev/garrison-app-server/uploads/" . basename($filename);
+    Route::get('/secure-image/{filename}', function ($filename) {
+        $path = "/home/softwaredev/garrison-app-server/uploads/" . basename($filename);
 
-    if (!File::exists($path)) {
-        Log::warning("? File not found: {$path}");
-        abort(404, 'File not found');
-    }
+        if (!File::exists($path)) {
+            Log::warning("? File not found: {$path}");
+            abort(404, 'File not found');
+        }
 
-    $response = Response::file($path, [
-        'Content-Type' => mime_content_type($path),
-        'Content-Disposition' => 'inline; filename="' . basename($path) . '"',
-    ]);
+        $response = Response::file($path, [
+            'Content-Type' => mime_content_type($path),
+            'Content-Disposition' => 'inline; filename="' . basename($path) . '"',
+        ]);
 
-    Log::info('? Laravel response generated', [
-        'file' => $path,
-        'headers' => $response->headers->all(),
-    ]);
+        Log::info('? Laravel response generated', [
+            'file' => $path,
+            'headers' => $response->headers->all(),
+        ]);
 
-    return $response;
-})->name('secure-image');
+        return $response;
+    })->name('secure-image');
+
+    Route::get('/certificates/{filename}', function ($filename) {
+        $path = '/home/softwaredev/garrison-app-server/uploads/certificates/' . basename($filename);
+
+        if (!file_exists($path)) {
+           abort(404);
+        }
+
+        return response()->file($path, [
+            'Content-Disposition' => 'inline; filename="' . basename($path) . '"'
+        ]);
+    })->name('certificates.view');
+
 
     Route::get('/profile-image/{userId}', [ImageController::class, 'serveProfileImage']);
 
@@ -164,26 +218,6 @@ Route::get('/secure-image/{filename}', function ($filename) {
         ->where('filename', '.*')
         ->name('images.local');
 
-    // Change password routes
-    Route::get('/change-password', function(Request $request) {
-        Log::info("Change Password form route accessed", [
-            'user_id' => session('user_id'),
-            'is_logged_in' => session('is_logged_in'),
-            'from_url' => url()->previous()
-        ]);
-        
-        return view('auth.passwords.change');
-    })->name('password.change');
-
-    Route::post('/change-password', function(Request $request) {
-        Log::info("Change Password submit route accessed", [
-            'user_id' => session('user_id'),
-            'is_logged_in' => session('is_logged_in')
-        ]);
-        
-        return app()->make(App\Http\Controllers\Auth\LoginController::class)->changePassword($request);
-    })->name('password.change.submit');
-
     // MFA Setup routes (protected by auth)
     Route::get('/profile/2fa', [App\Http\Controllers\MfaController::class, 'index'])->name('mfa.index');
     Route::get('/profile/2fa/setup', [App\Http\Controllers\MfaController::class, 'setup'])->name('mfa.setup');
@@ -191,4 +225,10 @@ Route::get('/secure-image/{filename}', function ($filename) {
     Route::post('/profile/2fa/disable', [App\Http\Controllers\MfaController::class, 'disable'])->name('mfa.disable');
     Route::get('/profile/2fa/recovery-codes', [App\Http\Controllers\MfaController::class, 'showRecoveryCodes'])->name('mfa.recovery-codes');
     Route::get('/profile/2fa/recovery-codes/regenerate', [App\Http\Controllers\MfaController::class, 'regenerateRecoveryCodes'])->name('mfa.regenerate-codes');
+});
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->name('dashboard');
 });

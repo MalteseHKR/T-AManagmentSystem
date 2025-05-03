@@ -11,15 +11,12 @@ class LoginUser extends Authenticatable
 
     protected $table = 'login'; // Custom table name
 
-    protected $primaryKey = 'user_id'; // Primary key used for Auth::id()
+    protected $primaryKey = 'user_login_id'; // Primary key used for Auth::id()
 
     public $timestamps = false; // Your table doesn't have created_at / updated_at
 
     protected $fillable = [
-        'email',
-        'user_login_pass',
-        'password_reset',
-        'user_id'
+        'email', 'user_login_pass', 'mfa_enabled', 'google2fa_secret', 'password_reset',
     ];
 
     protected $hidden = [

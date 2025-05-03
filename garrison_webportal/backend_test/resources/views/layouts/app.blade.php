@@ -18,7 +18,6 @@
 
     <!-- SweetAlert2 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <!-- Navbar CSS -->
     <link rel="stylesheet" href="{{ asset('css/navbar.css') }}">
@@ -47,12 +46,21 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- Session Timeout -->
-    @vite(['resources/js/session-timeout.js'])
+    <!--@vite(['resources/js/session-timeout.js'])-->
     
     <!-- App JS -->
     <script src="{{ asset('js/app.js') }}"></script>
+
+
     
     <!-- Additional Scripts -->
     @stack('scripts')
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+
+<script async
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCpRxNFwPBqlKtjN0t3WAg9aQJTiXTZZRc">
+</script>
+
 </body>
 </html>

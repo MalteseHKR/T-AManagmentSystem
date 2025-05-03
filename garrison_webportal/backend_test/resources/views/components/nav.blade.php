@@ -73,7 +73,7 @@
                         <li><a class="dropdown-item" href="{{ route('dashboard') }}">
                             <i class="fas fa-tachometer-alt"></i> Dashboard
                         </a></li>
-                        <li><a class="dropdown-item" href="{{ route('home') }}">
+                        <li><a class="dropdown-item" href="{{ route('profile.index') }}">
                             <i class="fas fa-user"></i> Profile
                         </a></li>
                         <li>

@@ -30,6 +30,9 @@ body.login-page {
   display: flex;
   justify-content: center;
   align-items: center;
+  min-height: 100vh;
+  background: var(--background-gradient);
+  padding: 1rem;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -1404,5 +1407,77 @@ main {
     height: 40px;
     border-radius: 50%; /* Makes the image circular */
     object-fit: cover; /* Ensures the image fits within the circle */
+}
+
+/* Fix login page layout */
+body.login-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: var(--background-gradient);
+  padding: 1rem;
+}
+
+/* Fix input groups for the login form */
+.login-form .input-group-text {
+  background-color: var(--light-color);
+  border-right: 0;
+}
+
+.login-form .form-control {
+  border-left: 0;
+}
+
+.login-form .input-group .btn-outline-secondary {
+  border-left: 0;
+}
+
+/* Improve form focus states */
+.login-form .form-control:focus {
+  box-shadow: none;
+  border-color: #ced4da;
+  border-left: 0;
+}
+
+.login-form .form-control:focus + .btn-outline-secondary {
+  border-color: #ced4da;
+}
+
+/* Toggle password button improvements */
+#togglePassword:focus {
+  box-shadow: none;
+}
+
+#togglePassword:hover {
+  background-color: var(--light-color);
+  color: var(--primary-color);
+}
+
+/* Card style enhancements */
+.login-form .card {
+  border: none;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Loading state styles */
+.login-form .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+/* Fix input field sizing on small screens */
+@media (max-width: 576px) {
+  .login-form .input-group-lg > .form-control,
+  .login-form .input-group-lg > .input-group-text,
+  .login-form .input-group-lg > .btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+  }
+  
+  .login-form .btn-lg {
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+  }
 }
 

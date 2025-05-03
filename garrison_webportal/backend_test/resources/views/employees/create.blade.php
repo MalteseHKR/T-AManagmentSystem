@@ -5,6 +5,76 @@
 @section('styles')
 <!-- SweetAlert2 CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
+<style>
+.img-preview {
+    width: 150px;
+    height: 150px;
+    object-fit: cover;
+    object-position: center;
+    border: 2px solid #ccc; /* optional */
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1); /* optional */
+}
+
+/* Form input icon styles */
+.form-input-icon {
+    position: relative;
+}
+
+.form-input-icon input,
+.form-input-icon select {
+    padding-left: 50px; /* Make room for the icon */
+    height: 50px; /* Consistent height */
+}
+
+.form-input-icon::before {
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f8f9fa;
+    border: 1px solid #ced4da;
+    border-right: none;
+    border-radius: 0.25rem 0 0 0.25rem;
+    color: #6c757d;
+    z-index: 5;
+}
+
+/* Icons for each input type */
+.phone-input::before {
+    content: "\f095"; /* Font Awesome phone icon */
+}
+
+.email-input::before {
+    content: "\f0e0"; /* Font Awesome envelope icon */
+}
+
+.date-input::before {
+    content: "\f073"; /* Font Awesome calendar icon */
+}
+
+.birthday-input::before {
+    content: "\f1fd"; /* Font Awesome birthday cake icon */
+}
+
+.department-input::before {
+    content: "\f0e8"; /* Font Awesome sitemap icon */
+}
+
+.job-role-input::before {
+    content: "\f0b1"; /* Font Awesome briefcase icon */
+}
+
+.status-input::before {
+    content: "\f111"; /* Font Awesome circle icon */
+}
+</style>
 @endsection
 
 @section('show_navbar', true)
@@ -102,126 +172,138 @@
                         <label for="job_role" class="form-label">
                             Job Role <span class="text-danger">*</span> <i class="fas fa-magic text-primary" title="Autocomplete enabled"></i>
                         </label>
-                        @if(count($roles) > 0)
-                            <select class="form-control @error('job_role') is-invalid @enderror" 
-                                   id="job_role" name="job_role" required>
-                                <option value="">Select Job Role</option>
-                                @foreach($roles as $role)
-                                    <option value="{{ $role->role }}" {{ old('job_role') == $role->role ? 'selected' : '' }}>
-                                        {{ $role->role }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        @else
-                            <div class="form-control bg-light text-danger">
-                                Sorry, no job roles found in the database.
-                            </div>
-                            <input type="hidden" id="job_role" name="job_role" value="">
-                        @endif
-                        @error('job_role')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
+                        <div class="form-input-icon job-role-input">
+                            @if(count($roles) > 0)
+                                <select class="form-control @error('job_role') is-invalid @enderror" 
+                                       id="job_role" name="job_role" required>
+                                    <option value="">Select Job Role</option>
+                                    @foreach($roles as $role)
+                                        <option value="{{ $role->role }}" {{ old('job_role') == $role->role ? 'selected' : '' }}>
+                                            {{ $role->role }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <div class="form-control bg-light text-danger">
+                                    Sorry, no job roles found in the database.
+                                </div>
+                                <input type="hidden" id="job_role" name="job_role" value="">
+                            @endif
+                            @error('job_role')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                     </div>
 
+                    <!-- Phone Number Field -->
                     <div class="col-md-6 mb-3">
                         <label for="phone_number" class="form-label">
                             Phone Number <span class="text-danger">*</span>
                         </label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-phone"></i></span>
-                            <input type="tel" class="form-control @error('phone_number') is-invalid @enderror" 
-                                   id="phone_number" name="phone_number" value="{{ old('phone_number') }}"
-                                   pattern="[0-9]{10,15}" title="Phone number should be 10-15 digits" required
-                                   autocomplete="tel" placeholder="e.g. 07123456789">
+                        <div class="form-input-icon phone-input">
+                            <input type="tel" 
+                                class="form-control @error('phone_number') is-invalid @enderror" 
+                                id="phone_number" 
+                                name="phone_number" 
+                                value="{{ old('phone_number') }}"
+                                pattern="[0-9]{10,15}" 
+                                title="Phone number should be 10-15 digits" 
+                                required
+                                autocomplete="tel" 
+                                placeholder="e.g. 07123456789">
+                            @error('phone_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
                         </div>
-                        @error('phone_number')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
                     </div>
 
+                    <!-- Email Field -->
                     <div class="col-md-6 mb-3">
                         <label for="email" class="form-label">
                             Email <span class="text-danger">*</span>
                         </label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                        <div class="form-input-icon email-input">
                             <input type="email" class="form-control @error('email') is-invalid @enderror" 
                                    id="email" name="email" value="{{ old('email') }}" required
                                    autocomplete="email" placeholder="firstname.lastname@garrison.com">
+                            @error('email')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
                         </div>
-                        @error('email')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
                         <div id="emailSuggestionContainer"></div>
                     </div>
 
+                    <!-- Date of Birth Field -->
                     <div class="col-md-6 mb-3">
                         <label for="date_of_birth" class="form-label">
                             Date of Birth <span class="text-danger">*</span>
                         </label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-birthday-cake"></i></span>
+                        <div class="form-input-icon birthday-input">
                             <input type="date" class="form-control @error('date_of_birth') is-invalid @enderror" 
                                    id="date_of_birth" name="date_of_birth" value="{{ old('date_of_birth') }}"
                                    min="1900-01-01" max="{{ date('Y-m-d', strtotime('-16 years')) }}" required
                                    autocomplete="bday">
+                            @error('date_of_birth')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
                         </div>
-                        @error('date_of_birth')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
                     </div>
 
+                    <!-- Start Date Field -->
                     <div class="col-md-6 mb-3">
                         <label for="start_date" class="form-label">
                             Start Date <span class="text-danger">*</span>
                         </label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
+                        <div class="form-input-icon date-input">
                             <input type="date" class="form-control @error('start_date') is-invalid @enderror" 
                                    id="start_date" name="start_date" value="{{ old('start_date', date('Y-m-d')) }}" required>
+                            @error('start_date')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
                         </div>
-                        @error('start_date')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <label for="department" class="form-label">
                             Department <span class="text-danger">*</span>
                         </label>
-                        @if(count($departments) > 0)
-                            <select class="form-control @error('department') is-invalid @enderror" 
-                                   id="department" name="department" required>
-                                <option value="">Select Department</option>
-                                @foreach($departments as $dept)
-                                    <option value="{{ $dept->department }}" {{ old('department') == $dept->department ? 'selected' : '' }}>
-                                        {{ $dept->department }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        @else
-                            <div class="form-control bg-light text-danger">
-                                Sorry, no departments found in the database.
-                            </div>
-                            <input type="hidden" id="department" name="department" value="">
-                        @endif
-                        @error('department')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
+                        <div class="form-input-icon department-input">
+                            @if(count($departments) > 0)
+                                <select class="form-control @error('department') is-invalid @enderror" 
+                                       id="department" name="department" required>
+                                    <option value="">Select Department</option>
+                                    @foreach($departments as $dept)
+                                        <option value="{{ $dept->department }}" {{ old('department') == $dept->department ? 'selected' : '' }}>
+                                            {{ $dept->department }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <div class="form-control bg-light text-danger">
+                                    Sorry, no departments found in the database.
+                                </div>
+                                <input type="hidden" id="department" name="department" value="">
+                            @endif
+                            @error('department')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <label for="active" class="form-label">
                             Active Status <span class="text-danger">*</span>
                         </label>
-                        <select class="form-control @error('active') is-invalid @enderror" 
-                               id="active" name="active" required>
-                            <option value="1" {{ old('active', '1') == '1' ? 'selected' : '' }}>Active</option>
-                            <option value="0" {{ old('active') == '0' ? 'selected' : '' }}>Inactive</option>
-                        </select>
-                        @error('active')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
+                        <div class="form-input-icon status-input">
+                            <select class="form-control @error('active') is-invalid @enderror" 
+                                   id="active" name="active" required>
+                                <option value="1" {{ old('active', '1') == '1' ? 'selected' : '' }}>Active</option>
+                                <option value="0" {{ old('active') == '0' ? 'selected' : '' }}>Inactive</option>
+                            </select>
+                            @error('active')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                     </div>
                 </div>
 
@@ -294,7 +376,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -350,7 +432,10 @@
                 const reader = new FileReader();
 
                 reader.onload = function(e) {
-                    previewContainer.innerHTML = `<img src="${e.target.result}" class="preview-img">`;
+                    previewContainer.innerHTML = `
+                        <img src="${e.target.result}" class="img-preview img-fluid rounded" alt="Preview Image">
+                    `;
+
                     const fileSize = (file.size / 1024 / 1024).toFixed(2);
                     infoElement.innerHTML = `${file.name} (${fileSize} MB)`;
 
@@ -454,4 +539,4 @@
         });
     });
 </script>
-@endsection
+@endpush

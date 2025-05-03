@@ -14,8 +14,23 @@
         <p>We're glad to have you back. Here's an overview of your HR management tools.</p>
     </div>
 
-    <!-- Back Link -->
-    <a href="login" class="btn btn-secondary mb-4">Back</a>
+    @if(session('recovery_code_used'))
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <div class="d-flex">
+                <div class="me-3">
+                    <i class="fas fa-exclamation-triangle fs-4"></i>
+                </div>
+                <div>
+                    <h5 class="alert-heading">You used a recovery code to log in</h5>
+                    <p>For security, please set up MFA on your new device and generate new recovery codes.</p>
+                    <a href="{{ route('mfa.index') }}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-shield-alt me-1"></i> Set Up MFA
+                    </a>
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
 
     <!-- Dashboard Grid -->
     <div class="dashboard-grid">
@@ -85,7 +100,7 @@
             </div>
             <div class="card-body p-3">
                 <p>Manage employee leave requests, approve or reject leave applications, and view leave balances.</p>
-                <a href="{{ route('leaves') }}" class="btn btn-primary">Manage Leaves</a>
+                <a href="{{ route('leaves') }}" class="btn btn-primary">Manage Leave</a>
             </div>
         </div>
     </div>

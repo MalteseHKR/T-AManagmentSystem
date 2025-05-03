@@ -7,133 +7,131 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
 <style>
-    /* Custom animations for alerts */
-    .animated {
-        animation-duration: 0.5s;
+    .form-input-icon {
+        position: relative;
     }
     
-    .shake {
-        animation-name: shakeAnimation;
+    .form-input-icon input {
+        padding-left: 50px; /* Make room for the icon */
+        height: 50px; /* Consistent height */
     }
     
-    .fadeInDown {
-        animation-name: fadeInDownAnimation;
+    .form-input-icon::before {
+        font-family: "Font Awesome 5 Free";
+        font-weight: 900;
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 45px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+        border: 1px solid #ced4da;
+        border-right: none;
+        border-radius: 0.25rem 0 0 0.25rem;
+        color: #6c757d;
+        z-index: 5;
     }
     
-    .faster {
-        animation-duration: 0.3s;
+    .email-input::before {
+        content: "\f0e0"; /* Font Awesome envelope icon */
     }
     
-    .colored-toast.swal2-icon-success {
-        background-color: #a5dc86 !important;
+    .password-input::before {
+        content: "\f023"; /* Font Awesome lock icon */
     }
     
-    .colored-toast.swal2-icon-error {
-        background-color: #f27474 !important;
+    /* For password toggle button */
+    .password-input input {
+        padding-right: 50px;
     }
     
-    .colored-toast.swal2-icon-warning {
-        background-color: #f8bb86 !important;
+    .toggle-password {
+        position: absolute;
+        right: 0;
+        top: 0;
+        height: 100%;
+        width: 45px;
+        background: none;
+        border: 1px solid #ced4da;
+        border-left: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 5;
+        border-radius: 0 0.25rem 0.25rem 0;
+        background-color: #f8f9fa;
     }
     
-    .colored-toast.swal2-icon-info {
-        background-color: #3fc3ee !important;
-    }
-    
-    .colored-toast .swal2-title,
-    .colored-toast .swal2-content {
-        color: white !important;
-    }
-    
-    @keyframes shakeAnimation {
-        0%, 100% { transform: translateX(0); }
-        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-        20%, 40%, 60%, 80% { transform: translateX(5px); }
-    }
-    
-    @keyframes fadeInDownAnimation {
-        from { opacity: 0; transform: translate3d(0, -20px, 0); }
-        to { opacity: 1; transform: translate3d(0, 0, 0); }
+    .toggle-password:focus {
+        outline: none;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
     }
 </style>
 @endsection
 
 @section('content')
-<div class="login-card ">
-    <div class="login-header">
-        <img src="{{ asset('garrison.svg') }}" alt="Garrison Logo" class="login-logo">
-        <h1 class="login-title">Welcome Back</h1>
-        <p class="login-subtitle">Sign in to access your account</p>
+<div class="d-flex justify-content-center align-items-center min-vh-100 px-3">
+    <div class="card border-0 shadow-sm" style="max-width: 450px; width: 100%;">
+        <div class="card-body p-4">
+            <!-- Logo & Welcome -->
+            <div class="text-center mb-4">
+                <img src="{{ asset('garrison.svg') }}" alt="Garrison Logo" class="img-fluid mb-3" style="max-height: 80px;">
+                <h1 class="h3 fw-bold mb-2">Welcome Back</h1>
+                <p class="text-muted">Sign in to access your account</p>
+            </div>
+            
+            <!-- Login Form -->
+            <form action="{{ route('login') }}" method="POST" id="loginForm">
+                @csrf
+                <!-- Email Input -->
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email Address</label>
+                    <div class="form-input-icon email-input">
+                        <input type="email" id="email" name="email" class="form-control" 
+                               value="{{ old('email') }}" required autofocus
+                               placeholder="Enter your email">
+                    </div>
+                </div>
+                
+                <!-- Password Input -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label for="password" class="form-label mb-0">Password</label>
+                        @if(Route::has('password.request'))
+                            <a href="{{ route('password.request') }}" class="text-decoration-none small">
+                                Forgot password?
+                            </a>
+                        @endif
+                    </div>
+                    <div class="form-input-icon password-input">
+                        <input type="password" id="password" name="password" class="form-control" 
+                               required placeholder="Enter your password">
+                        <span class="toggle-password" id="togglePassword" aria-label="Toggle password visibility">
+                            <i class="fas fa-eye"></i>
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Submit Button -->
+                <div class="d-grid">
+                    <button type="submit" id="loginButton" class="btn btn-primary btn-lg">
+                        <span class="d-flex align-items-center justify-content-center">
+                            <span>Sign In</span>
+                            <i class="fas fa-arrow-right ms-2"></i>
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-    
-    <form action="{{ route('login') }}" method="POST" id="loginForm" class="login-form">
-        @csrf
-        <div class="form-group">
-            <label for="email" class="form-label">Email Address</label>
-            <div class="input-group">
-                <span class="input-icon">
-                    <i class="fas fa-envelope"></i>
-                </span>
-                <input type="email" id="email" name="email" class="form-control" 
-                       value="{{ old('email') }}" required autofocus
-                       placeholder="Enter your email">
-            </div>
-        </div>
-        
-        <div class="form-group">
-            <div class="password-label-wrapper">
-                <label for="password" class="form-label">Password</label>
-                @if(Route::has('password.request'))
-                    <a href="{{ route('password.request') }}" class="forgot-password-link">
-                        Forgot password?
-                    </a>
-                @endif
-            </div>
-            <div class="input-group">
-                <span class="input-icon">
-                    <i class="fas fa-lock"></i>
-                </span>
-                <input type="password" id="password" name="password" class="form-control" 
-                       required placeholder="Enter your password">
-                <button type="button" id="togglePassword" class="toggle-password">
-                    <i class="fas fa-eye"></i>
-                </button>
-            </div>
-        </div>
-        
-        <div class="form-group">
-            <button type="submit" class="btn btn-primary btn-login">
-                <span class="btn-text">Sign In</span>
-                <i class="fas fa-arrow-right btn-icon"></i>
-            </button>
-        </div>
-    </form>
-    
-    <div id="debug-container" class="d-none">
-        @if($errors->any())
-            <div class="alert alert-danger">
-                <strong>Errors found:</strong>
-                <ul>
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-        
-        @if(session('error'))
-            <div class="alert alert-danger">Session error: {{ session('error') }}</div>
-        @endif
-        
-        @if(session('message'))
-            <div class="alert alert-info">Session message: {{ session('message') }}</div>
-        @endif
-    </div>
-    
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -141,6 +139,19 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Debug log to confirm script execution
         console.log('Login page script loaded');
+        
+        const loginForm = document.getElementById('loginForm');
+        const loginButton = document.getElementById('loginButton');
+        
+        // Form submission - add loading state
+        if (loginForm) {
+            loginForm.addEventListener('submit', function() {
+                if (loginButton) {
+                    loginButton.disabled = true;
+                    loginButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Signing In...';
+                }
+            });
+        }
 
         // Display SweetAlert for Laravel validation errors
         @if ($errors->any())
@@ -294,4 +305,4 @@
         }
     });
 </script>
-@endsection
+@endpush

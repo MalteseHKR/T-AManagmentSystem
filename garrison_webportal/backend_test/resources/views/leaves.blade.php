@@ -174,18 +174,20 @@
                             </td>
                             <td class="text-end pe-4 leave-actions-col">
                                 <div class="leave-actions">
-                                    <button type="button" class="btn btn-sm btn-info leave-btn-sm view-details-btn me-1" 
-                                        data-id="{{ $leave->request_id }}"
-                                        data-employee="{{ $leave->user_name }}"
-                                        data-type="{{ $leave->leave_type_name }}"
-                                        data-start="{{ date('d M Y', strtotime($leave->start_date)) }}"
-                                        data-end="{{ date('d M Y', strtotime($leave->end_date)) }}"
-                                        data-status="{{ $leave->status }}"
-                                        data-reason="{{ $leave->reason }}"
-                                        data-has-certificate="{{ $leave->medical_certificate ? 'true' : 'false' }}"
-                                        data-certificate="{{ $leave->medical_certificate ? asset('storage/certificates/' . $leave->medical_certificate) : '' }}">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
+					@if($leave->medical_certificate)
+    						<button type="button" class="btn btn-sm btn-info leave-btn-sm view-details-btn me-1" 
+        						data-id="{{ $leave->request_id }}"
+        						data-employee="{{ $leave->user_name }}"
+        						data-type="{{ $leave->leave_type_name }}"
+        						data-start="{{ date('d M Y', strtotime($leave->start_date)) }}"
+        						data-end="{{ date('d M Y', strtotime($leave->end_date)) }}"
+        						data-status="{{ $leave->status }}"
+        						data-reason="{{ $leave->reason }}"
+        						data-has-certificate="true"
+        						data-certificate="{{ asset('certificates/' . $leave->medical_certificate) }}">
+        					<i class="fas fa-eye"></i>
+    						</button>
+					@endif
                                     
                                     <a href="{{ route('leaves.edit', $leave->request_id) }}" class="btn btn-sm btn-primary leave-btn-sm">
                                         <i class="fas fa-pen"></i>
@@ -322,7 +324,7 @@
                             data-status="{{ $leave->status }}"
                             data-reason="{{ $leave->reason }}"
                             data-has-certificate="{{ $leave->medical_certificate ? 'true' : 'false' }}"
-                            data-certificate="{{ $leave->medical_certificate ? asset('storage/certificates/' . $leave->medical_certificate) : '' }}">
+                            data-certificate="{{ $leave->medical_certificate ? asset('certificates/' . $leave->medical_certificate) : '' }}">
                             <i class="fas fa-eye me-1"></i> View Details
                         </button>
                         
@@ -539,7 +541,7 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
@@ -833,4 +835,24 @@
         }, 800));
     });
 </script>
-@endsection
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Preview Medical Certificate from table
+        document.querySelectorAll('.view-details-btn[data-has-certificate="true"]').forEach(button => {
+            button.addEventListener('click', () => {
+                const certUrl = button.dataset.certificate;
+                if (!certUrl) return;
+
+                Swal.fire({
+                    title: 'Medical Certificate',
+                    html: `<img src="${certUrl}" alt="Medical Certificate" class="img-fluid rounded shadow">`,
+                    showCloseButton: true,
+                    showConfirmButton: false,
+                    width: 600
+                });
+            });
+        });
+    });
+</script>
+
+@endpush
