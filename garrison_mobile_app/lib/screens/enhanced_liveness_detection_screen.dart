@@ -217,7 +217,7 @@ class _EnhancedLivenessDetectionScreenState extends State<EnhancedLivenessDetect
   void _startProcessing() {
     // Process frames less frequently to reduce flashing
     // Much longer interval for iOS to reduce flashing significantly
-    final processingInterval = Platform.isIOS ? 1500 : 800; // Milliseconds
+    final processingInterval = Platform.isIOS ? 400 : 300; // Milliseconds
     
     _processingTimer = Timer.periodic(Duration(milliseconds: processingInterval), (_) {
       _captureAndProcessFrame();

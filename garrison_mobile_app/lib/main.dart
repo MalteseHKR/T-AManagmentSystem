@@ -5,12 +5,10 @@ import 'screens/login_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/leave_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/admin/admin_dashboard.dart';
 import 'services/notification_service.dart';
 import 'services/background_service.dart';
 import 'services/session_service.dart';
 import 'widgets/app_lifecycle_wrapper.dart';
-import 'screens/admin/photo_upload_screen.dart';
 
 // Add this global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -149,12 +147,12 @@ class _TimeAttendanceAppState extends State<TimeAttendanceApp> {
   }
 }
 
-// Add this class to monitor navigation events
+// Class to monitor navigation events
 class _NavigationObserver extends NavigatorObserver {
   @override
   void didPop(Route route, Route? previousRoute) {
     super.didPop(route, previousRoute);
-    // You can add logging or additional logic here if needed
+    // Add logging or additional logic here if needed
   }
 }
 
@@ -211,7 +209,7 @@ class _MainScreenState extends State<MainScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Session Timeout Warning'),
-        content: const Text('Your session will expire in 1 minute due to inactivity. Would you like to stay logged in?'),
+        content: const Text('Your session will expire in 5 minute due to inactivity. Would you like to stay logged in?'),
         actions: [
           Row(
             mainAxisAlignment: MainAxisAlignment.end,

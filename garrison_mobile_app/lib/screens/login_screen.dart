@@ -357,10 +357,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         final match = lockoutRegExp.firstMatch(errorMessage);
         
         if (match != null && match.groupCount >= 1) {
-          final lockoutMinutes = int.tryParse(match.group(1) ?? '5') ?? 5;
+          final lockoutMinutes = int.tryParse(match.group(1) ?? '15') ?? 15;
           _startLockoutTimer(lockoutMinutes * 60);
         } else {
-          _startLockoutTimer(300); // Default 5-minute lockout
+          _startLockoutTimer(900); // Default 15-minute lockout
         }
         
         ScaffoldMessenger.of(context).showSnackBar(

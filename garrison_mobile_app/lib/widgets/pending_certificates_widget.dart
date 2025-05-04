@@ -41,6 +41,19 @@ class _PendingCertificatesWidgetState extends State<PendingCertificatesWidget> {
       final userId = widget.userDetails['id'].toString();
       final pendingRequests = await _apiService.getPendingCertificateRequests(userId);
       
+      // We'll keep all requests, even expired ones
+      // But we'll mark them as expired for UI display purposes
+      final now = DateTime.now();
+      
+      // Process and mark expired requests
+      for (final request in pendingRequests) {
+        final requestDate = DateTime.parse(request['request_date'] ?? now.toString());
+        final deadline = requestDate.add(const Duration(days: 10));
+        
+        // Add an "isExpired" flag to each request for UI display
+        request['isExpired'] = now.isAfter(deadline);
+      }
+      
       if (mounted) {
         setState(() {
           _pendingCertificates = pendingRequests;
@@ -55,6 +68,31 @@ class _PendingCertificatesWidgetState extends State<PendingCertificatesWidget> {
         });
       }
     }
+  }
+  
+  // Calculate days remaining for certificate upload deadline
+  int _calculateDaysRemaining(String? requestDateStr) {
+    if (requestDateStr == null) return 10;
+    
+    try {
+      final requestDate = DateTime.parse(requestDateStr);
+      final deadline = requestDate.add(const Duration(days: 10));
+      final now = DateTime.now();
+      final difference = deadline.difference(now).inDays;
+      
+      // Return the days remaining, minimum 0
+      return difference > 0 ? difference : 0;
+    } catch (e) {
+      print('Error calculating days remaining: $e');
+      return 10; // Default to 10 days if there's an error
+    }
+  }
+  
+  // Get color based on days remaining
+  Color _getCountdownColor(int daysRemaining) {
+    if (daysRemaining <= 2) return Colors.red;
+    if (daysRemaining <= 5) return Colors.orange;
+    return Colors.green;
   }
   
   Future<void> _completeSickLeave(Map<String, dynamic> request) async {
@@ -589,9 +627,53 @@ class _PendingCertificatesWidgetState extends State<PendingCertificatesWidget> {
               itemBuilder: (context, index) {
                 final request = _pendingCertificates[index];
                 final requestDate = _formatDate(request['request_date']);
+                final daysRemaining = _calculateDaysRemaining(request['request_date']);
+                final countdownColor = _getCountdownColor(daysRemaining);
+                final bool isExpired = request['isExpired'] == true;
                 
                 return ListTile(
-                  title: Text('Sick Leave (${request['leave_type']})'),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Sick Leave (${request['leave_type']})'),
+                      ),
+                      // Days remaining counter with color indicator
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isExpired 
+                              ? Colors.red.withOpacity(0.2)
+                              : countdownColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isExpired ? Colors.red : countdownColor,
+                            width: isExpired ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isExpired ? Icons.warning : Icons.timer,
+                              size: 14,
+                              color: isExpired ? Colors.red : countdownColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isExpired
+                                  ? 'OVERDUE'
+                                  : '$daysRemaining days left',
+                              style: TextStyle(
+                                color: isExpired ? Colors.red : countdownColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -605,6 +687,19 @@ class _PendingCertificatesWidgetState extends State<PendingCertificatesWidget> {
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
+                        ),
+                      // Show warning for expired certificates
+                      if (isExpired)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'The 10-day deadline has passed, but you can still submit your certificate.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: Colors.red[700],
+                            ),
+                          ),
                         ),
                     ],
                   ),

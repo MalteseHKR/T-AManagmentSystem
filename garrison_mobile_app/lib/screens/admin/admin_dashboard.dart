@@ -268,7 +268,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           
                           // Personal tools grid - now with 2 cards per row instead of 3
                           SizedBox(
-                            height: constraints.maxHeight * 0.34, // Increased height allocation
+                            height: constraints.maxHeight * 0.40, // Increased height allocation
                             child: GridView.count(
                               crossAxisCount: 2, // Changed from 3 to 2 cards per row
                               childAspectRatio: 1.5, // Increased to make cards wider relative to height

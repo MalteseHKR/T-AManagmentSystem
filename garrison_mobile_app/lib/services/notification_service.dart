@@ -92,7 +92,7 @@ class NotificationService {
     
     // Calculate notification time (5 minutes after punch in for testing)
     final reminderTime = tz.TZDateTime.from(
-      adjustedPunchInTime.add(const Duration(minutes: 5)),
+      adjustedPunchInTime.add(const Duration(hours: 9)),
       tz.local,
     );
 
@@ -104,7 +104,7 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
-      icon: '@mipmap/ic_lancher',
+      icon: '@mipmap/ic_launcher',
     );
 
     // Configure notification details for iOS
@@ -180,47 +180,57 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
-    required DateTime scheduledDate,
+    required DateTime scheduledDate, // This will be a regular DateTime now
     String? payload,
   }) async {
-    // Configure notification details for Android
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'leave_reminder_channel',
-      'Leave Reminders',
-      channelDescription: 'Reminders for leave requests and medical certificates',
-      importance: Importance.high,
-      priority: Priority.high,
-      enableVibration: true,
-    );
-
-    // Configure notification details for iOS
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-
-    // Combine platform-specific details
-    const NotificationDetails notificationDetails = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
+    // Configure notification details
+    const notificationDetails = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'leave_reminder_channel',
+        'Leave Reminders',
+        channelDescription: 'Reminders for leave requests and medical certificates',
+        importance: Importance.high,
+        priority: Priority.high,
+        enableVibration: true,
+        showWhen: true,
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
     );
     
-    final reminderTime = tz.TZDateTime.from(scheduledDate, tz.local);
-
-    await flutterLocalNotificationsPlugin.zonedSchedule(
-      id,
-      title,
-      body,
-      reminderTime,
-      notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      payload: payload,
+    // Debug logs
+    debugPrint('About to schedule notification for: ${scheduledDate.toString()}');
+    debugPrint('Current device time: ${DateTime.now().toString()}');
+    
+    // Convert to tz.TZDateTime for the notification API
+    final tzScheduledTime = tz.TZDateTime.local(
+      scheduledDate.year,
+      scheduledDate.month,
+      scheduledDate.day,
+      scheduledDate.hour,
+      scheduledDate.minute,
+      scheduledDate.second
     );
     
-    debugPrint('Scheduled leave reminder notification for $scheduledDate');
+    try {
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        id,
+        title,
+        body,
+        tzScheduledTime,
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload,
+      );
+      debugPrint('Successfully scheduled notification for $scheduledDate');
+    } catch (e) {
+      debugPrint('Error scheduling notification: $e');
+    }
   }
   
   // Show an immediate notification
@@ -238,6 +248,8 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       enableVibration: true,
+      largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      icon: '@mipmap/ic_launcher',
     );
 
     // Configure notification details for iOS
@@ -278,7 +290,7 @@ class NotificationService {
   
   // Schedule daily reminders for medical certificate upload
   Future<void> scheduleMedicalCertificateReminders(int requestId) async {
-    final now = DateTime.now();
+    final now = DateTime.now(); // Use device's local time directly
     
     // Schedule reminders for the next 10 days
     for (int i = 1; i <= 10; i++) {
@@ -291,13 +303,50 @@ class NotificationService {
         9, 0, 0
       );
       
-      await scheduleNotification(
-        id: leaveReminderBaseId + requestId + i, // Unique ID using request ID and day
-        title: 'Medical Certificate Required',
-        body: 'Please upload your medical certificate and complete your sick leave request.',
-        scheduledDate: scheduledTime,
-        payload: 'medical_certificate_reminder_$requestId',
+      // Debug log showing exact scheduled time
+      debugPrint('Scheduling medical certificate reminder for: ${scheduledTime.toString()}');
+      
+      // Convert to tz.TZDateTime just for the notification API
+      final tzScheduledTime = tz.TZDateTime.local(
+        scheduledTime.year,
+        scheduledTime.month,
+        scheduledTime.day,
+        scheduledTime.hour,
+        scheduledTime.minute,
+        scheduledTime.second
       );
+      
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        leaveReminderBaseId + requestId + i,
+        'Medical Certificate Required',
+        'Please upload your medical certificate and complete your sick leave request.',
+        tzScheduledTime,
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'leave_reminder_channel',
+            'Leave Reminders',
+            channelDescription: 'Reminders for leave requests and medical certificates',
+            importance: Importance.high,
+            priority: Priority.high,
+            enableVibration: true,
+            showWhen: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'daily_medical_certificate_reminder_$requestId',
+      );
+      
+      // Check if the notification was successfully scheduled
+      final pendingNotifs = await flutterLocalNotificationsPlugin.pendingNotificationRequests();
+      final scheduled = pendingNotifs.any((notif) => notif.id == leaveReminderBaseId + requestId + i);
+      debugPrint('Notification ${leaveReminderBaseId + requestId + i} scheduled successfully: $scheduled');
     }
     
     debugPrint('Scheduled 10 daily reminders for medical certificate upload');

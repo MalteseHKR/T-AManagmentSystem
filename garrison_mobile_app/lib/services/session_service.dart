@@ -7,11 +7,11 @@ class SessionService {
   factory SessionService() => _instance;
   SessionService._internal();
 
-  // First warning after 2 minutes
-  static const warningTimeoutDuration = Duration(minutes: 2);
+  // First warning after 10 minutes
+  static const warningTimeoutDuration = Duration(minutes: 10);
   
-  // Final logout after 3 minutes total (1 minute after warning)
-  static const finalTimeoutDuration = Duration(minutes: 3);
+  // Final logout after 15 minutes total (5 minute after warning)
+  static const finalTimeoutDuration = Duration(minutes: 15);
   
   Timer? _warningTimer;
   Timer? _finalLogoutTimer;
@@ -42,14 +42,14 @@ class SessionService {
         
         // Start the final logout timer after warning is shown
         _finalLogoutTimer = Timer(
-          Duration(minutes: 1), // 1 minute after warning
+          Duration(minutes: 5), // 5 minute after warning
           () {
             if (_onFinalTimeout != null) {
               _onFinalTimeout!();
             }
           }
         );
-        debugPrint('Final logout timer started. Will logout in 1 minute');
+        debugPrint('Final logout timer started. Will logout in 5 minute');
       }
     });
     
@@ -69,14 +69,14 @@ class SessionService {
     // Make sure final timer is running
     if (_finalLogoutTimer == null && _onFinalTimeout != null) {
       _finalLogoutTimer = Timer(
-        Duration(minutes: 1), // 1 minute after warning
+        Duration(minutes: 5), // 5 minute after warning
         () {
           if (_onFinalTimeout != null) {
             _onFinalTimeout!();
           }
         }
       );
-      debugPrint('Guaranteed final logout timer started. Will logout in 1 minute.');
+      debugPrint('Guaranteed final logout timer started. Will logout in 5 minute.');
     }
   }
   
