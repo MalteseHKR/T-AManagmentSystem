@@ -817,6 +817,7 @@ class ApiService {
     required bool isFullDay,
     TimeOfDay? startTime,
     TimeOfDay? endTime,
+    String? certificateUrl, // Add this parameter
   }) async {
     if (_token == null) {
       throw Exception('Not authenticated');
@@ -835,6 +836,11 @@ class ApiService {
       formattedEndTime = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
     }
 
+    // Standardize certificate URL if provided
+    String? standardizedCertificateUrl = certificateUrl != null ? 
+                                      standardizeCertificateUrl(certificateUrl) : 
+                                      null;
+
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/leave/$requestId'),
@@ -850,6 +856,7 @@ class ApiService {
           'is_full_day': isFullDay,
           'start_time': formattedStartTime,
           'end_time': formattedEndTime,
+          'medical_certificate': standardizedCertificateUrl, // Add this line
         }),
       );
 

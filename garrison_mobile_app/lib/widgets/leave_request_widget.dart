@@ -444,6 +444,28 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
       
       // For editing an existing request
       if (widget.leaveRequestToEdit != null) {
+        String? certificateUrl = _existingCertificateUrl;
+        
+        // Upload medical certificate if provided
+        if (_medicalCertificate != null) {
+          try {
+            certificateUrl = await _apiService.uploadMedicalCertificate(_medicalCertificate!);
+            print('Uploaded Certificate URL: $certificateUrl');
+          } catch (uploadError) {
+            print('Medical Certificate Upload Error: $uploadError');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to upload medical certificate: $uploadError'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            setState(() {
+              _isSubmitting = false;
+            });
+            return;
+          }
+        }
+        
         await _apiService.updateLeaveRequest(
           requestId: widget.leaveRequestToEdit!['id'] ?? widget.leaveRequestToEdit!['request_id'],
           leaveType: _selectedLeaveType,
@@ -453,6 +475,7 @@ class _LeaveRequestWidgetState extends State<LeaveRequestWidget> {
           isFullDay: _isFullDay,
           startTime: _isFullDay ? null : _startTime,
           endTime: _isFullDay ? null : _endTime,
+          certificateUrl: certificateUrl, // Add this parameter
         );
         
         if (mounted) {

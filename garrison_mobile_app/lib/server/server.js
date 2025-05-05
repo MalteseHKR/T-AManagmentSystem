@@ -1519,7 +1519,7 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
 
         const requestId = req.params.requestId;
         const userId = req.user.userId;
-        const { leave_type, start_date, end_date, reason, is_full_day, start_time, end_time } = req.body;
+        const { leave_type, start_date, end_date, reason, is_full_day, start_time, end_time, medical_certificate } = req.body;
 
         // Validate required fields
         if (!leave_type || !start_date || !end_date) {
@@ -1654,10 +1654,11 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
 
         // Update the leave request with new status
         await connection.execute(
-            `UPDATE leave_requests 
-            SET leave_type_id = ?, start_date = ?, end_date = ?, reason = ?,
-            is_full_day = ?, start_time = ?, end_time = ?, status = ?, updated_at = NOW()
-            WHERE request_id = ?`,
+            `UPDATE leave_requests
+             SET leave_type_id = ?, start_date = ?, end_date = ?, reason = ?,
+                 is_full_day = ?, start_time = ?, end_time = ?, status = ?,
+                 medical_certificate = ?, updated_at = NOW()
+             WHERE request_id = ?`,
             [
                 leave_type_id,
                 start_date,
@@ -1667,6 +1668,7 @@ app.put('/api/leave/:requestId', authenticateToken, async (req, res) => {
                 start_time || null,
                 end_time || null,
                 newStatus,
+                medical_certificate || null, // Add this parameter
                 requestId
             ]
         );

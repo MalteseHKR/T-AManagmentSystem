@@ -28,6 +28,9 @@ class CertificateViewer {
       );
       return;
     }
+
+    // Extract just the filename from the path
+    final String fileName = _extractFileName(certificatePath.toString());
     
     // Get the full URL using the API service's method
     String fullUrl = apiService.getCertificateViewUrl(certificatePath.toString());
@@ -61,7 +64,7 @@ class CertificateViewer {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: Text(
-                        'Loading certificate from: $fullUrl',
+                        'Certificate file name: $fileName',
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                         textAlign: TextAlign.center,
                       ),
@@ -126,6 +129,15 @@ class CertificateViewer {
         ),
       ),
     );
+  }
+
+  // Helper function to extract just the filename from a path
+  static String _extractFileName(String path) {
+    // Handle different path formats
+    if (path.contains('/')) {
+      return path.split('/').last;
+    }
+    return path;
   }
   
   // Simple check if a leave request should have a certificate
