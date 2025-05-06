@@ -436,59 +436,54 @@ document.addEventListener('DOMContentLoaded', function() {
             // Get target tab ID
             const targetId = this.getAttribute('data-bs-target').substring(1);
             
-            // Show loading toast
-            Toast.fire({
-                icon: 'info',
-                title: 'Loading ' + this.textContent.trim() + ' data...'
-            });
+            // Use Bootstrap's tab API properly
+            const bsTab = new bootstrap.Tab(this);
+            bsTab.show();
             
-            // Remove active class from all tabs and tab panes
-            document.querySelectorAll('#analyticsTab .nav-link').forEach(el => {
-                el.classList.remove('active');
-                el.setAttribute('aria-selected', 'false');
-            });
-            
-            // Hide all tab panes first
-            document.querySelectorAll('.tab-pane').forEach(el => {
-                el.classList.remove('show', 'active');
-                el.style.display = 'none';
-            });
-            
-            // Add active class to clicked tab
-            this.classList.add('active');
-            this.setAttribute('aria-selected', 'true');
-            
-            // Show the selected tab content
-            const targetPane = document.getElementById(targetId);
-            targetPane.classList.add('show', 'active');
-            targetPane.style.display = 'block';
-            
-            // Update charts when their tab becomes visible to fix any rendering issues
+            // Wait for the tab transition to complete before updating charts
             setTimeout(function() {
-                if (targetId === 'daily' && attendanceChart) {
-                    attendanceChart.resize();
-                } else if (targetId === 'department' && departmentChart) {
-                    departmentChart.resize();
+                try {
+                    if (targetId === 'daily' && attendanceChart) {
+                        // Ensure canvas has proper dimensions first
+                        const canvas = document.getElementById('attendanceChart');
+                        canvas.style.height = '400px';
+                        canvas.height = canvas.offsetHeight;
+                        canvas.width = canvas.offsetWidth;
+                        
+                        attendanceChart.update();
+                    } else if (targetId === 'department' && departmentChart) {
+                        const canvas = document.getElementById('departmentChart');
+                        canvas.style.height = '400px';
+                        canvas.height = canvas.offsetHeight;
+                        canvas.width = canvas.offsetWidth;
+                        
+                        departmentChart.update();
+                    }
+                } catch (error) {
+                    console.error('Error updating chart:', error);
                 }
-            }, 100);
+            }, 150); // Slightly longer delay to ensure DOM is ready
         });
     });
 
-    // Also add this to ensure initial state is correct when page loads
-    document.querySelectorAll('.tab-pane:not(.active)').forEach(function(pane) {
-        pane.style.display = 'none';
-    });
-    
-    // Handle window resize to update charts
+    // Fix window resize handler
+    let resizeTimeout;
     window.addEventListener('resize', function() {
-        if (attendanceChart) attendanceChart.resize();
-        if (departmentChart) departmentChart.resize();
-        
-        // Update department chart legend position based on screen size
-        if (departmentChart) {
-            departmentChart.options.plugins.legend.position = window.innerWidth < 768 ? 'bottom' : 'right';
-            departmentChart.update();
-        }
+        // Debounce resize events
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            try {
+                if (attendanceChart) {
+                    attendanceChart.update();
+                }
+                if (departmentChart) {
+                    departmentChart.options.plugins.legend.position = window.innerWidth < 768 ? 'bottom' : 'right';
+                    departmentChart.update();
+                }
+            } catch (error) {
+                console.error('Error during resize:', error);
+            }
+        }, 250);
     });
 });
 </script>
