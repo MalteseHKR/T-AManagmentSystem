@@ -88,8 +88,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (secondsLeft <= 0) {
                 clearInterval(modalCountdown);
-                // Log the user out
-                document.getElementById('logout-form').submit();
+                // Fix: Properly submit the logout form with POST method
+                const logoutForm = document.getElementById('logout-form');
+                if (logoutForm) {
+                    logoutForm.submit(); // This will use the form's POST method and include the CSRF token
+                }
             }
         }, countdownInterval);
     }
@@ -99,8 +102,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Clear the modal countdown
         clearInterval(modalCountdown);
         
-        // Make AJAX call to extend session
-        fetch('{{ route("extend-session") }}', {
+        // Make AJAX call to extend session - fix the URL from extend-session to session.extend
+        fetch('{{ route("session.extend") }}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

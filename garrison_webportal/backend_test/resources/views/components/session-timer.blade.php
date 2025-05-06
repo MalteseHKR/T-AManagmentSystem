@@ -53,11 +53,20 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('session-timer-minutes-display').textContent = "Expired";
             document.getElementById('session-timer-display').classList.add('text-danger');
             
-            // Session expired, show warning after a slight delay
-            setTimeout(function() {
-                alert('Your session has expired. You will be redirected to login page.');
-                window.location.href = "{{ route('logout') }}";
-            }, 1000);
+            // Create and submit a logout form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = "{{ route('logout') }}";
+            form.style.display = 'none';
+            
+            const csrfToken = document.createElement('input');
+            csrfToken.type = 'hidden';
+            csrfToken.name = '_token';
+            csrfToken.value = '{{ csrf_token() }}';
+            
+            form.appendChild(csrfToken);
+            document.body.appendChild(form);
+            form.submit();
             
             return;
         }
